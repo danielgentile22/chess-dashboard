@@ -2,14 +2,22 @@ services:
   - type: web
     name: chess-stats-dashboard
     env: python
+    region: oregon
+    plan: free
     buildCommand: pip install -r requirements.txt
-    # gunicorn uses the module-level `server` (Flask WSGI) exposed in app.py
-    startCommand: gunicorn app:server --bind 0.0.0.0:$PORT
+    # gunicorn targets the module-level Flask WSGI object in app.py
+    startCommand: gunicorn app:server --config gunicorn.conf.py
     envVars:
-      # Path to your PGN file relative to the repo root
+      # Path to your PGN file relative to the repo root.
       - key: PGN_PATH
         value: "USCF OTB FULL.pgn"
-      # Your name as it appears in the PGN White/Black headers.
-      # Leave empty to auto-detect (most frequent name in the file).
+      # Your name exactly as it appears in the PGN White/Black headers.
+      # Leave empty to auto-detect (most frequent name across all games).
       - key: PLAYER_NAME
         value: ""
+      # Gunicorn worker count — 2 is fine for a personal dashboard.
+      - key: WEB_CONCURRENCY
+        value: "2"
+      # Set to "debug" for verbose gunicorn logs.
+      - key: LOG_LEVEL
+        value: "info"

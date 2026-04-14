@@ -1,0 +1,18 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8050:8050"
+    environment:
+      - PGN_PATH=USCF OTB FULL.pgn
+      - PLAYER_NAME=
+      - DEBUG=false
+    volumes:
+      # Mount the PGN file so you can swap it without rebuilding
+      - .:/app:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
