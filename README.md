@@ -1,24 +1,43 @@
 # Chess Stats Dashboard
 
-An interactive analytics dashboard for your over-the-board chess games, built with Python and Plotly Dash. Load any PGN file and explore your game history through filterable charts and sortable tables — all in the browser.
+[![CI](https://github.com/danielgentile22/uscf-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/danielgentile22/uscf-dashboard/actions/workflows/ci.yml)
+
+An interactive analytics dashboard for your over-the-board chess games, built with Python and Plotly Dash. Drop in any PGN file and explore your entire game history through a dark-themed, fully filterable interface — all in the browser, no database required.
 
 ---
 
 ## Features
 
+### Filters
+A persistent filter bar lets you slice every chart simultaneously:
+
+| Filter | Options |
+|---|---|
+| **Presets** | All Games · Last 20 · This Year · White only · Black only · Wins only |
+| **Color** | White / Black checkboxes |
+| **Outcome** | Win / Draw / Loss checkboxes |
+| **Termination** | Multi-select (Checkmate, Resignation, Timeout, …) |
+| **Date range** | Calendar date picker |
+| **Event** | Multi-select tournament picker |
+| **Move count** | Range slider (e.g. games between 20–60 moves) |
+
+### Dashboard Sections
+
 | Section | What you get |
 |---|---|
-| **Filters** | Slice by color (White/Black), outcome (Win/Draw/Loss), termination type, and date range |
-| **Streaks** | Longest unbeaten run, longest win streak, and current streak |
-| **Win/Draw/Loss** | Pie chart of outcomes for the filtered set |
-| **Termination breakdown** | Bar chart of how your games ended (checkmate, resignation, timeout, …) |
-| **Opponent analysis** | Stacked W/D/L bar for every opponent you've faced more than once |
-| **Cumulative win rate** | Line chart showing how your win % has evolved game-by-game |
-| **Rating over time** | Your rating as recorded in the PGN headers, one point per day |
-| **Event performance** | Stacked W/D/L bar per tournament + a table with score, best/worst opponent |
-| **All games table** | Filterable, sortable table of every game with all key columns |
+| **KPI Bar** | 10 live cards: games, win %, draw %, loss %, current rating, peak rating, FIDE performance rating, longest win streak, unique opponents, favourite opening |
+| **Overview** | Streak badge visualiser (last 20 games as W/D/L icons) · WDL donut chart · Termination breakdown bar |
+| **Timeline** | Cumulative win-rate line chart · Rating over time with linear trend overlay |
+| **Openings** | ECO family breakdown (A/B/C/D/E) · Full opening detail table sortable by W/D/L |
+| **Opponents** | Stacked W/D/L bar per opponent · Head-to-head deep-dive (select any opponent for a full stats card + game list) |
+| **Strength** | Outcome by opponent rating bucket · Outcome vs. rating scatter plot |
+| **Game Length** | Move-count histogram · Statistics card (mean, median, shortest, longest) |
+| **Activity** | Games per month · Win rate by day of week |
+| **Events** | Performance per tournament · Selectable event table → per-event game list + performance rating |
+| **Milestones** | Chronological timeline of personal bests (rating highs, streak records, first win, etc.) |
+| **All Games** | Full filterable, sortable DataTable of every game |
 
-All chart cards are **resizable** — drag the bottom-right corner to fit your screen.
+All charts are dark-themed (GitHub-inspired palette) and update instantly when any filter changes.
 
 ---
 
@@ -29,26 +48,26 @@ All chart cards are **resizable** — drag the bottom-right corner to fit your s
 - Python 3.9 or newer
 - A PGN export of your games (USCF, FIDE, Lichess, Chess.com, etc.)
 
-### Install
+### Install with Make (recommended)
 
 ```bash
 git clone https://github.com/danielgentile22/uscf-dashboard.git
 cd uscf-dashboard
+make install        # creates .venv and installs runtime deps
+make run PGN="your-games.pgn"
+```
+
+Then open [http://localhost:8050](http://localhost:8050).
+
+### Install manually
+
+```bash
+git clone https://github.com/danielgentile22/uscf-dashboard.git
+cd uscf-dashboard
+python3 -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-### Run locally
-
-```bash
 python app.py --pgn "your-games.pgn"
-```
-
-Then open [http://localhost:8050](http://localhost:8050) in your browser.
-
-If your name isn't automatically detected, pass it explicitly:
-
-```bash
-python app.py --pgn "your-games.pgn" --player "Last, First"
 ```
 
 ### CLI options
@@ -59,24 +78,68 @@ python app.py --pgn "your-games.pgn" --player "Last, First"
 | `--player` | auto-detected | Your name as it appears in PGN headers |
 | `--host` | `127.0.0.1` | Host to bind to |
 | `--port` | `8050` | Port to listen on |
-| `--debug` | off | Enable Dash debug/hot-reload mode |
+| `--debug` | off | Enable Dash hot-reload mode |
+
+If your name isn't auto-detected, pass it explicitly:
+
+```bash
+python app.py --pgn "your-games.pgn" --player "Last, First"
+```
+
+---
+
+## Developer Workflow
+
+All common tasks are wrapped in the `Makefile`:
+
+```bash
+make help           # list all targets
+make install-dev    # install runtime + dev deps (pytest, ruff, mypy)
+make test           # run pytest with coverage report
+make lint           # run ruff (auto-fix)
+make typecheck      # run mypy on pgn_stats_core.py
+make run-debug      # start with hot-reload
+make docker-up      # build & run in Docker
+```
+
+---
+
+## Running with Docker
+
+```bash
+# Build and run
+docker compose up --build
+
+# Or just build the image
+docker build -t chess-stats .
+docker run -p 8050:8050 -e PGN_PATH="USCF OTB FULL.pgn" chess-stats
+```
+
+The `docker-compose.yml` mounts the project directory read-only, so you can swap in a new PGN without rebuilding.
 
 ---
 
 ## Deployment on Render
 
-This repo includes a `render.yaml` that configures a [Render](https://render.com) Web Service.
+This repo includes `render.yaml` for one-click deployment on [Render](https://render.com).
 
 1. **Fork** this repository.
-2. Add your PGN file to the repo root (or update `PGN_PATH` in `render.yaml` to match the filename you use).
-3. Create a **New Web Service** on Render and connect your GitHub repo.
-4. Render will auto-detect `render.yaml` and configure the build and start commands.
-5. Optionally set the `PLAYER_NAME` environment variable in the Render dashboard if auto-detection picks the wrong name.
+2. Place your PGN file in the repo root (or update `PGN_PATH` in `render.yaml`).
+3. Create a **New Web Service** on Render, connect your fork — Render auto-detects `render.yaml`.
+4. Optionally set `PLAYER_NAME` in the Render dashboard if auto-detection is wrong.
 
-The app exposes a module-level `server` (Flask WSGI) that gunicorn targets:
+The start command uses `gunicorn.conf.py` for configuration:
 
 ```
-gunicorn app:server --bind 0.0.0.0:$PORT
+gunicorn app:server --config gunicorn.conf.py
+```
+
+### Railway / Heroku
+
+A `Procfile` is included for platforms that use it:
+
+```
+web: gunicorn app:server --config gunicorn.conf.py
 ```
 
 ---
@@ -90,9 +153,9 @@ Built primarily for **USCF over-the-board PGN exports**, but compatible with any
 | `White` / `Black` | Yes | Used to identify you and your opponents |
 | `Result` | Yes | `1-0`, `0-1`, or `1/2-1/2` |
 | `Date` | Recommended | Enables timeline charts; format `YYYY.MM.DD` |
-| `WhiteElo` / `BlackElo` | Optional | Rating progression and opponent ratings |
-| `Event` | Optional | Tournament / event performance charts |
-| `ECO` / `Opening` | Optional | Opening columns in the games table |
+| `WhiteElo` / `BlackElo` | Optional | Rating progression and opponent strength charts |
+| `Event` | Optional | Tournament performance section |
+| `ECO` / `Opening` | Optional | Opening analysis section |
 | `Termination` | Optional | Termination breakdown chart |
 
 Also tested with Lichess and Chess.com exports.
@@ -103,19 +166,41 @@ Also tested with Lichess and Chess.com exports.
 
 ```
 chess-stats-dashboard/
-├── app.py               # Dash layout, callbacks, CLI entrypoint, gunicorn server
-├── pgn_stats_core.py    # PGN parsing and all statistics functions
-├── requirements.txt     # Python dependencies with minimum versions
-├── render.yaml          # Render deployment configuration
-├── .gitignore
-└── README.md
+├── app.py                   # Entry point — Dash factory, CLI, gunicorn server
+├── config.py                # Environment variable config (PGN_PATH, PORT, …)
+├── data.py                  # Module-level DataFrame singleton
+├── layout.py                # Full Dash layout (skeleton, KPI bar, all sections)
+├── callbacks.py             # All Dash callbacks (20+ focused functions)
+├── styles.py                # Color palette, dark-theme helpers, empty_fig()
+├── pgn_stats_core.py        # PGN parsing and all statistics functions
+├── assets/
+│   └── custom.css           # Dark theme overrides, component styles
+├── tests/
+│   ├── conftest.py          # Shared fixtures (sample PGN, dataframe)
+│   └── test_pgn_stats_core.py  # 21 test classes covering every public function
+├── requirements.txt         # Runtime dependencies
+├── requirements-dev.txt     # Dev dependencies (pytest, ruff, mypy)
+├── pyproject.toml           # Project metadata + tool configuration
+├── Makefile                 # Developer convenience targets
+├── Dockerfile               # Production container (Python 3.11-slim + gunicorn)
+├── docker-compose.yml       # Local Docker orchestration
+├── gunicorn.conf.py         # Gunicorn worker/timeout/logging config
+├── Procfile                 # Railway / Heroku start command
+├── render.yaml              # Render deployment configuration
+└── .github/
+    └── workflows/
+        └── ci.yml           # GitHub Actions: lint → test → typecheck
 ```
 
 ### Key design decisions
 
-- **`pgn_stats_core.py` is framework-agnostic.** All statistics live in plain functions that take a Pandas DataFrame and return a DataFrame or dict. You can import and use them from a notebook or any other frontend without touching the Dash code.
-- **No database.** The entire game set is parsed at startup and stored in a Dash `dcc.Store` (in-browser JSON). Filters run as pure Pandas operations on each callback — fast for typical personal game collections (hundreds to a few thousand games).
-- **Player auto-detection.** If you don't pass `--player`, the most frequent name across all `White`/`Black` headers is used. This is correct for a personal PGN where you appear in every game.
+**`pgn_stats_core.py` is framework-agnostic.** Every statistics function takes a Pandas DataFrame and returns a DataFrame or dict. You can import and call them from a Jupyter notebook or any other frontend without touching any Dash code.
+
+**No database.** The PGN is parsed once at startup and stored in a module-level singleton (`data.py`). All callbacks read from this shared DataFrame — no serialisation overhead, no `dcc.Store` round-trips, instant filter response.
+
+**One filter helper, many callbacks.** All 20+ callbacks share the same `FILTER_INPUTS` list and a single `_get_filtered()` helper. Dash runs independent callbacks in parallel, so all charts update concurrently when you change a filter.
+
+**FIDE performance rating.** Calculated as `PR = avg_opponent_rating + 400 × log10(p / (1 − p))`, capped at ±800 from the average, matching the standard FIDE formula.
 
 ---
 

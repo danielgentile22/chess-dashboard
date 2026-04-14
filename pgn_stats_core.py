@@ -3,43 +3,79 @@ pgn_stats_core.py
 =================
 Core PGN parsing and statistics computation for the Chess Stats Dashboard.
 
-This module handles:
-  - Loading and parsing PGN files into a structured Pandas DataFrame
-  - Player detection from game headers
-  - Derived statistics: win/draw/loss counts, streaks, opponent summaries,
-    event summaries, rating progression, and cumulative win-rate over time
+All public functions are pure (DataFrame in → DataFrame / dict / list out) with
+no dependency on Dash or Plotly, so they can be used from notebooks or scripts.
 
 Public API
 ----------
-load_games_df        Parse a PGN file and return a tidy DataFrame + player name.
-apply_filters        Apply UI filter selections to the DataFrame.
-opponent_summary     W/D/L breakdown per opponent (opponents played >1 game).
-win_draw_loss_counts Raw W/D/L/Unknown counts for a filtered DataFrame.
-win_rate_over_time   Cumulative win-rate per date.
-termination_counts   Count of games by termination type.
-streaks              Longest / current streak stats.
-event_summary        Per-tournament W/D/L, score, and notable opponents.
-player_rating_over_time  Player's own rating per date (last game of each day).
+Parsing
+  load_games_df            Parse a PGN file → tidy DataFrame + player name.
+  apply_filters            Apply UI filter selections to the DataFrame.
+
+Overview
+  win_draw_loss_counts     Raw W/D/L/Unknown counts.
+  termination_counts       Count of games by termination type.
+  streaks                  Longest / current streak stats + last-20 list.
+  kpi_stats                All KPI card values in one call.
+
+Timeline
+  win_rate_over_time       Cumulative win-rate per date.
+  player_rating_over_time  Player's own rating per date.
+
+Opponents
+  opponent_summary         W/D/L per opponent (played >1 game).
+  head_to_head             Full breakdown for one opponent.
+
+Openings
+  opening_summary          W/D/L + win-rate by ECO family and opening name.
+
+Strength analysis
+  opponent_rating_bucket_summary  W/D/L by opponent-rating-difference bucket.
+  outcome_vs_rating_data          Scatter data: opp rating vs outcome number.
+
+Game length
+  game_length_data         Move-count data for histograms + outcome averages.
+
+Activity
+  activity_data            Monthly and day-of-week counts + win rates.
+
+Events / tournaments
+  event_summary            Per-event W/D/L, score, and notable opponents.
+  performance_rating_stats FIDE performance-rating approximation.
+
+Milestones
+  compute_milestones       Auto-detected career milestone games.
 """
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 from typing import Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import chess.pgn
 
 __all__ = [
     "load_games_df",
     "apply_filters",
-    "opponent_summary",
     "win_draw_loss_counts",
-    "win_rate_over_time",
     "termination_counts",
     "streaks",
-    "event_summary",
+    "kpi_stats",
+    "win_rate_over_time",
     "player_rating_over_time",
+    "opponent_summary",
+    "head_to_head",
+    "opening_summary",
+    "opponent_rating_bucket_summary",
+    "outcome_vs_rating_data",
+    "game_length_data",
+    "activity_data",
+    "event_summary",
+    "performance_rating_stats",
+    "compute_milestones",
 ]
 
 
@@ -64,8 +100,7 @@ def _first_present(h: dict, keys: list[str], default: str = "") -> str:
 def safe_int(x) -> Optional[int]:
     """
     Parse a rating-like string to int; return None on any failure.
-
-    Handles values like "1850", "1850P" (provisional), and "?" gracefully.
+    Handles "1850", "1850P" (provisional), and "?" gracefully.
     """
     try:
         if x is None:
@@ -81,11 +116,8 @@ def safe_int(x) -> Optional[int]:
 
 def infer_player_name_from_rows(rows: list[dict]) -> str:
     """
-    Infer the player's name as the most-frequent name appearing in any
-    White or Black header across all parsed games.
-
-    In a personal PGN the player's name dominates, so the modal name is
-    almost always correct.
+    Infer the player name as the most-frequent name in White/Black headers.
+    In a personal PGN the player's name dominates, so the modal name is correct.
     """
     names: list[str] = []
     for r in rows:
@@ -99,45 +131,23 @@ def infer_player_name_from_rows(rows: list[dict]) -> str:
 
 
 def compute_move_counts(game) -> Tuple[int, int]:
-    """
-    Return ``(plies, full_moves)`` for a parsed PGN game node.
-
-    *plies*      – total half-moves (each individual move = 1 ply).
-    *full_moves* – standard move-number count (ceiling of plies / 2).
-    """
+    """Return (plies, full_moves) for a parsed PGN game node."""
     plies = sum(1 for _ in game.mainline_moves())
-    fullmoves = (plies + 1) // 2
-    return plies, fullmoves
+    return plies, (plies + 1) // 2
 
 
 def outcome_for_player(result: str, color: str) -> str:
-    """Map a PGN result string and piece colour to Win / Draw / Loss / Unknown."""
-    if color == "White":
-        if result == "1-0":
-            return "Win"
-        if result == "0-1":
-            return "Loss"
-        if result == "1/2-1/2":
-            return "Draw"
-    elif color == "Black":
-        if result == "0-1":
-            return "Win"
-        if result == "1-0":
-            return "Loss"
-        if result == "1/2-1/2":
-            return "Draw"
-    return "Unknown"
+    """Map a PGN result string + piece colour to Win / Draw / Loss / Unknown."""
+    mapping = {
+        "White": {"1-0": "Win", "0-1": "Loss", "1/2-1/2": "Draw"},
+        "Black": {"0-1": "Win", "1-0": "Loss", "1/2-1/2": "Draw"},
+    }
+    return mapping.get(color, {}).get(result, "Unknown")
 
 
 def winner_from_result(result: str) -> str:
     """Map a PGN result string to White / Black / Draw / Unknown."""
-    if result == "1-0":
-        return "White"
-    if result == "0-1":
-        return "Black"
-    if result == "1/2-1/2":
-        return "Draw"
-    return "Unknown"
+    return {"1-0": "White", "0-1": "Black", "1/2-1/2": "Draw"}.get(result, "Unknown")
 
 
 # ---------------------------------------------------------------------------
@@ -149,41 +159,20 @@ def load_games_df(
     player_name: Optional[str] = None,
 ) -> tuple[pd.DataFrame, str]:
     """
-    Parse a PGN file and return a tidy DataFrame of games together with the
-    detected (or supplied) player name.
+    Parse a PGN file and return a tidy DataFrame + detected player name.
 
     Parameters
     ----------
-    pgn_path : str
-        Filesystem path to a UTF-8 encoded, multi-game PGN file.
-    player_name : str, optional
-        The player's name as it appears in White / Black headers.
-        When omitted the most-frequent name across all games is used.
+    pgn_path    : Path to a UTF-8 encoded, multi-game PGN file.
+    player_name : The player's name as it appears in headers (auto-detected
+                  from most-frequent name when omitted).
 
     Returns
     -------
-    df : pd.DataFrame
-        One row per game.  Key columns:
-
-        Raw headers
-          Index, Date, Time, Event, Site, Round, Board, ECO, Opening,
-          TimeControl, White, WhiteRating, WhiteRatingNum, WhiteID,
-          Black, BlackRating, BlackRatingNum, BlackID,
-          Result, Winner, Termination, Plies, FullMoves
-
-        Perspective columns (relative to the detected player)
-          Color            – "White", "Black", or "Unknown"
-          Opponent         – opponent's name
-          Outcome          – "Win", "Draw", "Loss", or "Unknown"
-          PlayerRating     – player's rating string for that game
-          PlayerRatingNum  – player's rating as int (None if unavailable)
-          OpponentRating   – opponent's rating string
-          OpponentRatingNum – opponent's rating as int (None if unavailable)
-
-    detected : str
-        The player name used to compute perspective columns.
+    df        : One row per game (see column docs in module docstring).
+    detected  : The player name used for all perspective columns.
     """
-    rows = []
+    rows: list[dict] = []
     with open(pgn_path, "r", encoding="utf-8", errors="ignore") as f:
         idx = 0
         while True:
@@ -195,74 +184,47 @@ def load_games_df(
 
             white = _first_present(h, ["white"])
             black = _first_present(h, ["black"])
-
             white_rating = _first_present(h, ["whiteelo", "whiterating", "whiteuscf", "whiteuscfelo"])
             black_rating = _first_present(h, ["blackelo", "blackrating", "blackuscf", "blackuscfelo"])
-
             white_id = _first_present(h, ["whitefideid", "whiteuscfid", "whiteid", "whiteuscf_id"])
             black_id = _first_present(h, ["blackfideid", "blackuscfid", "blackid", "blackuscf_id"])
 
             result = _first_present(h, ["result"])
             termination = _first_present(h, ["termination"]) or "Unknown"
-
             event = _first_present(h, ["event"])
             site = _first_present(h, ["site"])
             round_tag = _first_present(h, ["round"])
             board_tag = _first_present(h, ["board"])
             date = _first_present(h, ["date", "utcdate"])
-            time = _first_present(h, ["utctime", "time"])
-
+            time_tag = _first_present(h, ["utctime", "time"])
             eco = _first_present(h, ["eco"])
             opening = _first_present(h, ["opening"])
             timecontrol = _first_present(h, ["timecontrol"])
-
             plies, fullmoves = compute_move_counts(game)
 
-            rows.append(
-                {
-                    "Index": idx,
-                    "Date": date,
-                    "Time": time,
-                    "Event": event,
-                    "Site": site,
-                    "Round": round_tag,
-                    "Board": board_tag,
-                    "ECO": eco,
-                    "Opening": opening,
-                    "TimeControl": timecontrol,
-                    "White": white,
-                    "WhiteRating": white_rating,
-                    "WhiteRatingNum": safe_int(white_rating),
-                    "WhiteID": white_id,
-                    "Black": black,
-                    "BlackRating": black_rating,
-                    "BlackRatingNum": safe_int(black_rating),
-                    "BlackID": black_id,
-                    "Result": result,
-                    "Winner": winner_from_result(result),
-                    "Termination": termination,
-                    "Plies": plies,
-                    "FullMoves": fullmoves,
-                }
-            )
+            rows.append({
+                "Index": idx, "Date": date, "Time": time_tag,
+                "Event": event, "Site": site, "Round": round_tag, "Board": board_tag,
+                "ECO": eco, "Opening": opening, "TimeControl": timecontrol,
+                "White": white, "WhiteRating": white_rating,
+                "WhiteRatingNum": safe_int(white_rating), "WhiteID": white_id,
+                "Black": black, "BlackRating": black_rating,
+                "BlackRatingNum": safe_int(black_rating), "BlackID": black_id,
+                "Result": result, "Winner": winner_from_result(result),
+                "Termination": termination, "Plies": plies, "FullMoves": fullmoves,
+            })
 
     if not rows:
         return pd.DataFrame(), (player_name or "")
 
     df = pd.DataFrame(rows)
-
-    # Parse date robustly; coerce unknown patterns (e.g. "????.??.??") to NaT.
     df["Date_dt"] = pd.to_datetime(
         df["Date"].replace("????.??.??", None),
-        errors="coerce",
-        format="%Y.%m.%d",
+        errors="coerce", format="%Y.%m.%d",
     )
 
     detected = player_name or infer_player_name_from_rows(rows)
 
-    # ------------------------------------------------------------------
-    # Perspective columns (relative to the detected player)
-    # ------------------------------------------------------------------
     is_white = df["White"] == detected
     is_black = df["Black"] == detected
 
@@ -278,12 +240,12 @@ def load_games_df(
         lambda r: outcome_for_player(r["Result"], r["Color"]), axis=1
     )
 
-    # Player's own rating (string + numeric) and opponent's rating
+    # Perspective ratings
     df["PlayerRating"] = ""
     df.loc[is_white, "PlayerRating"] = df.loc[is_white, "WhiteRating"]
     df.loc[is_black, "PlayerRating"] = df.loc[is_black, "BlackRating"]
 
-    df["PlayerRatingNum"] = None
+    df["PlayerRatingNum"] = pd.array([None] * len(df), dtype="object")
     df.loc[is_white, "PlayerRatingNum"] = df.loc[is_white, "WhiteRatingNum"]
     df.loc[is_black, "PlayerRatingNum"] = df.loc[is_black, "BlackRatingNum"]
     df["PlayerRatingNum"] = pd.to_numeric(df["PlayerRatingNum"], errors="coerce")
@@ -292,10 +254,13 @@ def load_games_df(
     df.loc[is_white, "OpponentRating"] = df.loc[is_white, "BlackRating"]
     df.loc[is_black, "OpponentRating"] = df.loc[is_black, "WhiteRating"]
 
-    df["OpponentRatingNum"] = None
+    df["OpponentRatingNum"] = pd.array([None] * len(df), dtype="object")
     df.loc[is_white, "OpponentRatingNum"] = df.loc[is_white, "BlackRatingNum"]
     df.loc[is_black, "OpponentRatingNum"] = df.loc[is_black, "WhiteRatingNum"]
     df["OpponentRatingNum"] = pd.to_numeric(df["OpponentRatingNum"], errors="coerce")
+
+    # Rating difference: positive = opponent is higher-rated (harder game)
+    df["RatingDiff"] = df["OpponentRatingNum"] - df["PlayerRatingNum"]
 
     return df, detected
 
@@ -311,147 +276,96 @@ def apply_filters(
     terminations: list[str],
     date_start: Optional[str],
     date_end: Optional[str],
+    events: Optional[list[str]] = None,
+    min_moves: Optional[int] = None,
+    max_moves: Optional[int] = None,
+    min_opp_rating: Optional[int] = None,
+    max_opp_rating: Optional[int] = None,
 ) -> pd.DataFrame:
     """
-    Apply UI filter selections to *df* and return the filtered copy.
+    Apply UI filter selections to *df* and return a filtered copy.
 
-    Parameters
-    ----------
-    colors       : list of "White" / "Black" to keep (empty = keep all).
-    outcomes     : list of "Win" / "Draw" / "Loss" to keep (empty = keep all).
-    terminations : list of termination strings to keep (empty = keep all).
-    date_start   : ISO date string for the lower bound (inclusive), or None.
-    date_end     : ISO date string for the upper bound (inclusive), or None.
+    All list parameters: empty list / None means keep all values.
     """
     out = df.copy()
-
     if colors:
         out = out[out["Color"].isin(colors)]
-
     if outcomes:
         out = out[out["Outcome"].isin(outcomes)]
-
     if terminations:
         out = out[out["Termination"].isin(terminations)]
-
+    if events:
+        out = out[out["Event"].isin(events)]
     if date_start or date_end:
         out = out[out["Date_dt"].notna()]
         if date_start:
             out = out[out["Date_dt"] >= pd.to_datetime(date_start)]
         if date_end:
             out = out[out["Date_dt"] <= pd.to_datetime(date_end)]
-
+    if min_moves is not None:
+        out = out[out["FullMoves"] >= min_moves]
+    if max_moves is not None:
+        out = out[out["FullMoves"] <= max_moves]
+    if min_opp_rating is not None:
+        out = out[out["OpponentRatingNum"].notna() & (out["OpponentRatingNum"] >= min_opp_rating)]
+    if max_opp_rating is not None:
+        out = out[out["OpponentRatingNum"].notna() & (out["OpponentRatingNum"] <= max_opp_rating)]
     return out
 
 
 # ---------------------------------------------------------------------------
-# Derived statistics
+# Overview statistics
 # ---------------------------------------------------------------------------
 
-def opponent_summary(df_filtered: pd.DataFrame) -> pd.DataFrame:
-    """
-    Return a DataFrame of opponents played more than once, with W/D/L counts.
-
-    Columns: Opponent, Games, Win, Draw, Loss
-    Sorted by Games desc, then Win desc.
-    """
-    if df_filtered.empty:
-        return pd.DataFrame(columns=["Opponent", "Games", "Win", "Draw", "Loss"])
-
-    pivot = (
-        df_filtered.groupby(["Opponent", "Outcome"])
-        .size()
-        .unstack(fill_value=0)
-        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
-    )
-
-    pivot["Games"] = pivot.sum(axis=1)
-    pivot = pivot[pivot["Games"] > 1]
-
-    out = pivot.reset_index()[["Opponent", "Games", "Win", "Draw", "Loss"]]
-    return out.sort_values(["Games", "Win"], ascending=[False, False])
-
-
-def win_draw_loss_counts(df_filtered: pd.DataFrame) -> pd.Series:
-    """Return a Series with counts for Win, Draw, Loss, and Unknown outcomes."""
-    return df_filtered["Outcome"].value_counts().reindex(
+def win_draw_loss_counts(df: pd.DataFrame) -> pd.Series:
+    """Return a Series with counts for Win, Draw, Loss, Unknown outcomes."""
+    return df["Outcome"].value_counts().reindex(
         ["Win", "Draw", "Loss", "Unknown"], fill_value=0
     )
 
 
-def win_rate_over_time(df_filtered: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute the cumulative win rate over time for dated games.
-
-    Excludes games with Unknown outcome. Returns one row per date (the
-    last game of that day sets the cumulative rate).
-
-    Columns: Date_dt, CumGames, CumWins, WinRate
-    """
-    if df_filtered.empty:
-        return pd.DataFrame(columns=["Date_dt", "CumGames", "CumWins", "WinRate"])
-
-    d = df_filtered[df_filtered["Date_dt"].notna()].copy()
-    d = d[d["Outcome"].isin(["Win", "Draw", "Loss"])].sort_values("Date_dt")
-    if d.empty:
-        return pd.DataFrame(columns=["Date_dt", "CumGames", "CumWins", "WinRate"])
-
-    d["IsWin"] = (d["Outcome"] == "Win").astype(int)
-    d["CumGames"] = d["IsWin"].expanding().count().astype(int)
-    d["CumWins"] = d["IsWin"].expanding().sum().astype(int)
-    d["WinRate"] = (d["CumWins"] / d["CumGames"]) * 100.0
-
-    return d.groupby("Date_dt").tail(1)[["Date_dt", "CumGames", "CumWins", "WinRate"]]
-
-
-def termination_counts(df_filtered: pd.DataFrame) -> pd.DataFrame:
-    """Return a DataFrame of (Termination, Games) counts, descending by count."""
-    if df_filtered.empty:
+def termination_counts(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a (Termination, Games) DataFrame, descending by count."""
+    if df.empty:
         return pd.DataFrame(columns=["Termination", "Games"])
-    c = df_filtered["Termination"].value_counts().reset_index()
+    c = df["Termination"].value_counts().reset_index()
     c.columns = ["Termination", "Games"]
     return c
 
 
-def streaks(df_filtered: pd.DataFrame) -> dict:
+def streaks(df: pd.DataFrame) -> dict:
     """
     Compute streak statistics over the filtered game set.
 
     Games are ordered by Date_dt ascending (undated games placed last),
-    with ties broken by Index.
+    ties broken by Index.
 
-    Returns a dict with:
-      longest_streak_no_loss      – longest run of consecutive Win/Draw games
-      longest_streak_wins_only    – longest run of consecutive Win games
-      current_streak_same_outcome – consecutive games at the end matching the
-                                    most-recent outcome
-      current_streak_outcome      – the outcome label for the current streak
+    Returns dict keys:
+      longest_streak_no_loss, longest_streak_wins_only,
+      current_streak_same_outcome, current_streak_outcome, last_20
     """
-    if df_filtered.empty:
+    if df.empty:
         return {
             "longest_streak_no_loss": 0,
             "longest_streak_wins_only": 0,
             "current_streak_same_outcome": 0,
             "current_streak_outcome": "N/A",
+            "last_20": [],
         }
 
-    d = df_filtered.copy()
-    d["_date_sort"] = d["Date_dt"].fillna(pd.Timestamp.max)
-    d = d.sort_values(["_date_sort", "Index"])
+    d = df.copy()
+    d["_ds"] = d["Date_dt"].fillna(pd.Timestamp.max)
+    d = d.sort_values(["_ds", "Index"])
     outcomes = d["Outcome"].tolist()
 
-    longest_no_loss = 0
-    cur_no_loss = 0
-    longest_wins = 0
-    cur_wins = 0
-
+    longest_no_loss = cur_no_loss = 0
+    longest_wins = cur_wins = 0
     for o in outcomes:
         if o in ("Win", "Draw"):
             cur_no_loss += 1
             longest_no_loss = max(longest_no_loss, cur_no_loss)
         else:
             cur_no_loss = 0
-
         if o == "Win":
             cur_wins += 1
             longest_wins = max(longest_wins, cur_wins)
@@ -471,54 +385,370 @@ def streaks(df_filtered: pd.DataFrame) -> dict:
         "longest_streak_wins_only": longest_wins,
         "current_streak_same_outcome": current_same,
         "current_streak_outcome": last_outcome,
+        "last_20": outcomes[-20:],
     }
 
 
-def player_rating_over_time(df_filtered: pd.DataFrame) -> pd.DataFrame:
+def kpi_stats(df: pd.DataFrame) -> dict:
     """
-    Return the player's own rating per date, using the last game of each day.
+    Compute all KPI card values for the (possibly filtered) DataFrame.
 
-    Columns: Date_dt, PlayerRating
-    Excludes games with missing Date_dt or missing PlayerRatingNum.
+    Returns dict with keys: total_games, win_pct, draw_pct, loss_pct,
+    current_rating, peak_rating, avg_opp_rating, performance_rating,
+    longest_win_streak, unique_opponents, favorite_opening, favorite_eco_family.
     """
-    if df_filtered.empty:
+    empty = {
+        "total_games": 0, "win_pct": 0.0, "draw_pct": 0.0, "loss_pct": 0.0,
+        "current_rating": None, "peak_rating": None, "avg_opp_rating": None,
+        "performance_rating": None, "longest_win_streak": 0,
+        "unique_opponents": 0, "favorite_opening": "—", "favorite_eco_family": "—",
+    }
+    if df.empty:
+        return empty
+
+    counts = win_draw_loss_counts(df)
+    decisive = counts["Win"] + counts["Draw"] + counts["Loss"]
+
+    rated_player = df["PlayerRatingNum"].dropna()
+    current_rating: Optional[int] = None
+    dated = df[df["Date_dt"].notna() & df["PlayerRatingNum"].notna()]
+    if not dated.empty:
+        current_rating = int(dated.sort_values("Date_dt").iloc[-1]["PlayerRatingNum"])
+    peak_rating = int(rated_player.max()) if not rated_player.empty else None
+
+    rated_opp = df["OpponentRatingNum"].dropna()
+    avg_opp_rating = round(float(rated_opp.mean()), 0) if not rated_opp.empty else None
+
+    pr = performance_rating_stats(df)
+    s = streaks(df)
+
+    openings = df["Opening"].replace("", pd.NA).dropna()
+    fav_opening = str(openings.value_counts().index[0]) if not openings.empty else "—"
+    eco_vals = df["ECO"].replace("", pd.NA).dropna()
+    fav_eco = str(eco_vals.value_counts().index[0])[0].upper() if not eco_vals.empty else "—"
+
+    return {
+        "total_games": len(df),
+        "win_pct": round(counts["Win"] / decisive * 100, 1) if decisive else 0.0,
+        "draw_pct": round(counts["Draw"] / decisive * 100, 1) if decisive else 0.0,
+        "loss_pct": round(counts["Loss"] / decisive * 100, 1) if decisive else 0.0,
+        "current_rating": current_rating,
+        "peak_rating": peak_rating,
+        "avg_opp_rating": avg_opp_rating,
+        "performance_rating": pr.get("performance_rating"),
+        "longest_win_streak": s["longest_streak_wins_only"],
+        "unique_opponents": int(df["Opponent"].nunique()),
+        "favorite_opening": fav_opening,
+        "favorite_eco_family": fav_eco,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Timeline
+# ---------------------------------------------------------------------------
+
+def win_rate_over_time(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Cumulative win rate over time (one row per date, dated games only,
+    excluding Unknown outcomes). Columns: Date_dt, CumGames, CumWins, WinRate.
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["Date_dt", "CumGames", "CumWins", "WinRate"])
+    d = df[df["Date_dt"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
+    d = d.sort_values("Date_dt")
+    if d.empty:
+        return pd.DataFrame(columns=["Date_dt", "CumGames", "CumWins", "WinRate"])
+    d["IsWin"] = (d["Outcome"] == "Win").astype(int)
+    d["CumGames"] = d["IsWin"].expanding().count().astype(int)
+    d["CumWins"] = d["IsWin"].expanding().sum().astype(int)
+    d["WinRate"] = (d["CumWins"] / d["CumGames"]) * 100.0
+    return d.groupby("Date_dt").tail(1)[["Date_dt", "CumGames", "CumWins", "WinRate"]]
+
+
+def player_rating_over_time(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Player's own rating per date (last game of each day).
+    Columns: Date_dt, PlayerRating. Excludes games with missing date or rating.
+    """
+    if df.empty:
         return pd.DataFrame(columns=["Date_dt", "PlayerRating"])
-
-    d = df_filtered[df_filtered["Date_dt"].notna()].copy()
-    d = d[d["PlayerRatingNum"].notna()].copy()
-
+    d = df[df["Date_dt"].notna() & df["PlayerRatingNum"].notna()].copy()
     if d.empty:
         return pd.DataFrame(columns=["Date_dt", "PlayerRating"])
-
     d = d.sort_values(["Date_dt", "Index"])
-    return d.groupby("Date_dt").tail(1)[["Date_dt", "PlayerRatingNum"]].rename(
-        columns={"PlayerRatingNum": "PlayerRating"}
+    return (
+        d.groupby("Date_dt").tail(1)[["Date_dt", "PlayerRatingNum"]]
+        .rename(columns={"PlayerRatingNum": "PlayerRating"})
     )
 
 
-def event_summary(df_filtered: pd.DataFrame) -> pd.DataFrame:
+# ---------------------------------------------------------------------------
+# Opponents
+# ---------------------------------------------------------------------------
+
+def opponent_summary(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Summarise performance per tournament / event.
+    Opponents played more than once with W/D/L counts and win rate.
+    Columns: Opponent, Games, Win, Draw, Loss, WinRate. Sorted by Games desc.
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["Opponent", "Games", "Win", "Draw", "Loss", "WinRate"])
+    pivot = (
+        df.groupby(["Opponent", "Outcome"])
+        .size().unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+    )
+    pivot["Games"] = pivot.sum(axis=1)
+    pivot["WinRate"] = (pivot["Win"] / pivot["Games"] * 100).round(1)
+    pivot = pivot[pivot["Games"] > 1]
+    out = pivot.reset_index()[["Opponent", "Games", "Win", "Draw", "Loss", "WinRate"]]
+    return out.sort_values(["Games", "Win"], ascending=[False, False])
 
-    For each Event (sorted by first game date):
-      - Win / Draw / Loss counts and score ("3/5")
-      - Highest-rated opponent faced and the outcome of that game
-      - Lowest-rated opponent faced and the outcome of that game
 
+def head_to_head(df: pd.DataFrame, opponent: str) -> dict:
+    """
+    Full head-to-head breakdown for games against *opponent*.
+
+    Returns dict with keys: total, win, draw, loss,
+    as_white_(w/d/l), as_black_(w/d/l), avg_opp_rating, game_rows.
+    """
+    d = df[df["Opponent"] == opponent].copy()
+    if d.empty:
+        return {"total": 0, "win": 0, "draw": 0, "loss": 0, "game_rows": []}
+    d["_ds"] = d["Date_dt"].fillna(pd.Timestamp.max)
+    d = d.sort_values(["_ds", "Index"])
+
+    def _n(mask) -> int:
+        return int(mask.sum())
+
+    w = d[d["Color"] == "White"]
+    b = d[d["Color"] == "Black"]
+    rated = d["OpponentRatingNum"].dropna()
+
+    return {
+        "total": len(d),
+        "win": _n(d["Outcome"] == "Win"),
+        "draw": _n(d["Outcome"] == "Draw"),
+        "loss": _n(d["Outcome"] == "Loss"),
+        "as_white_w": _n(w["Outcome"] == "Win"),
+        "as_white_d": _n(w["Outcome"] == "Draw"),
+        "as_white_l": _n(w["Outcome"] == "Loss"),
+        "as_black_w": _n(b["Outcome"] == "Win"),
+        "as_black_d": _n(b["Outcome"] == "Draw"),
+        "as_black_l": _n(b["Outcome"] == "Loss"),
+        "avg_opp_rating": round(float(rated.mean()), 0) if not rated.empty else None,
+        "game_rows": d[[
+            "Date", "Color", "Outcome", "Result",
+            "PlayerRating", "OpponentRating", "Event", "Round", "Termination", "FullMoves",
+        ]].rename(columns={"PlayerRating": "MyRating", "OpponentRating": "OppRating"})
+        .to_dict("records"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Openings
+# ---------------------------------------------------------------------------
+
+_ECO_FAMILY_NAMES = {
+    "A": "A — Flank / Queen's Pawn",
+    "B": "B — Semi-Open",
+    "C": "C — Open",
+    "D": "D — Closed / Semi-Closed",
+    "E": "E — Indian Defences",
+}
+
+
+def opening_summary(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    W/D/L and win-rate at two granularities: ECO family and specific opening.
+
+    Returns (family_df, opening_df).
+    family_df  columns: ECO_Family, FamilyName, Games, Win, Draw, Loss, WinRate
+    opening_df columns: ECO, Opening, Games, Win, Draw, Loss, WinRate
+    """
+    _FC = ["ECO_Family", "FamilyName", "Games", "Win", "Draw", "Loss", "WinRate"]
+    _OC = ["ECO", "Opening", "Games", "Win", "Draw", "Loss", "WinRate"]
+
+    if df.empty:
+        return pd.DataFrame(columns=_FC), pd.DataFrame(columns=_OC)
+
+    d = df.copy()
+    d["ECO"] = d["ECO"].fillna("").astype(str).str.strip()
+    d["Opening"] = d["Opening"].fillna("").astype(str).str.strip()
+    d["ECO_Family"] = d["ECO"].apply(lambda x: x[0].upper() if x else "?")
+    has_eco = d[d["ECO_Family"] != "?"].copy()
+    if has_eco.empty:
+        return pd.DataFrame(columns=_FC), pd.DataFrame(columns=_OC)
+
+    def _build_pivot(frame, key):
+        pv = (
+            frame.groupby([key, "Outcome"]).size()
+            .unstack(fill_value=0)
+            .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+        )
+        pv["Games"] = pv.sum(axis=1)
+        pv["WinRate"] = (pv["Win"] / pv["Games"] * 100).round(1)
+        return pv.reset_index()
+
+    fam = _build_pivot(has_eco, "ECO_Family")
+    fam.columns = ["ECO_Family", "Win", "Draw", "Loss", "Games", "WinRate"]
+    fam["FamilyName"] = fam["ECO_Family"].map(
+        lambda x: _ECO_FAMILY_NAMES.get(x, f"{x} — Other")
+    )
+    fam = fam.sort_values("Games", ascending=False)[_FC]
+
+    opn = (
+        has_eco.groupby(["ECO", "Opening", "Outcome"]).size()
+        .unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+        .reset_index()
+    )
+    opn["Games"] = opn[["Win", "Draw", "Loss"]].sum(axis=1)
+    opn["WinRate"] = (opn["Win"] / opn["Games"] * 100).round(1)
+    opn = opn.sort_values("Games", ascending=False)[_OC]
+
+    return fam, opn
+
+
+# ---------------------------------------------------------------------------
+# Strength analysis
+# ---------------------------------------------------------------------------
+
+_BUCKET_LABELS = [
+    "< −200", "−200 to −101", "−100 to −1",
+    "0 to +99", "+100 to +199", "≥ +200",
+]
+_BUCKET_EDGES = [-math.inf, -200, -100, 0, 100, 200, math.inf]
+
+
+def _rating_bucket(diff: float) -> str:
+    for i in range(len(_BUCKET_EDGES) - 1):
+        if _BUCKET_EDGES[i] <= diff < _BUCKET_EDGES[i + 1]:
+            return _BUCKET_LABELS[i]
+    return _BUCKET_LABELS[-1]
+
+
+def opponent_rating_bucket_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    W/D/L by opponent-rating-difference bucket.
+    RatingDiff = OpponentRatingNum − PlayerRatingNum (positive = stronger opp).
+    Columns: Bucket, Games, Win, Draw, Loss, WinRate.
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["Bucket", "Games", "Win", "Draw", "Loss", "WinRate"])
+    d = df[df["RatingDiff"].notna()].copy()
+    if d.empty:
+        return pd.DataFrame(columns=["Bucket", "Games", "Win", "Draw", "Loss", "WinRate"])
+    d["Bucket"] = d["RatingDiff"].apply(_rating_bucket)
+    pivot = (
+        d.groupby(["Bucket", "Outcome"]).size()
+        .unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+    )
+    pivot["Games"] = pivot.sum(axis=1)
+    pivot["WinRate"] = (pivot["Win"] / pivot["Games"] * 100).round(1)
+    out = pivot.reset_index()[["Bucket", "Games", "Win", "Draw", "Loss", "WinRate"]]
+    order = {b: i for i, b in enumerate(_BUCKET_LABELS)}
+    out["_o"] = out["Bucket"].map(order)
+    return out.sort_values("_o").drop(columns=["_o"])
+
+
+def outcome_vs_rating_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Scatter data: opponent rating vs outcome numeric value.
+    Columns: OpponentRatingNum, OutcomeNum (1/0.5/0), Outcome, Opponent, Date.
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["OpponentRatingNum", "OutcomeNum", "Outcome", "Opponent", "Date"])
+    d = df[
+        df["OpponentRatingNum"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])
+    ].copy()
+    d["OutcomeNum"] = d["Outcome"].map({"Win": 1.0, "Draw": 0.5, "Loss": 0.0})
+    return d[["OpponentRatingNum", "OutcomeNum", "Outcome", "Opponent", "Date"]].copy()
+
+
+# ---------------------------------------------------------------------------
+# Game length
+# ---------------------------------------------------------------------------
+
+def game_length_data(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """
+    Move-count data for histogram charts plus per-outcome averages.
+
+    Returns (hist_df, averages_dict).
+    hist_df  columns: FullMoves, Outcome (decisive games only).
+    averages keys: Win, Draw, Loss → float or None.
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["FullMoves", "Outcome"]), {}
+    d = df[df["Outcome"].isin(["Win", "Draw", "Loss"]) & df["FullMoves"].notna()].copy()
+    avgs = {
+        o: round(float(d[d["Outcome"] == o]["FullMoves"].mean()), 1)
+        if not d[d["Outcome"] == o].empty else None
+        for o in ("Win", "Draw", "Loss")
+    }
+    return d[["FullMoves", "Outcome"]], avgs
+
+
+# ---------------------------------------------------------------------------
+# Activity
+# ---------------------------------------------------------------------------
+
+def activity_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Monthly and day-of-week game counts + win rates.
+
+    Returns (monthly_df, dow_df).
+    monthly_df columns: YearMonth (YYYY-MM str), Games, Win, WinRate.
+    dow_df     columns: DayOfWeek (Mon…Sun), Games, Win, WinRate. Mon→Sun order.
+    """
+    _EM = pd.DataFrame(columns=["YearMonth", "Games", "Win", "WinRate"])
+    _ED = pd.DataFrame(columns=["DayOfWeek", "Games", "Win", "WinRate"])
+    if df.empty:
+        return _EM, _ED
+    d = df[df["Date_dt"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
+    if d.empty:
+        return _EM, _ED
+    d["IsWin"] = (d["Outcome"] == "Win").astype(int)
+    d["YearMonth"] = d["Date_dt"].dt.strftime("%Y-%m")
+    d["DayOfWeek"] = d["Date_dt"].dt.day_name().str[:3]
+
+    m = d.groupby("YearMonth").agg(
+        Games=("IsWin", "count"), Win=("IsWin", "sum")
+    ).reset_index()
+    m["WinRate"] = (m["Win"] / m["Games"] * 100).round(1)
+    m = m.sort_values("YearMonth")
+
+    dow_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    dw = d.groupby("DayOfWeek").agg(
+        Games=("IsWin", "count"), Win=("IsWin", "sum")
+    ).reset_index()
+    dw["WinRate"] = (dw["Win"] / dw["Games"] * 100).round(1)
+    dw["_o"] = dw["DayOfWeek"].map({day: i for i, day in enumerate(dow_order)})
+    dw = dw.sort_values("_o").drop(columns=["_o"])
+
+    return m, dw
+
+
+# ---------------------------------------------------------------------------
+# Events / tournaments
+# ---------------------------------------------------------------------------
+
+def event_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Per-event W/D/L, score, and notable opponents.
     Columns: Event, FirstDate, Games, Win, Draw, Loss, Score,
              HighestOpp, HighestOppRating, HighestOppOutcome,
-             LowestOpp, LowestOppRating, LowestOppOutcome
+             LowestOpp, LowestOppRating, LowestOppOutcome.
     """
     _COLS = [
         "Event", "FirstDate", "Games", "Win", "Draw", "Loss", "Score",
         "HighestOpp", "HighestOppRating", "HighestOppOutcome",
         "LowestOpp", "LowestOppRating", "LowestOppOutcome",
     ]
-
-    if df_filtered.empty:
+    if df.empty:
         return pd.DataFrame(columns=_COLS)
-
-    d = df_filtered.copy()
+    d = df.copy()
     d["Event"] = d["Event"].fillna("").astype(str)
     d = d[d["Event"].str.strip() != ""]
     if d.empty:
@@ -527,50 +757,139 @@ def event_summary(df_filtered: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for event, g in d.groupby("Event", dropna=False):
         first_date = g["Date_dt"].min()
-        first_date_str = first_date.date().isoformat() if pd.notna(first_date) else ""
-
         win = int((g["Outcome"] == "Win").sum())
         draw = int((g["Outcome"] == "Draw").sum())
         loss = int((g["Outcome"] == "Loss").sum())
         games = int(len(g))
-        score = f"{win + 0.5 * draw:g}/{games}"
-
         rated = g[g["OpponentRatingNum"].notna()].copy()
-
-        high_name = high_rating = high_outcome = ""
-        low_name = low_rating = low_outcome = ""
-
+        hi_n = hi_r = hi_o = lo_n = lo_r = lo_o = ""
         if not rated.empty:
-            high_row = rated.loc[rated["OpponentRatingNum"].idxmax()]
-            low_row = rated.loc[rated["OpponentRatingNum"].idxmin()]
-
-            high_name = str(high_row.get("Opponent", ""))
-            high_rating = int(high_row.get("OpponentRatingNum"))
-            high_outcome = str(high_row.get("Outcome", ""))
-
-            low_name = str(low_row.get("Opponent", ""))
-            low_rating = int(low_row.get("OpponentRatingNum"))
-            low_outcome = str(low_row.get("Outcome", ""))
-
-        rows.append(
-            {
-                "Event": event,
-                "FirstDate": first_date_str,
-                "Games": games,
-                "Win": win,
-                "Draw": draw,
-                "Loss": loss,
-                "Score": score,
-                "HighestOpp": high_name,
-                "HighestOppRating": high_rating,
-                "HighestOppOutcome": high_outcome,
-                "LowestOpp": low_name,
-                "LowestOppRating": low_rating,
-                "LowestOppOutcome": low_outcome,
-            }
-        )
+            hr = rated.loc[rated["OpponentRatingNum"].idxmax()]
+            lr = rated.loc[rated["OpponentRatingNum"].idxmin()]
+            hi_n, hi_r, hi_o = str(hr["Opponent"]), int(hr["OpponentRatingNum"]), str(hr["Outcome"])
+            lo_n, lo_r, lo_o = str(lr["Opponent"]), int(lr["OpponentRatingNum"]), str(lr["Outcome"])
+        rows.append({
+            "Event": event,
+            "FirstDate": first_date.date().isoformat() if pd.notna(first_date) else "",
+            "Games": games, "Win": win, "Draw": draw, "Loss": loss,
+            "Score": f"{win + 0.5 * draw:g}/{games}",
+            "HighestOpp": hi_n, "HighestOppRating": hi_r, "HighestOppOutcome": hi_o,
+            "LowestOpp": lo_n, "LowestOppRating": lo_r, "LowestOppOutcome": lo_o,
+        })
 
     out = pd.DataFrame(rows)
-    out["_sort"] = pd.to_datetime(out["FirstDate"], errors="coerce")
-    out = out.sort_values(["_sort", "Event"]).drop(columns=["_sort"])
-    return out
+    out["_s"] = pd.to_datetime(out["FirstDate"], errors="coerce")
+    return out.sort_values(["_s", "Event"]).drop(columns=["_s"])
+
+
+def performance_rating_stats(df: pd.DataFrame) -> dict:
+    """
+    FIDE performance-rating approximation.
+    Formula: PR = avg(opp_rating) + 400 * log10(p / (1-p))  where p = score%.
+    Only uses games with rated opponents.
+
+    Returns dict: performance_rating, avg_opp_rating, score, score_pct, rated_games.
+    """
+    rated = df[
+        df["OpponentRatingNum"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])
+    ].copy()
+    if rated.empty:
+        return {"performance_rating": None, "avg_opp_rating": None,
+                "score": 0.0, "score_pct": 0.0, "rated_games": 0}
+    wins = int((rated["Outcome"] == "Win").sum())
+    draws = int((rated["Outcome"] == "Draw").sum())
+    total = len(rated)
+    score = wins + 0.5 * draws
+    score_pct = score / total
+    avg_opp = float(rated["OpponentRatingNum"].mean())
+    if score_pct >= 1.0:
+        pr = avg_opp + 800
+    elif score_pct <= 0.0:
+        pr = avg_opp - 800
+    else:
+        pr = avg_opp + 400 * math.log10(score_pct / (1.0 - score_pct))
+    return {
+        "performance_rating": round(pr),
+        "avg_opp_rating": round(avg_opp, 1),
+        "score": score,
+        "score_pct": round(score_pct * 100, 1),
+        "rated_games": total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Milestones
+# ---------------------------------------------------------------------------
+
+def compute_milestones(df: pd.DataFrame) -> list[dict]:
+    """
+    Auto-detect career milestone games, returned as a chronologically sorted list.
+
+    Each item: {date: str, game_num: int, description: str, kind: str}
+    Kinds: 'first', 'win', 'draw', 'loss', 'milestone', 'peak', 'streak'
+    """
+    if df.empty:
+        return []
+
+    d = df.copy()
+    d["_ds"] = d["Date_dt"].fillna(pd.Timestamp.max)
+    d = d.sort_values(["_ds", "Index"]).reset_index(drop=True)
+    d["_gn"] = range(1, len(d) + 1)
+
+    def _date(row) -> str:
+        dt = row.get("Date_dt")
+        return str(dt.date()) if pd.notna(dt) else str(row.get("Date", ""))
+
+    items: list[dict] = []
+
+    def _add(row, desc: str, kind: str):
+        items.append({"date": _date(row), "game_num": int(row["_gn"]),
+                      "description": desc, "kind": kind})
+
+    # First game
+    _add(d.iloc[0], "First recorded game", "first")
+
+    # First Win / Draw / Loss
+    for outcome in ("Win", "Draw", "Loss"):
+        sub = d[d["Outcome"] == outcome]
+        if not sub.empty:
+            r = sub.iloc[0]
+            opp = r.get("Opponent", "")
+            _add(r, f"First {outcome.lower()}" + (f" (vs {opp})" if opp else ""), outcome.lower())
+
+    # Every 10th game
+    for n in range(10, len(d) + 1, 10):
+        r = d[d["_gn"] == n].iloc[0]
+        _add(r, f"Game #{n}", "milestone")
+
+    # Highest rated opponent beaten
+    beaten = d[d["Outcome"] == "Win"][d["OpponentRatingNum"].notna()]
+    if not beaten.empty:
+        r = beaten.loc[beaten["OpponentRatingNum"].idxmax()]
+        _add(r, f"Beat highest-rated opponent: {r['Opponent']} ({int(r['OpponentRatingNum'])})", "peak")
+
+    # Peak rating
+    rated_g = d[d["PlayerRatingNum"].notna()]
+    if not rated_g.empty:
+        r = rated_g.loc[rated_g["PlayerRatingNum"].idxmax()]
+        _add(r, f"Achieved peak rating: {int(r['PlayerRatingNum'])}", "peak")
+
+    # Longest win streak
+    outcomes = d["Outcome"].tolist()
+    best_len = best_start = best_end = 0
+    cur_len = cur_start = 0
+    for i, o in enumerate(outcomes):
+        if o == "Win":
+            if cur_len == 0:
+                cur_start = i
+            cur_len += 1
+            if cur_len > best_len:
+                best_len, best_start, best_end = cur_len, cur_start, i
+        else:
+            cur_len = 0
+    if best_len >= 3:
+        r = d.iloc[best_start]
+        _add(r, f"Start of longest win streak ({best_len} in a row, ended game #{int(d.iloc[best_end]['_gn'])})", "streak")
+
+    items.sort(key=lambda x: x["game_num"])
+    return items
