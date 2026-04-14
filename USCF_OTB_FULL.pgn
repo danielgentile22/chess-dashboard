@@ -291,7 +291,7 @@
 [ChapterName "Daniel Gentile - Vladislav Inchin"]
 [ChapterURL "https://lichess.org/study/6jYtXHGp/iZ0FwyU8"]
 
-1. e4 c5 2. d4 cxd4 3. c3 dxc3 4. Nxc3 d6 5. Bc4 Nf6 6. e5 (6. Nf3 e6 7. Be3 Be7 8. O-O a6 9. Rc1 b5 10. Be2 Bb7 11. Qc2 Nc6) 6... dxe5?? 7. Bxf7+ Kxf7 8. Qxd8 Nc6 9. Qd3 g6 10. Nf3 Bf5 11. Qb5 e4 12. Ne5+ Nxe5 13. Qxe5 Bg7 14. Bg5 Rhe8 15. Bxf6 Bxf6 16. Qd5+ e6 17. Qb3 b6 18. O-O h5 19. Rfe1 Bxc3 20. Qxc3 Rac8 21. Qa3 a5 22. Qb3 Rb8 23. Rac1 Rb7 24. h3 g5 25. Rc6 Reb8 26. Rec1 Kg6 27. Rc7 g4 28. Rxb7 Rxb7 29. hxg4 hxg4 30. Rc6 b5 31. Rxe6+ Bxe6 32. Qxe6+ Kg5 33. Qd5+ Kf6 34. Qxb7 b4 35. Qb6+ Kg7 36. Qxa5 Kf7 37. Qxb4 Ke6 38. Qxe4+ Kd7 39. Qxg4+ Kc7 40. Qe6 Kb7 41. Qd6 Kc8 42. Qe7 Kb8 43. g4 (43. f4 Ka8 44. g4 Kb8 45. f5 Ka8 46. g5 Kb8 47. f6 Ka8 48. f7 Kb8 49. f8=B Ka8 50. g6 Kb8 51. g7 Ka8 52. g8=N Kb8 53. b4 Ka8 54. a4 Kb8 55. a5 Ka8 56. b5 Kb8 57. a6 Ka8 58. b6 Kb8 59. a7+ Ka8 60. b7+ Kxa7 61. b8=Q+ Kxb8 62. Qb7+ Kxb7) 43... Ka8 44. g5 Kb8 45. g6 Ka8 46. g7 Kb8 { 1-0 White wins. } 1-0
+1. e4 c5 2. d4 cxd4 3. c3 dxc3 4. Nxc3 d6 5. Bc4 Nf6 6. e5 (6. Nf3 e6 7. Be3 Be7 8. O-O a6 9. Rc1 b5 10. Be2 Bb7 11. Qc2 Nc6) 6... dxe5?? 7. Bxf7+ Kxf7 8. Qxd8 Nc6 9. Qd3 g6 10. Nf3 Bf5 11. Qb5 e4 12. Ne5+ Nxe5 13. Qxe5 Bg7 14. Bg5 Rhe8 15. Bxf6 Bxf6 16. Qd5+ e6 17. Qb3 b6 18. O-O h5 19. Rfe1 Bxc3 20. Qxc3 Rac8 21. Qa3 a5 22. Qb3 Rb8 23. Rac1 Rb7 24. h3 g5 25. Rc6 Reb8 26. Rec1 Kg6 27. Rc7 g4 28. Rxb7 Rxb7 29. hxg4 hxg4 30. Rc6 b5 { [%csl Gc6,Ge6,Gf5] } 31. Rxe6+ Bxe6 32. Qxe6+ Kg5 33. Qd5+ Kf6 34. Qxb7 b4 35. Qb6+ Kg7 36. Qxa5 Kf7 37. Qxb4 Ke6 38. Qxe4+ Kd7 39. Qxg4+ Kc7 40. Qe6 { [%cal Ge6a6,Ge6e8,Ge6c8] } 40... Kb7 41. Qd6 Kc8 42. Qe7 Kb8 43. g4 (43. f4 Ka8 44. g4 Kb8 45. f5 Ka8 46. g5 Kb8 47. f6 Ka8 48. f7 Kb8 49. f8=B Ka8 50. g6 Kb8 51. g7 Ka8 52. g8=N Kb8 53. b4 Ka8 54. a4 Kb8 55. a5 Ka8 56. b5 Kb8 57. a6 Ka8 58. b6 Kb8 59. a7+ Ka8 60. b7+ Kxa7 61. b8=Q+ Kxb8 62. Qb7+ Kxb7) 43... Ka8 44. g5 Kb8 45. g6 Ka8 46. g7 Kb8 { 1-0 White wins. } 1-0
 
 
 [Event "DMV Late Summer Action (U1500)"]
@@ -1176,6 +1176,252 @@
 [ChapterName "Nicholas R. Brown - Daniel Gentile"]
 [ChapterURL "https://lichess.org/study/6jYtXHGp/FEVsQkDW"]
 
-1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Bg5 dxc4 5. e4 c5 6. dxc5 Qxd1+ 7. Rxd1 Bxc5 8. e5 Nfd7 9. Bxc4 O-O 10. Nf3 Bb4 11. O-O Bxc3 12. bxc3 Nc6 13. Bb5 Ndxe5 14. Nxe5 Nxe5 15. Be7 b6 16. Bxf8 Kxf8 17. Rd8+ Ke7 18. Rfd1 a6 19. Re8+ Kf6 20. Bxa6 Rxa6 21. Rxc8 Rxa2 22. f4 Ng4 23. Re1 g6 24. h3 Nf2 25. Rb8 Nd3 26. Rd1 Nxf4 27. Rf1 Kg5 28. Rf2 Ne2+ 29. Kh2 Nxc3 30. Rxa2 Nxa2 31. Rxb6 Nc3 32. Rb7 Kf6 33. g4 Ne4 34. Kg2 h6 35. Kf3 Ng5+ 36. Kg3 Ke5 37. h4 Ne4+ 38. Kf3 Nd6 39. Rd7 f5 40. g5 hxg5 41. hxg5 Ne4 42. Rg7 Nxg5+ 43. Ke3 Kf6 { 0-1 Black wins. } 0-1
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Bg5 dxc4 5. e4 c5 6. dxc5 Qxd1+ 7. Rxd1 Bxc5 8. e5 Nfd7 9. Bxc4 O-O 10. Nf3 { [%cal Gd7e5] } 10... Bb4 (10... Nxe5 11. Nxe5 f6 12. Nd3 { [%csl Gc5] } 12... fxg5 13. Nxc5) 11. O-O Bxc3 (11... Nxe5 12. Nxe5 f6 13. Nd3 Bxc3 14. bxc3 fxg5) 12. bxc3 Nc6 (12... Nxe5 13. Nxe5 f6 14. Nf3 fxg5 15. Nxg5 { [%csl Gg5,Ge6] } 15... Re8 16. Rfe1 { [%csl Ge6] } 16... Nc6 17. Nxe6 a6 (17... Bxe6 18. Bxe6+ Kh8 19. Bd7) 18. Nc7+ Kh8 19. Nxe8) 13. Bb5 Ndxe5 14. Nxe5 Nxe5 15. Be7 b6 16. Bxf8 Kxf8 17. Rd8+ Ke7 18. Rfd1 a6 19. Re8+ Kf6 20. Bxa6 Rxa6 21. Rxc8 Rxa2 22. f4 Ng4 23. Re1 g6 24. h3 Nf2 25. Rb8 Nd3 26. Rd1 Nxf4 27. Rf1 Kg5 28. Rf2 Ne2+ 29. Kh2 Nxc3 30. Rxa2 Nxa2 31. Rxb6 Nc3 32. Rb7 Kf6 33. g4 Ne4 34. Kg2 h6 35. Kf3 Ng5+ 36. Kg3 Ke5 37. h4 Ne4+ 38. Kf3 Nd6 39. Rd7 f5 40. g5 hxg5 41. hxg5 Ne4 42. Rg7 Nxg5+ 43. Ke3 Kf6 { 0-1 Black wins. } 0-1
+
+
+[Event "ACC Friday Ladder"]
+[Site "Arlington"]
+[Date "2026.02.20"]
+[Round "18"]
+[White "Justin Nordberg"]
+[Black "Daniel Gentile"]
+[Result "1/2-1/2"]
+[WhiteElo "1400"]
+[WhiteFideId "32668352"]
+[BlackElo "1419"]
+[BlackFideId "32487228"]
+[TimeControl "40/80, SD30; +30"]
+[Termination "draw by agreement"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "B10"]
+[Opening "Caro-Kann Defense"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Justin Nordberg - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/WC2Xijm1"]
+
+1. e4 { [%clk 1:20:00] } 1... c6 { [%clk 1:20:00] } 2. c3 { First new move for me. } { [%clk 1:21:00] } 2... d5 { [%clk 1:20:00] } 3. e5 { [%clk 1:21:00] } 3... c5 { [%clk 1:20:00] } 4. d4 { Here it transposed into the c3 line of the advanced caro which I am very comfortable with. } { [%clk 1:21:00] } 4... Nc6 { [%clk 1:20:00] } 5. Nf3 { [%clk 1:21:00] } 5... cxd4 { [%clk 1:21:00] } 6. cxd4 { [%clk 1:22:00] } 6... Bg4 { [%clk 1:21:00] } 7. Be2 { [%clk 1:22:00] } 7... e6 { [%clk 1:21:00] } 8. O-O { [%clk 1:22:00] } 8... Nge7 { [%clk 1:21:00] } 9. Nc3 { [%clk 1:22:00] } 9... Nf5 { [%clk 1:21:00] } 10. Be3 $146 { First move out of my repertoire. } { [%clk 1:22:00] } 10... Bxf3 { This move is fine but as always I'm overthinking the opening. Instead of the simple developing move Be7 I start trying to win the d4 pawn. } { [%clk 1:15:00] } 11. Bxf3 { [%clk 1:21:00] } 11... Qb6 { [%clk 1:15:00] } 12. Na4 { [%clk 1:21:00] } 12... Qb4 { I had seen all of this leading up to this moment but that's why I'm disappointed I played Bxf3 and went for this whole try. My bishop is still not developed and I'm at least two moves away from castling but I'm sending my queen out to try and maybe win a pawn if my opponent makes a mistake. Be7 would have been much better in my opinion. } { [%clk 1:16:00] } 13. a3 { This I hadn't predicted. I believe it goes to show why this whole line was a mistake by me. Now my queen is kicked around and I will not win the d4 pawn but white will get to develop and maybe fix all his problems. I need to get more comfortable with letting the pressure build slowly instead of trying to cash out right away. } { [%clk 1:21:00] } 13... Nxe3 { This move I thought was interesting as white can't take my queen. } { [%clk 1:13:00] } 14. fxe3 { But obviously white doesn't take my queen and ignoring the slightly awkward pawn structure in the center has a very fine position. } { [%clk 1:21:00] } (14. axb4 Nxd1 15. Rfxd1 Bxb4 { I win a pawn. }) 14... Qa5 { [%clk 1:11:00] } 15. Qb3 { Another move I didn't see coming and again an example of white developing with initiative white I am still at least two moves away from castling. } { [%clk 1:19:00] } 15... b5 { I thought this was my best hope for saving the pawn and creating some problems for white. Maybe hopefully... } { [%clk 1:08:00] } 16. Nc3 { [%clk 1:18:00] } 16... b4 { [%clk 1:06:00] } 17. axb4 { [%clk 1:17:00] } 17... Qxb4 { [%clk 1:06:00] } 18. Qxb4 { [%clk 1:17:00] } 18... Bxb4 { And with the queens off the board my uncastled king and lack of space in the center should be less of a problem. } { [%clk 1:06:00] } 19. Rfc1 { [%clk 1:17:00] } 19... Kd7 { I thought this move was best. Bringing my king into the action while still safely hidden away and connecting my rooks. } { [%clk 1:00:00] } 20. Ne2 { This looked like a clean blunder of a pawn by white. } { [%clk 1:15:00] } 20... Bd2 { [%clk 0:59:00] } 21. Rd1 { [%clk 1:14:00] } 21... Bxe3+ { [%clk 0:59:00] } 22. Kh1 { [%clk 1:14:00] } 22... Rhb8 { Bringing a rook into the game seemed important. From b2 my rook attacks a pawn and leaving the a8 rook in place felt necessary as I didn't want the c6 knight to be the sole defender of the a7 pawn. } { [%clk 0:58:00] } 23. Rd3 { [%clk 1:13:00] } 23... Bf2 { I played this move because I was hoping white would allow me to win the d4 pawn as well. I think Bd2 is fine in theory but I mishandled the situation. } { [%clk 0:56:00] } 24. g3 { g2 I had seen but I thought it was pretty harmless as it let me take the pawn on b2. Once g3 was played however I realized that if I took the pawn on b2 my bishop would be stuck. } { [%clk 1:12:00] } (24. Rf1 Bh4 { Here my plan would have been to bring the bishop back and eventually play f6. }) 24... Rxb2 { So instead I went with Rxb2. My bishop is lost but I saw that if white attacks it with the king he looses another pawn. } { [%clk 0:52:00] } (24... Rb4 { This was my original plan. I thought this would work as I would be giving my bishop the option to take on d4. } 25. Rad1 { But then I realized that if white defends d4 further I would not be able to take anymore and Kg2 was coming resulting in the loss of my bishop. }) 25. Rf1 { While if white attacks with the rook I found this exchange sacrifice that left me up three pawns and a knight for a rook. } { [%clk 1:12:00] } (25. Kg2 Bxd4 { As the knight can't take due to the pin. }) 25... Rxe2 { [%clk 0:50:00] } 26. Bxe2 { Only move I considered. } { [%clk 1:12:00] } (26. Rxf2 Rxf2 { White obviously can't take. }) 26... Bxd4 { And this was the position I saw before playing 24... Rxb2. I have three pawns and a knight for a rook. With the a7 pawn being a passer and a 2 pawn majority on the kingside I thought I was definitely not losing and probably winning. } { [%clk 0:51:00] } 27. Rxf7+ { Then my opponent played this move... } { [%clk 1:11:00] } 27... Ke8 { At least I realized white was threatening to skewer my king and win the rook. } { [%clk 0:50:00] } 28. Rxg7 { [%clk 1:11:00] } 28... Rd8 { The skewer was threatened again so I had to bring my rook closer so my king could defend. I was debating between Rd8 and Rc8. Still don't know which is better. Rd8 places my rook behind the passed pawn on d5 and Rc8 places my rook on the open file allowing for checks and more mobility for the rook. } { [%clk 0:48:00] } 29. Rxh7 { [%clk 1:10:00] } 29... Bxe5 { Here I was pretty annoyed with myself so I wasn't really calculating much. I thought that removing another pawn and being left with 3 passed pawns gave me the best odds. } { [%clk 0:48:00] } 30. Bh5+ { [%clk 1:08:00] } 30... Kf8 { [%clk 0:48:00] } 31. Rf3+ { [%clk 1:08:00] } 31... Kg8 { [%clk 0:48:00] } 32. Rff7 { After this series of checks and Rff7 I felt like white wasn't playing this very well. His rooks here threaten very little. } { [%clk 1:08:00] } 32... d4 { As I mentioned before I was a little tilted so I wasn't calculating much at all. I saw white had no significant checks and just decided to push my pawn. } { [%clk 0:48:00] } 33. Bg4 { [%clk 1:07:00] } 33... d3 { Here I was convinced that white would play Bxe6. } { [%clk 0:47:00] } 34. Rd7 { This looked pretty annoying but I didn't really see anything fatal. If at any point white takes my rook on d8 I can take back the rook on h7. } { [%clk 1:07:00] } (34. Bxe6 { After which I would have kept pushing... } 34... d2 35. Rd7+ Kf8 36. Rhf7+ Ke8 { Looking at this now maybe I would have been fine. But in the moment I thought the capture on e6 would have been very bad news for me. } 37. Rxd8+ Nxd8) 34... Nd4 { So I defended the pawn on e6 and blocked the rooks view of the d3 pawn. } { [%clk 0:44:00] } 35. Rxd8+ { [%clk 1:05:00] } 35... Kxh7 { As mentioned... } { [%clk 0:44:00] } 36. Rd7+ { [%clk 1:06:00] } 36... Kg6 { [%clk 0:44:00] } 37. Rxa7 { [%clk 1:06:00] } 37... Kg5 { [%clk 0:43:00] } 38. Bd1 { Here I got hopeful again. The position felt most definitely losing but it wasn't clear to me how white would have to go about it. } { [%clk 1:06:00] } 38... Kf5 { [%clk 0:43:00] } 39. Kg2 { [%clk 1:05:00] } 39... Ke4 { I have the most forward pushed pawn and the most active king. I also noticed that black's rook on a7 was a weakness. If black ever placed the king on the a7-g1 diagonal I might be able to fork it. } { [%clk 0:42:00] } 40. Kf2 { [%clk 1:35:00] } 40... Ne2 { Here I found this move and I was pretty happy with it. In my mind white had to move the rook as losing the exchange advantage would mean losing all his advantage. } { [%clk 1:11:00] } 41. Bxe2 { And here white fell right into my trap. } { [%clk 1:34:00] } (41. Ra2 { White also would have had to be careful of where the rook went as there are potential tactics. } 41... Nc3 42. Ra1 Nxd1+ 43. Rxd1 Kd4 { Probably still losing for me but not super easy. }) 41... Bd4+ { [%clk 1:11:00] } 42. Ke1 { [%clk 1:34:00] } 42... Bxa7 { [%clk 1:11:00] } 43. Bg4 { Now we have an opposite colored bishop endgame with two pawns per side. I had a feeling this would be a draw but I knew that if it was winning for someone it was me as my pawns are much more advanced. I feel like there was a way for me to win this or at least try better for a win. } { [%clk 1:34:00] } 43... e5 { [%clk 1:11:00] } 44. h4 { [%clk 1:34:00] } 44... Be3 { [%clk 1:10:00] } 45. h5 { [%clk 1:33:00] } 45... d2+ { This was the move I later regretted. IDK if it changed anything but it felt like putting all my pawns on dark squares meant that white could easily blockade with his king a bishop leaving me with no hopes for a win. } { [%clk 1:09:00] } 46. Ke2 { [%clk 1:33:00] } 46... Kd4 { [%clk 1:09:00] } 47. Bf3 { [%clk 1:33:00] } 47... Bg5 { [%clk 1:07:00] } 48. Bg4 { [%clk 1:32:00] } 48... e4 { [%clk 1:05:00] } 49. Kd1 { [%clk 1:32:00] } 49... e3 { [%clk 1:05:00] } 50. Bf3 { And that's kind of what happened. } { [%clk 1:32:00] } 50... Kd3 { [%clk 1:05:00] } 51. Be2+ { [%clk 1:32:00] } 51... Ke4 { [%clk 1:04:00] } 52. Bg4 { Here I saw no way forward and offered a draw which my opponent obviously accepted. } { [%clk 1:32:00] } 1/2-1/2
+
+
+[Event "ACC Friday Ladder"]
+[Site "Arlington"]
+[Date "2026.02.27"]
+[Round "19"]
+[White "Christian Miles"]
+[Black "Daniel Gentile"]
+[Result "1-0"]
+[WhiteElo "1335"]
+[WhiteFideId "15569691"]
+[BlackElo "1419"]
+[BlackFideId "32487228"]
+[TimeControl "40/80, SD30; +30"]
+[Termination "loss by resignation"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "A00"]
+[Opening "Hungarian Opening: Catalan Formation"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Christian Miles - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/XkjoTFjU"]
+
+1. g3 { [%clk 1:21:00] } 1... d5 { [%clk 1:20:00] } 2. Bg2 { [%clk 1:21:00] } 2... e6 { [%clk 1:20:00] } 3. d3 { [%clk 1:22:00] } 3... Nf6 { [%clk 1:20:00] } 4. e3 { [%clk 1:22:00] } 4... Bd6 { [%clk 1:19:00] } 5. Ne2 { [%clk 1:22:00] } 5... c5 { [%clk 1:18:00] } 6. b3 { [%clk 1:22:00] } 6... O-O { [%clk 1:18:00] } 7. Bb2 { [%clk 1:23:00] } 7... Nbd7 { [%clk 1:14:00] } 8. Nd2 { [%clk 1:23:00] } 8... Re8 { [%clk 1:12:00] } 9. h3 { [%clk 1:23:00] } 9... e5 { [%clk 1:11:00] } 10. c4 { [%clk 1:22:00] } 10... d4 { [%clk 1:09:00] } 11. e4 { [%clk 1:22:00] } 11... Qc7 { [%clk 1:07:00] } 12. g4 { [%clk 1:22:00] } 12... Nf8 { [%clk 1:05:00] } 13. Ng3 { [%clk 1:22:00] } 13... Ng6 { [%clk 1:05:00] } 14. Nf3 { [%clk 1:19:00] } 14... Nf4 { [%clk 0:57:00] } 15. O-O { [%clk 1:17:00] } 15... h6 { [%clk 0:50:00] } 16. Bc1 { [%clk 1:17:00] } 16... h5 { [%clk 0:40:00] } 17. Bxf4 { [%clk 1:11:00] } 17... hxg4 { [%clk 0:38:00] } 18. Bg5 { [%clk 1:10:00] } 18... gxh3 { [%clk 0:31:00] } (18... gxf3 19. Qxf3 Nh7 20. Qh5 Nxg5 21. Qxg5 Be7 22. Qd2 Bh4 23. Kh2 Bd7) 19. Bh1 { [%clk 1:09:00] } 19... Ng4 { [%clk 0:30:00] } 20. Nh2 { [%clk 1:09:00] } 20... Nxh2 { [%clk 0:28:00] } 21. Kxh2 { [%clk 1:10:00] } 21... f5 { [%clk 0:28:00] } 22. Qh5 { [%clk 1:05:00] } 22... Rf8 { [%clk 0:27:00] } 23. exf5 { [%clk 1:04:00] } 23... Bxf5 { [%clk 0:24:00] } 24. Bd5+ { [%clk 1:04:00] } 24... Rf7 { [%clk 0:23:00] } 25. Nxf5 { [%clk 1:04:00] } 25... e4+ { [%clk 0:22:00] } 26. Nxd6 { [%clk 1:03:00] } 26... Qxd6+ { [%clk 0:22:00] } 27. Kxh3 { [%clk 1:02:00] } 27... Rf8 { [%clk 0:20:00] } 28. dxe4 { [%clk 1:01:00] } 28... b5 { [%clk 0:18:00] } 29. f4 { [%clk 1:01:00] } 29... Qd7+ { [%clk 0:17:00] } 30. Kg3 { [%clk 1:01:00] } 30... bxc4 { [%clk 0:17:00] } 31. Rh1 { 1-0 White wins. } { [%clk 1:01:00] } 1-0
+
+
+[Event "ACC vs ANC"]
+[Site "Army Navy Club, Washington DC"]
+[Date "2026.03.07"]
+[Round "1"]
+[White "Daniel Gentile"]
+[Black "Kevin Chandler Perera"]
+[Result "0-1"]
+[WhiteElo "1506"]
+[WhiteTeam "ACC"]
+[WhiteFideId "32487228"]
+[BlackElo "1492"]
+[BlackTeam "ANC"]
+[BlackFideId "15769298"]
+[TimeControl "60+10"]
+[Termination "loss by resignation"]
+[Board "5"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "C00"]
+[Opening "French Defense: Schlechter Variation"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Daniel Gentile - Kevin Perrera"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/AVfQgoxE"]
+
+1. e4 { [%clk 1:00:00] } 1... e6 { [%clk 1:00:00] } 2. d4 { [%clk 1:00:00] } 2... d5 { [%clk 1:00:00] } 3. Bd3 { [%clk 1:00:00] } 3... dxe4 { [%clk 0:57:00] } 4. Bxe4 { [%clk 1:00:00] } 4... Nf6 { [%clk 0:57:00] } 5. Bf3 { [%clk 0:59:00] } 5... Be7 { [%clk 0:53:00] } 6. Ne2 { [%clk 0:59:00] } 6... c5 { [%clk 0:52:00] } 7. O-O { [%clk 0:59:00] } 7... cxd4 { [%clk 0:52:00] } 8. Nxd4 { [%clk 0:59:00] } 8... O-O { [%clk 0:52:00] } 9. Bf4 { [%clk 0:56:00] } (9. Nc3 e5 10. Nb3) 9... Qb6 { [%clk 0:52:00] } 10. Nb3 { [%clk 0:56:00] } (10. Na3 Qxb2 11. Nab5) 10... a5 { [%clk 0:52:00] } 11. Nc3 { [%clk 0:54:00] } 11... a4 { [%clk 0:51:00] } 12. Nxa4 { [%clk 0:54:00] } 12... Rxa4 { [%clk 0:51:00] } 13. Bxb8 { [%clk 0:54:00] } 13... Bd7 { [%clk 0:50:00] } 14. Be5 { [%clk 0:53:00] } 14... Bb5 { [%clk 0:48:00] } 15. Re1 { [%clk 0:52:00] } 15... Rd8 { [%clk 0:47:00] } 16. Qc1 { [%clk 0:50:00] } 16... Rc4 { [%clk 0:42:00] } 17. Bc3 { [%clk 0:43:00] } 17... Qc7 { [%clk 0:35:00] } 18. Qe3 { [%clk 0:39:00] } 18... Nd5 { [%clk 0:33:00] } 19. Bxd5 { [%clk 0:39:00] } 19... Rxd5 { [%clk 0:33:00] } 20. Nd4 { [%clk 0:34:00] } 20... Rh5 { [%clk 0:31:00] } 21. Nxb5 { [%clk 0:29:00] } 21... Qxh2+ { [%clk 0:31:00] } 22. Kf1 { [%clk 0:24:00] } 22... Rxb5 { [%clk 0:28:00] } 23. Rad1 { [%clk 0:23:00] } 23... h6 { [%clk 0:26:00] } 24. Rd4 { [%clk 0:20:00] } 24... Rcc5 { [%clk 0:25:00] } 25. f3 { [%clk 0:17:00] } 25... Bh4 { [%clk 0:21:00] } 26. Red1 { [%clk 0:16:00] } 26... Bg5 { [%clk 0:20:00] } 27. Qf2 { [%clk 0:15:00] } 27... Qh1+ { [%clk 0:20:00] } 28. Qg1 { [%clk 0:15:00] } 28... Qxg1+ { [%clk 0:20:00] } 29. Kxg1 { [%clk 0:16:00] } 29... Be3+ { [%clk 0:20:00] } 30. Kf1 { [%clk 0:15:00] } 30... Bxd4 { [%clk 0:20:00] } 31. Rxd4 { [%clk 0:15:00] } 31... Rd5 { [%clk 0:20:00] } 32. Ke2 { [%clk 0:15:00] } 32... Rxd4 { [%clk 0:19:00] } 33. Bxd4 { [%clk 0:15:00] } 33... e5 { [%clk 0:18:00] } 34. Bc3 { [%clk 0:15:00] } 34... f5 { [%clk 0:18:00] } 35. a4 { [%clk 0:14:00] } 35... Rc5 { [%clk 0:18:00] } 36. Kd3 { [%clk 0:14:00] } 36... Kf7 { [%clk 0:18:00] } 37. b4 { [%clk 0:14:00] } 37... e4+ { [%clk 0:17:00] } 38. fxe4 { [%clk 0:14:00] } 38... fxe4+ { [%clk 0:17:00] } 39. Kd4 { [%clk 0:14:00] } 39... Rc6 { [%clk 0:17:00] } 40. b5 { [%clk 0:14:00] } 40... Rc8 { [%clk 0:17:00] } 41. a5 { [%clk 0:13:00] } 41... Ke6 { [%clk 0:17:00] } 42. Bb4 { [%clk 0:13:00] } 42... Rxc2 { [%clk 0:17:00] } 43. Kxe4 { [%clk 0:13:00] } 43... Rb2 { [%clk 0:17:00] } 44. Bf8 { [%clk 0:12:00] } 44... Kf7 { [%clk 0:17:00] } 45. Bc5 { [%clk 0:12:00] } 45... Rxb5 { [%clk 0:17:00] } 46. Bb6 { [%clk 0:12:00] } 46... Kg6 { [%clk 0:16:00] } 47. Kf4 { [%clk 0:12:00] } 47... Rb4+ { [%clk 0:16:00] } 48. Ke5 { [%clk 0:12:00] } 48... Rg4 { [%clk 0:15:00] } 49. Kd6 { [%clk 0:12:00] } 49... Rxg2 { [%clk 0:15:00] } 50. Kc7 { [%clk 0:12:00] } 50... Ra2 { [%clk 0:15:00] } 51. Kxb7 { [%clk 0:12:00] } 51... Kf5 { [%clk 0:15:00] } 52. a6 g5 53. a7 h5 54. a8=Q Rxa8 55. Kxa8 Ke4 56. Kb7 Kf3 57. Kc6 g4 58. Kd5 h4 59. Kd4 h3 60. Bc7 g3 61. Bxg3 Kxg3 62. Ke3 Kg2 { 0-1 Black wins. } 0-1
+
+
+[Event "ACC Friday Ladder"]
+[Site "Arlington"]
+[Date "2026.03.20"]
+[Round "20"]
+[White "Edward A. Cadogan"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[WhiteElo "1449"]
+[WhiteFideId "30108625"]
+[BlackElo "1506"]
+[BlackFideId "32487228"]
+[TimeControl "40/80, SD30; +30"]
+[Termination "win by resignation"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "C00"]
+[Opening "French Defense: Steiner Variation"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Edward A. Cadogan - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/tQxzsGP1"]
+
+1. c4 e6 2. e4 d5 3. cxd5 exd5 4. exd5 Qxd5 5. Nc3 Qe5+ 6. Nge2 Nc6 7. g3 Bc5 8. Bg2 Nge7 9. O-O Bg4 10. Re1 O-O-O 11. Qa4 h5 12. Nf4 { 0-1 Black wins. } 0-1
+
+
+[Event "2nd Annual Adults Only (U1800)"]
+[Site "Dulles"]
+[Date "2026.03.28"]
+[Round "1"]
+[White "Gunnar J. Isaacson"]
+[Black "Daniel Gentile"]
+[Result "1-0"]
+[WhiteElo "1756"]
+[WhiteFideId "12462681"]
+[BlackElo "1506"]
+[BlackFideId "32487228"]
+[TimeControl "95+10"]
+[Termination "loss by resignation"]
+[Board "6"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "D37"]
+[Opening "Queen's Gambit Declined: Three Knights Variation"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Gunnar J. Isaacson - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/9458L95x"]
+
+1. d4 { [%clk 1:35:00] } 1... d5 { [%clk 1:35:00] } 2. c4 { [%clk 1:35:00] } 2... e6 { [%clk 1:35:00] } 3. Nc3 { [%clk 1:35:00] } 3... Nf6 { [%clk 1:35:00] } 4. Nf3 { [%clk 1:35:00] } 4... a6 { [%clk 1:35:00] } 5. e3 { [%clk 1:35:00] } 5... Be7 { [%clk 1:33:00] } 6. Bd3 { [%clk 1:33:00] } 6... dxc4 { [%clk 1:33:00] } 7. Bxc4 { [%clk 1:33:00] } 7... O-O { [%clk 1:32:00] } 8. O-O { [%clk 1:33:00] } 8... b5 { [%clk 1:32:00] } 9. Bd3 { [%clk 1:31:00] } 9... Bb7 { [%clk 1:32:00] } 10. a3 { [%clk 1:26:00] } 10... c5 { [%clk 1:31:00] } 11. dxc5 { [%clk 1:24:00] } 11... Bxc5 { [%clk 1:31:00] } 12. b4 { [%clk 1:24:00] } 12... Be7 { [%clk 1:28:00] } 13. Bb2 { [%clk 1:15:00] } 13... Nbd7 { [%clk 1:27:00] } 14. Qe2 { [%clk 1:14:00] } 14... Bxf3 { [%clk 1:24:00] } 15. gxf3 { [%clk 1:13:00] } 15... Qb6 { [%clk 1:23:00] } 16. Ne4 { [%clk 1:08:00] } 16... Rac8 { [%clk 1:22:00] } 17. Rac1 { [%clk 1:06:00] } 17... Nxe4 { [%clk 1:17:00] } 18. Bxe4 { [%clk 1:00:00] } 18... Nf6 { [%clk 1:16:00] } 19. Bd4 { [%clk 0:59:00] } 19... Qb8 { [%clk 1:15:00] } 20. Bb1 { [%clk 0:56:00] } 20... Rxc1 { [%clk 1:11:00] } 21. Rxc1 { [%clk 0:55:00] } 21... Rc8 { [%clk 1:11:00] } 22. Rxc8+ { [%clk 0:51:00] } 22... Qxc8 { [%clk 1:11:00] } 23. Qd3 { [%clk 0:49:00] } 23... h6 { [%clk 1:07:00] } 24. Kg2 { [%clk 0:42:00] } 24... Qd7 { [%clk 1:06:00] } 25. Qc2 { [%clk 0:39:00] } 25... g6 { [%clk 1:04:00] } 26. Qb2 { [%clk 0:34:00] } 26... Qd8 { [%clk 1:02:00] } 27. Ba2 { [%clk 0:28:00] } 27... Nh7 { [%clk 0:57:00] } 28. Qc2 { [%clk 0:27:00] } 28... Ng5 { [%clk 0:52:00] } 29. h4 { [%clk 0:25:00] } 29... Nh7 { [%clk 0:48:00] } 30. Bxe6 { [%clk 0:23:00] } 30... Nf8 { [%clk 0:48:00] } 31. Ba2 { [%clk 0:20:00] } 31... Bxh4 { [%clk 0:47:00] } 32. Qe4 { [%clk 0:19:00] } 32... Bf6 { [%clk 0:46:00] } 33. Bc5 { [%clk 0:19:00] } 33... Kg7 { [%clk 0:44:00] } 34. Qb7 { [%clk 0:16:00] } 34... Qe8 { [%clk 0:42:00] } 35. Qxa6 { [%clk 0:16:00] } 35... Bb2 { [%clk 0:41:00] } 36. Bd4+ { [%clk 0:15:00] } 36... Bxd4 { [%clk 0:39:00] } 37. exd4 { [%clk 0:15:00] } 37... Qe2 { [%clk 0:37:00] } 38. Bd5 { [%clk 0:14:00] } 38... Nd7 { [%clk 0:35:00] } 39. Qd6 { [%clk 0:12:00] } 39... Nf6 { [%clk 0:35:00] } 40. Bc6 { [%clk 0:11:00] } 40... Qd3 { [%clk 0:33:00] } 41. Qc5 { [%clk 0:09:00] } 41... Qxa3 { [%clk 0:32:00] } 42. Bxb5 { [%clk 0:09:00] } 42... Nh5 { [%clk 0:31:00] } 43. Qd6 { [%clk 0:08:00] } 43... Nf6 { [%clk 0:31:00] } 44. Bc6 { [%clk 0:07:00] } 44... h5 { [%clk 0:30:00] } 45. Be4 { [%clk 0:06:00] } 45... Ne8 { [%clk 0:28:00] } 46. Qe5+ { [%clk 0:06:00] } 46... Nf6 { [%clk 0:28:00] } 47. b5 { [%clk 0:06:00] } 47... Qb4 { [%clk 0:28:00] } 48. Bc6 { [%clk 0:05:00] } 48... Qb2 { [%clk 0:27:00] } 49. f4 { [%clk 0:04:00] } 49... Qc3 { [%clk 0:26:00] } 50. d5 { [%clk 0:04:00] } 50... Qd3 { [%clk 0:25:00] } 51. b6 { [%clk 0:04:00] } 51... Qd1 { [%clk 0:25:00] } 52. b7 { [%clk 0:04:00] } 52... Qg4+ { [%clk 0:25:00] } 53. Kf1 { [%clk 0:03:00] } 53... Qh3+ { [%clk 0:23:00] } 54. Ke1 { [%clk 0:03:00] } 54... Qh1+ { [%clk 0:23:00] } 55. Kd2 { [%clk 0:03:00] } 55... Qf3 { [%clk 0:23:00] } 56. Qe3 { [%clk 0:02:00] } 56... Ne4+ { [%clk 0:22:00] } 57. Kc2 { [%clk 0:02:00] } 57... Qxf2+ { [%clk 0:21:00] } 58. Qxf2 { [%clk 0:02:00] } 58... Nxf2 { [%clk 0:21:00] } 59. b8=Q { [%clk 0:02:00] } 59... h4 { [%clk 0:21:00] } 60. Qe5+ { [%clk 0:02:00] } 60... Kg8 { [%clk 0:20:00] } 61. d6 { [%clk 0:02:00] } 61... h3 { [%clk 0:20:00] } 62. d7 { [%clk 0:02:00] } 62... h2 { [%clk 0:20:00] } 63. d8=Q+ { 1-0 White wins. } { [%clk 0:02:00] } 1-0
+
+
+[Event "2nd Annual Adults Only (U1800)"]
+[Site "Dulles"]
+[Date "2026.03.28"]
+[Round "2"]
+[White "Daniel Gentile"]
+[Black "Nora Sullivan"]
+[Result "0-1"]
+[WhiteElo "1506"]
+[WhiteFideId "32487228"]
+[BlackElo "1549"]
+[BlackFideId "30725306"]
+[TimeControl "95+10"]
+[Termination "loss by resignation"]
+[Board "8"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "C00"]
+[Opening "French Defense: Schlechter Variation"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Daniel Gentile - Nora Sullivan"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/8n9ig03z"]
+
+1. e4 e6 2. d4 d5 3. Bd3 dxe4 4. Bxe4 Nf6 5. Bf3 c5 6. Ne2 Be7 7. O-O O-O 8. Nbc3 Nc6 9. dxc5 Ne5 10. b4 a5 11. b5 Nxf3+ 12. gxf3 Qc7 13. Kh1 Rd8 14. Qe1 Qxc5 15. a4 Qh5 16. f4 Ng4 17. Kg2 Qxh2+ 18. Kf3 Qh3+ 19. Ng3 Nh2+ 20. Ke2 e5 21. Rh1 Bg4+ 22. Ke3 Bc5+ 23. Ke4 f5+ 24. Nxf5 Bxf5+ 0-1
+
+
+[Event "2nd Annual Adults Only (U1800)"]
+[Site "Dulles"]
+[Date "2026.03.28"]
+[Round "2"]
+[White "Daniel Gentile"]
+[Black "Nora Sullivan"]
+[Result "0-1"]
+[WhiteElo "1506"]
+[WhiteFideId "32487228"]
+[BlackElo "1549"]
+[BlackFideId "30725306"]
+[TimeControl "95+10"]
+[Termination "loss by resignation"]
+[Board "8"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "C00"]
+[Opening "French Defense: Schlechter Variation"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Daniel Gentile - Nora Sullivan"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/dx8h6nq6"]
+
+1. e4 { [%clk 1:35:00] } 1... e6 { [%clk 1:35:00] } 2. d4 { [%clk 1:35:00] } 2... d5 { [%clk 1:35:00] } 3. Bd3 { [%clk 1:35:00] } 3... dxe4 { [%clk 1:35:00] } 4. Bxe4 { [%clk 1:35:00] } 4... Nf6 { [%clk 1:35:00] } 5. Bf3 { [%clk 1:35:00] } 5... c5 { [%clk 1:33:00] } 6. Ne2 { [%clk 1:35:00] } 6... Be7 { [%clk 1:32:00] } 7. O-O { [%clk 1:34:00] } 7... O-O { [%clk 1:32:00] } 8. Nbc3 { [%clk 1:34:00] } 8... Nc6 { [%clk 1:29:00] } 9. dxc5 { [%clk 1:32:00] } 9... Ne5 { [%clk 1:28:00] } 10. b4 { [%clk 1:27:00] } 10... a5 { [%clk 1:21:00] } 11. b5 { [%clk 1:22:00] } 11... Nxf3+ { [%clk 1:20:00] } 12. gxf3 { [%clk 1:22:00] } 12... Qc7 { [%clk 1:20:00] } 13. Kh1 { [%clk 1:19:00] } 13... Rd8 { [%clk 1:19:00] } 14. Qe1 { [%clk 1:19:00] } 14... Qxc5 { [%clk 1:18:00] } 15. a4 { [%clk 1:18:00] } 15... Qh5 { [%clk 1:14:00] } 16. f4 { [%clk 1:17:00] } 16... Ng4 { [%clk 1:13:00] } 17. Kg2 { [%clk 1:15:00] } 17... Qxh2+ { [%clk 1:11:00] } 18. Kf3 { [%clk 1:15:00] } 18... Qh3+ { [%clk 1:11:00] } 19. Ng3 { [%clk 1:15:00] } 19... Nh2+ { [%clk 1:10:00] } 20. Ke2 { [%clk 1:14:00] } 20... e5 { [%clk 1:07:00] } 21. Rh1 { [%clk 1:13:00] } 21... Bg4+ { [%clk 1:07:00] } 22. Ke3 { [%clk 1:13:00] } 22... Bc5+ { [%clk 1:06:00] } 23. Ke4 { [%clk 1:13:00] } 23... f5+ { [%clk 1:06:00] } 24. Nxf5 { [%clk 1:12:00] } 24... Bxf5+ { 0-1 Black wins. } { [%clk 1:06:00] } 0-1
+
+
+[Event "2nd Annual Adults Only (U1800)"]
+[Site "Dulles"]
+[Date "2026.03.29"]
+[Round "3"]
+[White "Georgina Chin"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[WhiteElo "909"]
+[WhiteFideId "14764861"]
+[BlackElo "1506"]
+[BlackFideId "32487228"]
+[TimeControl "95+10"]
+[Termination "win by resignation"]
+[Board "17 (Extra Game)"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "B10"]
+[Opening "Caro-Kann Defense"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Georgina Chin - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/GKSICQAY"]
+
+1. e4 c6 2. Nc3 d5 3. d3 dxe4 4. Nxe4 Nf6 5. Nxf6+ exf6 6. Nf3 Bg4 7. Be2 Bd6 8. O-O O-O 9. Be3 Nd7 10. Nd4 Bxe2 11. Nxe2 Qc7 12. Ng3 Rfe8 13. Qd2 Nf8 14. c4 Rad8 15. Rac1 g5 16. Bd4 Bxg3 17. fxg3 Rxd4 18. Rxf6 Qe5 19. Rf3 Ne6 20. Re1 Qc5 21. Rfe3 Red8 22. b3 Rxd3 23. Qf2 Rxe3 24. Qxe3 Rd1 0-1
+
+
+[Event "2nd Annual DMV Adults-Only (U1800)"]
+[Site "Sterling, VA"]
+[Date "2026.03.29"]
+[Round "4"]
+[White "John Fontaine"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[WhiteElo "1498"]
+[WhiteFideId "16441708"]
+[BlackElo "1506"]
+[BlackFideId "32487228"]
+[TimeControl "95+10"]
+[Termination "win by resignation"]
+[Board "11"]
+[Variant "Standard"]
+[ECO "B15"]
+[Opening "Caro-Kann Defense: von Hennig Gambit"]
+[StudyName "USCF OTB Games"]
+[ChapterName "John Fontaine - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/icF80H6Z"]
+[Annotator "https://lichess.org/@/danielgentile"]
+
+1. e4 { [%clk 1:35:19] } 1... c6 { [%clk 1:35:09] } 2. d4 { [%clk 1:34:12] } 2... d5 { [%clk 1:35:10] } 3. Nc3 { [%clk 1:34:13] } 3... dxe4 { [%clk 1:35:11] } 4. Bc4 { [%clk 1:34:02] } 4... Nf6 { [%clk 1:32:18] } 5. f3 { [%clk 1:33:30] } 5... exf3 { [%clk 1:29:43] } 6. Nxf3 { [%clk 1:33:20] } 6... e6 { [%clk 1:29:08] } 7. O-O { [%clk 1:33:12] } 7... Bd6 { [%clk 1:29:06] } 8. Bg5 { [%clk 1:32:55] } 8... h6 { [%clk 1:27:28] } 9. Bxf6 { [%clk 1:31:18] } 9... gxf6 { [%clk 1:21:24] } 10. Qe2 { [%clk 1:30:24] } 10... Nd7 { [%clk 1:20:31] } 11. d5 { [%clk 1:27:49] } 11... Ne5 { [%clk 1:18:41] } 12. Nxe5 { [%clk 1:26:41] } 12... Bxe5 { [%clk 1:17:47] } 13. dxe6 { [%clk 1:25:14] } 13... Bxe6 { [%clk 1:16:00] } 14. Bxe6 { [%clk 1:22:26] } 14... fxe6 { [%clk 1:16:03] } 15. Rad1 { [%clk 1:21:11] } 15... Qb6+ { [%clk 1:14:56] } 16. Kh1 { [%clk 1:20:06] } 16... Ke7 { [%clk 1:11:25] } 17. Qc4 { [%clk 1:16:16] } 17... Rad8 { [%clk 1:08:02] } 18. Na4 { [%clk 1:09:00] } 18... Qb5 { [%clk 1:03:40] } 19. Qe4 { [%clk 1:01:17] } 19... Rdg8 { [%clk 0:53:50] } 20. Rfe1 { [%clk 0:54:27] } 20... h5 { [%clk 0:52:08] } 21. Rd4 { [%clk 0:49:20] } 21... Rg4 { [%clk 0:50:00] } 0-1
+
+
+[Event "ACC Friday Ladder"]
+[Site "Arlington"]
+[Date "2026.04.03"]
+[Round "21"]
+[White "Daniel Gentile"]
+[Black "James K. Williams"]
+[Result "1-0"]
+[WhiteElo "1440"]
+[BlackElo "1512"]
+[TimeControl "40/80, SD30; +30"]
+[Termination "win by checkmate"]
+[Variant "Standard"]
+[ECO "B21"]
+[Opening "Sicilian Defense: Smith-Morra Gambit Accepted"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Chapter 58"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/Ba7CPghl"]
+[Annotator "https://lichess.org/@/danielgentile"]
+
+1. e4 c5 2. d4 cxd4 3. c3 dxc3 4. Nxc3 Nc6 5. Nf3 d6 6. Bc4 a6 7. O-O e6 8. Qe2 Be7 9. Rd1 Bd7 10. e5 Qc7 11. Bf4 d5 12. Bb3 Bc5 13. Rac1 Ba7 14. Nxd5 exd5 15. e6 Qxf4 16. exd7+ Kxd7 17. Ne5+ Kc7 18. Bxd5 Re8 19. Bxc6 Rxe5 20. Rd7+ Kb6 21. Rxb7+ Ka5 22. Qxe5+ Qxe5 23. b4# 1-0
 
 
