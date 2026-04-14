@@ -1,6 +1,15 @@
 services:
   - type: web
-    name: uscf-pgn-dashboard
+    name: chess-stats-dashboard
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    # gunicorn uses the module-level `server` (Flask WSGI) exposed in app.py
+    startCommand: gunicorn app:server --bind 0.0.0.0:$PORT
+    envVars:
+      # Path to your PGN file relative to the repo root
+      - key: PGN_PATH
+        value: "USCF OTB FULL.pgn"
+      # Your name as it appears in the PGN White/Black headers.
+      # Leave empty to auto-detect (most frequent name in the file).
+      - key: PLAYER_NAME
+        value: ""
