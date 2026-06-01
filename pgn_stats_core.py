@@ -72,6 +72,7 @@ __all__ = [
     "lessons_table",
     "tag_counts",
     "recurring_weaknesses",
+    "review_queue",
     "win_rate_over_time",
     "player_rating_over_time",
     "opponent_summary",
@@ -1237,6 +1238,51 @@ def recurring_weaknesses(
 
     callouts.sort(key=lambda c: (-c["severity"], c["tag"]))
     return callouts
+
+
+# ---------------------------------------------------------------------------
+# Pre-game review (issue #19)
+# ---------------------------------------------------------------------------
+
+def review_queue(df: pd.DataFrame, *, opponent: str | None = None) -> list[dict]:
+    """
+    The Lessons to re-read in the five minutes before a round (issue #19),
+    most relevant first.
+
+    Priority order:
+      1. Lessons tagged with a detected recurring weakness — what's actually
+         costing you games right now
+      2. Lessons from Games against *opponent* (when one is given)
+      3. Everything else
+
+    Within each bucket, newest first.  Each card carries a ``reason`` saying
+    why it made the queue.
+    """
+    lessons = lessons_table(df)  # already newest-first
+    if lessons.empty:
+        return []
+
+    weakness_tags = {w["tag"] for w in recurring_weaknesses(df)}
+
+    def _bucket(card: dict) -> tuple[int, str]:
+        """(priority, reason) for one Lesson."""
+        card_weak_tags = [t for t in card["Tags"] if t in weakness_tags]
+        if card_weak_tags:
+            return 0, "Recurring weakness: " + " ".join(f"#{t}" for t in card_weak_tags)
+        if opponent and card["Opponent"] == opponent:
+            return 1, f"You're facing {opponent}"
+        return 2, "Recent lesson"
+
+    cards = []
+    for _, row in lessons.iterrows():
+        card = row.to_dict()
+        card["priority"], card["reason"] = _bucket(card)
+        cards.append(card)
+
+    # Stable sort: lessons_table is newest-first, so sorting by priority
+    # alone keeps recency order inside each bucket.
+    cards.sort(key=lambda c: c["priority"])
+    return cards
 
 
 # ---------------------------------------------------------------------------

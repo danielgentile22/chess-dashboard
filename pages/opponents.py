@@ -15,6 +15,8 @@ scatter) also lives here.
 """
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import dash
 import plotly.express as px
 from dash import Input, Output, State, callback, dash_table, dcc, html
@@ -190,6 +192,13 @@ def _render_dossier(report: dict) -> html.Div:
                 "No Lessons written from these games yet.",
                 className="scout-empty-line",
             )]),
+            # Pre-game review mode, primed with this opponent (issue #19)
+            dcc.Link(
+                [html.Span("♟", className="review-launch-icon"),
+                 f"Review before facing {report['opponent']}"],
+                href=f"/lessons?review=1&opponent={quote(report['opponent'])}",
+                className="review-launch-btn scout-review-launch",
+            ) if lessons else None,
         ]),
     ])
 

@@ -195,13 +195,15 @@ class TestCallbackIntegrity:
             known |= _collect_ids(_render(_page(path)))
 
         # Some components only exist after a user action creates them
-        # dynamically: the Scouting Report (appears once an opponent is chosen)
-        # and the event detail table (appears once an event row is selected).
+        # dynamically: the Scouting Report (appears once an opponent is chosen),
+        # the event detail table (appears once an event row is selected), and
+        # the review overlay (appears at /lessons?review=1).
         from pages.events import update_event_table, update_tournament_detail
         from pages.opponents import update_scouting_report
         known |= _collect_ids(update_scouting_report("Opponent A", *_filter_args()))
         event_rows = update_event_table(*_filter_args())
         known |= _collect_ids(update_tournament_detail([0], event_rows, *_filter_args()))
+        known |= _collect_ids(_page("/lessons")["layout"](review="1"))
 
         # Force callback registration merge, then check every dependency
         ui_app.server.test_client().get("/")
@@ -603,6 +605,82 @@ class TestLessonsPage:
         from pages.lessons import toggle_lesson_tag
         # When the strip re-renders, all n_clicks are None — must not toggle
         assert toggle_lesson_tag([None, None], ["endgame"]) is no_update
+
+
+# ---------------------------------------------------------------------------
+# Pre-game review mode (issue #19)
+# ---------------------------------------------------------------------------
+
+class TestReviewMode:
+    """Full-screen, card-by-card lesson review for the minutes before a round."""
+
+    @staticmethod
+    def _review_queue_store(tree):
+        return next((c for c in _walk_components(tree)
+                     if getattr(c, "id", None) == "review-queue-store"), None)
+
+    def test_lessons_page_has_a_launch_link(self, ui_app, ui_data):
+        hrefs = {getattr(c, "href", None)
+                 for c in _walk_components(_render(_page("/lessons")))}
+        assert "/lessons?review=1" in hrefs
+
+    def test_normal_lessons_page_has_no_overlay(self, ui_app, ui_data):
+        assert self._review_queue_store(_render(_page("/lessons"))) is None
+
+    def test_review_param_opens_the_overlay_with_the_queue(self, ui_app, ui_data):
+        """/lessons?review=1 → the overlay holds the prioritized queue."""
+        tree = _page("/lessons")["layout"](review="1")
+        store = self._review_queue_store(tree)
+        assert store is not None
+        assert len(store.data) == 3            # the fixture's three Lessons
+        assert all(c["reason"] for c in store.data)
+
+    def test_opponent_review_prioritizes_their_lessons(self, ui_app, ui_data):
+        """Scouting context: ?opponent=X marks X's lessons as the reason."""
+        tree = _page("/lessons")["layout"](review="1", opponent="Opponent A")
+        store = self._review_queue_store(tree)
+        assert all(c["reason"] == "You're facing Opponent A" for c in store.data)
+
+    def test_card_renders_with_progress(self, ui_app, ui_data):
+        from pages.lessons import render_review_card
+        tree = _page("/lessons")["layout"](review="1")
+        queue = self._review_queue_store(tree).data
+        card, progress = render_review_card(0, queue)
+        assert "1 / 3" in str(progress)
+        # Fixture has no recurring weaknesses → recency order, newest first
+        assert "grab pawns" in str(card) or "Castle before" in str(card)
+
+    def test_tap_advances_prev_goes_back(self, ui_app, ui_data):
+        from pages.lessons import navigate_review
+        queue = [{"Lesson": "A"}, {"Lesson": "B"}]
+        with mock.patch("pages.lessons.ctx") as fake_ctx:
+            fake_ctx.triggered_id = "review-tap"
+            assert navigate_review(1, None, 0, queue) == 1
+            assert navigate_review(2, None, 1, queue) == 2   # one past the end = done
+            assert navigate_review(3, None, 2, queue) == 2   # …and stays there
+        with mock.patch("pages.lessons.ctx") as fake_ctx:
+            fake_ctx.triggered_id = "review-prev"
+            assert navigate_review(1, 1, 1, queue) == 0
+            assert navigate_review(1, 2, 0, queue) == 0      # can't go below 0
+
+    def test_done_card_after_the_last_lesson(self, ui_app, ui_data):
+        from pages.lessons import render_review_card
+        queue = [{"Lesson": "Only one", "Tags": [], "reason": "Recent lesson",
+                  "Opponent": "X", "Date": "2024.01.01", "Outcome": "Win",
+                  "Event": "E", "Result": "1-0", "ChapterURL": ""}]
+        card, progress = render_review_card(1, queue)        # one past the end
+        assert "play" in str(card).lower()                   # "go play"
+
+    def test_review_with_no_lessons_explains_why(self, ui_app, weakness_data):
+        """An archive with no Lessons → the overlay explains, doesn't crash."""
+        tree = _page("/lessons")["layout"](review="1")
+        rendered = str(tree)
+        assert "Lesson:" in rendered    # teaches the convention
+
+    def test_scouting_report_offers_opponent_review(self, ui_app, ui_data):
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("Opponent A", *_filter_args()))
+        assert "/lessons?review=1&opponent=Opponent%20A" in rendered
 
 
 # ---------------------------------------------------------------------------

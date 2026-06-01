@@ -32,6 +32,7 @@ from pgn_stats_core import (
     performance_rating_stats,
     player_rating_over_time,
     recurring_weaknesses,
+    review_queue,
     safe_int,
     scouting_report,
     streaks,
@@ -548,6 +549,94 @@ class TestRecurringWeaknesses:
 
     def test_empty_data(self):
         assert recurring_weaknesses(pd.DataFrame()) == []
+
+
+def _games_with_lessons(games: list[dict]) -> pd.DataFrame:
+    """A minimal Games DataFrame where each game can carry Lessons and Tags."""
+    dates = pd.date_range("2024-01-01", periods=len(games), freq="W")
+    return pd.DataFrame({
+        "Outcome": [g.get("outcome", "Win") for g in games],
+        "Tags": [g.get("tags", []) for g in games],
+        "Lessons": [g.get("lessons", []) for g in games],
+        "Opponent": [g.get("opponent", "Someone") for g in games],
+        "Event": ["Test Event"] * len(games),
+        "Result": ["1-0"] * len(games),
+        "Date_dt": dates,
+        "Date": [d.strftime("%Y.%m.%d") for d in dates],
+        "Index": range(1, len(games) + 1),
+        "ChapterURL": [f"https://lichess.org/study/x/rch{i:04d}"
+                       for i in range(1, len(games) + 1)],
+    })
+
+
+class TestReviewQueue:
+    """Pre-game review prioritization (issue #19)."""
+
+    def test_weakness_tagged_lessons_come_first(self):
+        """Lessons tagged with a detected recurring weakness lead the queue."""
+        games = [
+            {"outcome": "Win",  "lessons": ["Oldest, no weakness"], "tags": ["opening"]},
+            {"outcome": "Loss", "lessons": ["Weakness lesson 1"], "tags": ["time-trouble"]},
+            {"outcome": "Loss", "lessons": ["Weakness lesson 2"], "tags": ["time-trouble"]},
+            {"outcome": "Loss", "lessons": ["Weakness lesson 3"], "tags": ["time-trouble"]},
+            {"outcome": "Win",  "lessons": ["Very newest lesson"], "tags": []},
+        ]
+        queue = review_queue(_games_with_lessons(games))
+        # The weakness bucket leads, newest first within it…
+        assert [c["Lesson"] for c in queue[:3]] == [
+            "Weakness lesson 3", "Weakness lesson 2", "Weakness lesson 1",
+        ]
+        # …then everything else by recency
+        assert [c["Lesson"] for c in queue[3:]] == [
+            "Very newest lesson", "Oldest, no weakness",
+        ]
+
+    def test_opponent_lessons_outrank_generic_recent_ones(self):
+        """Scouting context: lessons from facing them beat other recent lessons."""
+        games = [
+            {"lessons": ["From facing Shao"], "opponent": "Shao"},
+            {"lessons": ["From facing someone else"], "opponent": "Lopez"},
+            {"lessons": ["Newest, also someone else"], "opponent": "Lopez"},
+        ]
+        queue = review_queue(_games_with_lessons(games), opponent="Shao")
+        assert queue[0]["Lesson"] == "From facing Shao"
+        assert queue[0]["reason"] == "You're facing Shao"
+        # The rest stay in recency order
+        assert [c["Lesson"] for c in queue[1:]] == [
+            "Newest, also someone else", "From facing someone else",
+        ]
+
+    def test_weakness_outranks_opponent(self):
+        """What's costing you games beats opponent history."""
+        games = [
+            {"lessons": ["Opponent lesson"], "opponent": "Shao"},
+            {"outcome": "Loss", "lessons": ["W1"], "tags": ["blunder"]},
+            {"outcome": "Loss", "lessons": ["W2"], "tags": ["blunder"]},
+            {"outcome": "Loss", "lessons": ["W3"], "tags": ["blunder"]},
+        ]
+        queue = review_queue(_games_with_lessons(games), opponent="Shao")
+        assert [c["Lesson"] for c in queue] == ["W3", "W2", "W1", "Opponent lesson"]
+        assert queue[0]["reason"] == "Recurring weakness: #blunder"
+
+    def test_every_card_explains_why_it_is_there(self):
+        games = [{"lessons": ["Some lesson"]}, {"lessons": ["Another"]}]
+        queue = review_queue(_games_with_lessons(games))
+        assert all(c["reason"] for c in queue)
+        assert all(c["ChapterURL"] for c in queue)
+
+    def test_no_weaknesses_means_recency_order(self):
+        """Below the weakness threshold the queue is simply newest-first."""
+        games = [{"lessons": [f"Lesson {i}"]} for i in range(1, 5)]
+        queue = review_queue(_games_with_lessons(games))
+        assert [c["Lesson"] for c in queue] == [
+            "Lesson 4", "Lesson 3", "Lesson 2", "Lesson 1",
+        ]
+
+    def test_no_lessons_means_empty_queue(self, df):
+        assert review_queue(pd.DataFrame()) == []
+        no_lessons = df.copy()
+        no_lessons["Lessons"] = [[] for _ in range(len(no_lessons))]
+        assert review_queue(no_lessons) == []
 
 
 class TestTagCounts:
