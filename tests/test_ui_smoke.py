@@ -185,6 +185,15 @@ class TestCallbackIntegrity:
         for path, _ in PAGES:
             known |= _collect_ids(_render(_page(path)))
 
+        # Some components only exist after a user action creates them
+        # dynamically: the H2H game list (appears once an opponent is chosen)
+        # and the event detail table (appears once an event row is selected).
+        from pages.events import update_event_table, update_tournament_detail
+        from pages.opponents import update_h2h
+        known |= _collect_ids(update_h2h("Opponent A", *_filter_args()))
+        event_rows = update_event_table(*_filter_args())
+        known |= _collect_ids(update_tournament_detail([0], event_rows, *_filter_args()))
+
         # Force callback registration merge, then check every dependency
         ui_app.server.test_client().get("/")
         missing = []
@@ -359,6 +368,113 @@ class TestEventsCallbacks:
         from pages.events import update_event_table, update_tournament_detail
         rows = update_event_table(*_filter_args())
         assert update_tournament_detail([], rows, *_filter_args()) is None
+
+
+# ---------------------------------------------------------------------------
+# Game detail view (issue #11)
+# ---------------------------------------------------------------------------
+
+class TestGameDetail:
+    def test_detail_page_registered_with_path_template(self, ui_app, ui_data):
+        detail = next((p for p in dash.page_registry.values() if p.get("path_template")), None)
+        assert detail is not None
+        assert detail["path_template"] == "/game/<chapter_id>"
+
+    def test_detail_page_not_in_nav(self, ui_app, ui_data):
+        """The detail view is reached by clicking a Game, never from the nav tabs."""
+        layout = ui_app.layout
+        tree = layout() if callable(layout) else layout
+        hrefs = []
+
+        def _walk(node):
+            if node is None or isinstance(node, (str, int, float, bool)):
+                return
+            if isinstance(node, (list, tuple)):
+                for item in node:
+                    _walk(item)
+                return
+            href = getattr(node, "href", None)
+            if isinstance(href, str):
+                hrefs.append(href)
+            _walk(getattr(node, "children", None))
+
+        _walk(tree)
+        assert not any(h.startswith("/game/") for h in hrefs)
+
+    def test_embed_url_derivation(self, ui_app, ui_data):
+        from pages.game_detail import embed_url
+        assert (embed_url("https://lichess.org/study/abc123/def456")
+                == "https://lichess.org/study/embed/abc123/def456")
+
+    def test_detail_shows_board_metadata_and_lesson(self, ui_app, ui_data):
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0001"))
+        # The interactive board: an iframe on the Chapter's embed URL
+        assert "lichess.org/study/embed/teststudy/chap0001" in rendered
+        # Metadata alongside the board
+        assert "Opponent A" in rendered
+        assert "Test Open" in rendered
+        assert "E04" in rendered
+        # The Lesson written on Lichess (ADR 0002)
+        assert "Keep the tension in the center" in rendered
+        # Tags
+        assert "#strategy" in rendered
+        # Open on Lichess goes to the real chapter
+        assert "https://lichess.org/study/teststudy/chap0001" in rendered
+
+    def test_game_without_lesson_renders_gracefully(self, ui_app, ui_data):
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0002"))
+        assert "lichess.org/study/embed/teststudy/chap0002" in rendered
+        assert "No Lesson" in rendered  # deliberate empty state, not a crash
+
+    def test_unknown_chapter_shows_not_found(self, ui_app, ui_data):
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="doesnotexist"))
+        assert "not in your archive" in rendered
+
+    def test_no_chapter_id_shows_not_found(self, ui_app, ui_data):
+        from pages.game_detail import layout
+        rendered = str(layout())
+        assert "not in your archive" in rendered
+
+
+class TestGameNavigation:
+    """Clicking a Game row anywhere navigates to its detail view."""
+
+    ROWS = [
+        {"Date": "2024.01.06", "Lichess": "[Open ↗](...)",
+         "ChapterURL": "https://lichess.org/study/teststudy/chap0003"},
+    ]
+
+    def test_clicking_a_row_navigates_to_the_game(self, ui_app, ui_data):
+        from components import row_click_to_game
+        href = row_click_to_game({"row": 0, "column_id": "Date"}, self.ROWS)
+        assert href == "/game/chap0003"
+
+    def test_clicking_the_lichess_link_does_not_hijack(self, ui_app, ui_data):
+        from dash import no_update
+
+        from components import row_click_to_game
+        result = row_click_to_game({"row": 0, "column_id": "Lichess"}, self.ROWS)
+        assert result is no_update
+
+    def test_row_without_chapter_url_does_not_navigate(self, ui_app, ui_data):
+        from dash import no_update
+
+        from components import row_click_to_game
+        rows = [{"Date": "2024.01.06", "ChapterURL": ""}]
+        assert row_click_to_game({"row": 0, "column_id": "Date"}, rows) is no_update
+
+    def test_all_three_tables_have_navigation_callbacks(self, ui_app, ui_data):
+        """Games table, head-to-head list, and event detail all open Games."""
+        from pages.events import navigate_to_game_from_event
+        from pages.games import navigate_to_game
+        from pages.opponents import navigate_to_game_from_h2h
+
+        for fn in (navigate_to_game, navigate_to_game_from_h2h, navigate_to_game_from_event):
+            href, _reset = fn({"row": 0, "column_id": "Date"}, self.ROWS)
+            assert href == "/game/chap0003"
 
 
 # ---------------------------------------------------------------------------

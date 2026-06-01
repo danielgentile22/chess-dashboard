@@ -760,6 +760,153 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 .draw-row { background-color: var(--cs-draw-bg) !important; }
 .loss-row { background-color: var(--cs-loss-bg) !important; }
 
+/* ── Game detail view (issue #11) ────────────────────────── */
+.back-link {
+  display: inline-block;
+  color: var(--cs-muted) !important;
+  font-size: 13px;
+  text-decoration: none;
+  margin-bottom: 10px;
+  transition: color .15s;
+}
+.back-link:hover { color: var(--cs-primary) !important; }
+
+.game-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.outcome-badge {
+  font-family: var(--cs-font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--cs-border);
+  background: var(--cs-card);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.outcome-badge.win  { color: var(--cs-win);  border-color: rgba(63,185,80,.5);  background: var(--cs-win-bg); }
+.outcome-badge.loss { color: var(--cs-loss); border-color: rgba(248,81,73,.5);  background: var(--cs-loss-bg); }
+.outcome-badge.draw { color: var(--cs-muted); }
+
+.game-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(300px, 3fr);
+  gap: 14px;
+  align-items: start;
+}
+.game-board-card {
+  background: var(--cs-card);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius);
+  padding: 10px;
+  overflow: hidden;
+}
+.lichess-embed {
+  width: 100%;
+  height: 640px;
+  border: none;
+  border-radius: 6px;
+  background: var(--cs-card2);
+  display: block;
+}
+.game-detail-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Metadata rows */
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--cs-border);
+  font-size: 13px;
+}
+.meta-row:last-child { border-bottom: none; }
+.meta-label { color: var(--cs-muted); flex-shrink: 0; }
+.meta-value {
+  color: var(--cs-text);
+  font-family: var(--cs-font-mono);
+  font-size: 12.5px;
+  text-align: right;
+}
+
+/* Lessons */
+.lesson-quote {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--cs-card2);
+  border-left: 3px solid var(--cs-accent);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.lesson-bulb { font-size: 16px; line-height: 1.4; }
+.lesson-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--cs-text);
+  font-family: var(--cs-font-display);
+  font-weight: 500;
+}
+.lesson-empty-title { color: var(--cs-muted); font-size: 13px; margin-bottom: 6px; }
+.lesson-empty-hint { color: var(--cs-dim); font-size: 12px; line-height: 1.6; }
+.lesson-empty-hint code {
+  background: var(--cs-card2);
+  border: 1px solid var(--cs-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--cs-accent);
+  font-family: var(--cs-font-mono);
+  font-size: 11px;
+}
+
+/* Tags */
+.tag-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.tag-chip {
+  font-family: var(--cs-font-mono);
+  font-size: 11.5px;
+  color: var(--cs-primary);
+  background: rgba(88, 166, 255, .1);
+  border: 1px solid rgba(88, 166, 255, .3);
+  border-radius: 14px;
+  padding: 3px 11px;
+}
+
+/* Open on Lichess button */
+.lichess-open-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--cs-card);
+  border: 1px solid var(--cs-accent);
+  border-radius: 8px;
+  color: var(--cs-accent) !important;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px;
+  text-decoration: none;
+  transition: background .15s, transform .15s;
+}
+.lichess-open-btn:hover {
+  background: rgba(210, 153, 34, .12);
+  transform: translateY(-1px);
+}
+
+/* Clickable table rows (Games / H2H / Event detail) */
+.clickable-rows .dash-spreadsheet-inner td { cursor: pointer; }
+.clickable-rows .dash-spreadsheet-inner tr:hover td {
+  background-color: rgba(88, 166, 255, .09) !important;
+}
+
 /* ── Phone (the chess-club view) ─────────────────────────── */
 @media (max-width: 768px) {
   .app-header-top { padding: 0 14px; height: 54px; gap: 10px; }
@@ -785,6 +932,12 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 
   .empty-state { padding: 56px 18px; }
   .sync-toast { top: auto; bottom: 16px; right: 16px; }
+
+  /* Game detail: board scales, metadata stacks below (issue #11) */
+  .game-detail-grid { grid-template-columns: 1fr; }
+  .lichess-embed { height: max(420px, 115vw); }
+  .game-detail-header { flex-direction: column; gap: 8px; }
+  .outcome-badge { margin-top: 0; }
 
   /* ── Filters become a header dropdown on phones ─────────────
      The desktop side-drawer feels wrong at phone width (it covers
