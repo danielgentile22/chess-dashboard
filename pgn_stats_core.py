@@ -59,6 +59,7 @@ import chess.pgn
 import pandas as pd
 
 __all__ = [
+    "CANONICAL_TAGS",
     "load_games_df",
     "load_games_from_text",
     "extract_lessons_and_tags",
@@ -68,6 +69,8 @@ __all__ = [
     "streaks",
     "current_form",
     "kpi_stats",
+    "lessons_table",
+    "tag_counts",
     "win_rate_over_time",
     "player_rating_over_time",
     "opponent_summary",
@@ -155,6 +158,13 @@ _TAG_RE = re.compile(r"#([a-zA-Z][a-zA-Z0-9-]*)")
 # Lichess embeds machine annotations in comments: [%clk 1:30:00], [%cal ...],
 # [%csl ...]. Strip them before looking for Lessons/Tags.
 _LICHESS_DIRECTIVE_RE = re.compile(r"\[%[^\]]*\]")
+
+# The canonical Tag taxonomy (CONTEXT.md) — the default vocabulary for what a
+# Game taught. Freeform tags are allowed; they sort after these.
+CANONICAL_TAGS = [
+    "opening", "tactics", "calculation", "endgame",
+    "time-trouble", "blunder", "strategy",
+]
 
 
 def _all_comments(game) -> list[str]:
@@ -938,6 +948,90 @@ def performance_rating_stats(df: pd.DataFrame) -> dict:
         "score_pct": round(score_pct * 100, 1),
         "rated_games": total,
     }
+
+
+# ---------------------------------------------------------------------------
+# Lessons + Tags insights (issue #12)
+# ---------------------------------------------------------------------------
+
+_LESSON_COLS = ["Lesson", "Tags", "Opponent", "Outcome", "Result", "Date",
+                "Date_dt", "Event", "ChapterURL"]
+
+
+def lessons_table(
+    df: pd.DataFrame,
+    tags: list[str] | None = None,
+    opponent: str | None = None,
+) -> pd.DataFrame:
+    """
+    One row per Lesson across all Games, newest first.
+
+    A Game with two Lessons contributes two rows; Games without a Lesson are
+    excluded.  Each row carries its source Game (Opponent, Outcome, Date,
+    Event, ChapterURL) and that Game's Tags.
+
+    Parameters
+    ----------
+    tags     : keep only Lessons whose Game carries *all* of these Tags.
+    opponent : keep only Lessons from Games against this opponent.
+    """
+    if df.empty or "Lessons" not in df.columns:
+        return pd.DataFrame(columns=_LESSON_COLS)
+
+    games = df[df["Lessons"].map(bool)]
+    if opponent:
+        games = games[games["Opponent"] == opponent]
+    if tags:
+        games = games[games["Tags"].map(lambda game_tags: set(tags) <= set(game_tags))]
+
+    rows = [
+        {
+            "Lesson": lesson,
+            "Tags": game["Tags"],
+            "Opponent": game["Opponent"],
+            "Outcome": game["Outcome"],
+            "Result": game["Result"],
+            "Date": game["Date"],
+            "Date_dt": game["Date_dt"],
+            "Event": game["Event"],
+            "ChapterURL": game["ChapterURL"],
+        }
+        for _, game in games.iterrows()
+        for lesson in game["Lessons"]
+    ]
+    if not rows:
+        return pd.DataFrame(columns=_LESSON_COLS)
+
+    out = pd.DataFrame(rows)
+    return out.sort_values("Date_dt", ascending=False, na_position="last").reset_index(drop=True)
+
+
+def tag_counts(df: pd.DataFrame) -> list[dict]:
+    """
+    Every Tag in the archive with the number of Games carrying it.
+
+    Canonical taxonomy Tags come first (in taxonomy order), then freeform
+    Tags by descending count — so vocabulary fragmentation stays visible.
+
+    Returns: [{"tag": str, "count": int, "canonical": bool}, ...]
+    """
+    if df.empty or "Tags" not in df.columns:
+        return []
+
+    counts: Counter[str] = Counter()
+    for game_tags in df["Tags"]:
+        counts.update(game_tags)
+
+    canonical = [
+        {"tag": t, "count": counts[t], "canonical": True}
+        for t in CANONICAL_TAGS if counts[t] > 0
+    ]
+    freeform_pairs = sorted(
+        ((t, n) for t, n in counts.items() if t not in CANONICAL_TAGS),
+        key=lambda pair: (-pair[1], pair[0]),
+    )
+    freeform = [{"tag": t, "count": n, "canonical": False} for t, n in freeform_pairs]
+    return canonical + freeform
 
 
 # ---------------------------------------------------------------------------
