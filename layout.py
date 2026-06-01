@@ -388,6 +388,8 @@ def _games_table_section(df: pd.DataFrame) -> dbc.AccordionItem:
         "FullMoves", "ECO", "Opening",
     ]
     cols = [{"name": c, "id": c} for c in display_cols if c in df.columns]
+    # Open-on-Lichess link — rendered as markdown so it's clickable
+    cols.append({"name": "Lichess", "id": "Lichess", "presentation": "markdown"})
 
     return dbc.AccordionItem(
         title="All Games",
@@ -410,6 +412,7 @@ def _games_table_section(df: pd.DataFrame) -> dbc.AccordionItem:
                             columns=cols, data=[],
                             page_size=25, sort_action="native",
                             filter_action="native",
+                            markdown_options={"link_target": "_blank"},
                             style_table={"overflowX": "auto"},
                             style_cell=_TABLE_CELL,
                             style_header=_TABLE_HEADER,

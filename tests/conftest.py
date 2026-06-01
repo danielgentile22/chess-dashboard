@@ -11,7 +11,9 @@ import pandas as pd
 import pytest
 
 # ---------------------------------------------------------------------------
-# Sample PGN with 7 games covering many scenarios
+# Sample PGN with 7 games covering many scenarios.
+# Shaped like a Lichess Study export: each game is one Chapter with
+# StudyName / ChapterName / ChapterURL headers.
 # ---------------------------------------------------------------------------
 
 SAMPLE_PGN = """\
@@ -27,6 +29,9 @@ SAMPLE_PGN = """\
 [Opening "Catalan Opening: Open Defense"]
 [Result "1-0"]
 [Termination "win by resignation"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - Opponent A"]
+[ChapterURL "https://lichess.org/study/teststudy/chap0001"]
 
 1. d4 Nf6 2. c4 e6 3. g3 d5 4. Bg2 dxc4 5. Nf3 Be7 6. O-O O-O 1-0
 
@@ -42,6 +47,9 @@ SAMPLE_PGN = """\
 [Opening "Caro-Kann Defense"]
 [Result "1/2-1/2"]
 [Termination "Normal"]
+[StudyName "Test Study"]
+[ChapterName "Opponent B - Test Player"]
+[ChapterURL "https://lichess.org/study/teststudy/chap0002"]
 
 1. e4 c6 2. d4 d5 3. e5 Bf5 4. c3 e6 1/2-1/2
 
@@ -57,6 +65,9 @@ SAMPLE_PGN = """\
 [Opening "Indian Game"]
 [Result "0-1"]
 [Termination "loss by resignation"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - Opponent C"]
+[ChapterURL "https://lichess.org/study/teststudy/chap0003"]
 
 1. d4 Nf6 2. e4 d6 3. Nc3 e5 0-1
 
@@ -72,6 +83,9 @@ SAMPLE_PGN = """\
 [Opening "King's Indian Defense"]
 [Result "0-1"]
 [Termination "loss by checkmate"]
+[StudyName "Test Study"]
+[ChapterName "Opponent A - Test Player"]
+[ChapterURL "https://lichess.org/study/teststudy/chap0004"]
 
 1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 0-1
 
@@ -87,6 +101,9 @@ SAMPLE_PGN = """\
 [Opening "Italian Game"]
 [Result "1-0"]
 [Termination "win by checkmate"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - Opponent D"]
+[ChapterURL "https://lichess.org/study/teststudy/chap0005"]
 
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nc3 Nf6 1-0
 
@@ -102,6 +119,9 @@ SAMPLE_PGN = """\
 [Opening "Caro-Kann Defense"]
 [Result "0-1"]
 [Termination "win by resignation"]
+[StudyName "Test Study"]
+[ChapterName "Opponent B - Test Player"]
+[ChapterURL "https://lichess.org/study/teststudy/chap0006"]
 
 1. e4 c6 2. d4 d5 3. e5 Bf5 0-1
 
@@ -117,6 +137,9 @@ SAMPLE_PGN = """\
 [Opening "Catalan Opening"]
 [Result "1/2-1/2"]
 [Termination "Normal"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - Opponent A"]
+[ChapterURL "https://lichess.org/study/teststudy/chap0007"]
 
 1. d4 Nf6 2. c4 e6 3. g3 d5 1/2-1/2
 """

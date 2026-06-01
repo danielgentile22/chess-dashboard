@@ -154,6 +154,46 @@ class TestLoadGamesFromText:
 
 
 # ---------------------------------------------------------------------------
+# Chapter metadata (Game identity — ADR 0001 / issue #3)
+# ---------------------------------------------------------------------------
+
+# A PGN that did not come from a Lichess Study (no chapter headers at all).
+PGN_WITHOUT_CHAPTER_HEADERS = """\
+[Event "Plain Old Tournament"]
+[Date "2024.03.10"]
+[White "Test Player"]
+[Black "Opponent X"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 1-0
+"""
+
+
+class TestChapterMetadata:
+    def test_chapter_url_is_the_game_identity(self, df):
+        """Every Game in a Study export carries its permanent ChapterURL."""
+        assert (df["ChapterURL"].str.startswith("https://lichess.org/study/")).all()
+        # ChapterURL is unique per Game — it is the identity key
+        assert df["ChapterURL"].nunique() == len(df)
+
+    def test_study_name_extracted(self, df):
+        assert (df["StudyName"] == "Test Study").all()
+
+    def test_chapter_name_extracted(self, df):
+        assert df["ChapterName"].str.contains(" - ").all()
+
+    def test_games_without_chapter_headers_get_empty_values(self):
+        """Non-Study PGNs still parse; chapter fields are just empty."""
+        plain_df, _ = load_games_from_text(
+            PGN_WITHOUT_CHAPTER_HEADERS, player_name="Test Player"
+        )
+        assert len(plain_df) == 1
+        assert (plain_df["ChapterURL"] == "").all()
+        assert (plain_df["StudyName"] == "").all()
+        assert (plain_df["ChapterName"] == "").all()
+
+
+# ---------------------------------------------------------------------------
 # apply_filters
 # ---------------------------------------------------------------------------
 
@@ -301,6 +341,12 @@ class TestHeadToHead:
         h = head_to_head(df, "Opponent A")
         assert h["total"] == 3
         assert h["win"] + h["draw"] + h["loss"] == 3
+
+    def test_game_rows_carry_chapter_url(self, df):
+        """Each head-to-head game row links back to its Lichess chapter."""
+        h = head_to_head(df, "Opponent A")
+        for row in h["game_rows"]:
+            assert row["ChapterURL"].startswith("https://lichess.org/study/")
 
     def test_missing_opponent(self, df):
         h = head_to_head(df, "Nobody")
