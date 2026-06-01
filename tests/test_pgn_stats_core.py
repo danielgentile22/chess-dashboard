@@ -194,6 +194,74 @@ class TestChapterMetadata:
 
 
 # ---------------------------------------------------------------------------
+# Lessons and Tags (ADR 0002 — comment conventions / issue #4)
+# ---------------------------------------------------------------------------
+
+class TestLessons:
+    """A Lesson is a chapter comment starting with 'Lesson:' (case-insensitive)."""
+
+    def test_chapter_comment_with_lesson_prefix_becomes_a_lesson(self, df):
+        game1 = df[df["ChapterURL"].str.endswith("chap0001")].iloc[0]
+        assert game1["Lessons"] == [
+            "Keep the tension in the center instead of releasing it early. #strategy"
+        ]
+
+    def test_game_with_no_comments_has_no_lessons(self, df):
+        game2 = df[df["ChapterURL"].str.endswith("chap0002")].iloc[0]
+        assert game2["Lessons"] == []
+
+    def test_comments_without_prefix_are_not_lessons(self, df):
+        """Ordinary annotations (game 3 has two) never become Lessons."""
+        game3 = df[df["ChapterURL"].str.endswith("chap0003")].iloc[0]
+        assert game3["Lessons"] == []
+
+    def test_multiple_lessons_with_mixed_case_prefixes(self, df):
+        """Game 4 has 'LESSON:' at chapter level and 'lesson:' inside a variation."""
+        game4 = df[df["ChapterURL"].str.endswith("chap0004")].iloc[0]
+        assert len(game4["Lessons"]) == 2
+        assert "Don't grab pawns while behind in development." in game4["Lessons"]
+        assert "Castle before starting an attack. #opening" in game4["Lessons"]
+
+
+class TestTags:
+    """A Tag is a hashtag in any chapter comment, normalized to lowercase."""
+
+    def test_tag_extracted_from_lesson_comment(self, df):
+        game1 = df[df["ChapterURL"].str.endswith("chap0001")].iloc[0]
+        assert game1["Tags"] == ["strategy"]
+
+    def test_game_with_no_comments_has_no_tags(self, df):
+        game2 = df[df["ChapterURL"].str.endswith("chap0002")].iloc[0]
+        assert game2["Tags"] == []
+
+    def test_mixed_case_tags_normalized_to_lowercase(self, df):
+        """Game 3 has '#blunder #Tactics' → both lowercase."""
+        game3 = df[df["ChapterURL"].str.endswith("chap0003")].iloc[0]
+        assert sorted(game3["Tags"]) == ["blunder", "tactics"]
+
+    def test_tags_spread_across_comments_are_merged_and_deduplicated(self, df):
+        """Game 5 has #tactics in two comments and #endgame in one."""
+        game5 = df[df["ChapterURL"].str.endswith("chap0005")].iloc[0]
+        assert sorted(game5["Tags"]) == ["endgame", "tactics"]
+
+    def test_lichess_clock_annotations_are_not_tags(self, df):
+        """[%clk 1:30:00] style noise must never produce Tags."""
+        for _, game in df.iterrows():
+            for tag in game["Tags"]:
+                assert "clk" not in tag
+                assert ":" not in tag
+
+    def test_checkmate_symbol_in_moves_is_not_a_tag(self):
+        """The '#' checkmate suffix in SAN (e.g. Qe3#) must not produce Tags."""
+        pgn = (
+            '[Event "T"]\n[White "Test Player"]\n[Black "X"]\n[Result "1-0"]\n\n'
+            "1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# { mated with Qxf7# } 1-0\n"
+        )
+        one_df, _ = load_games_from_text(pgn, player_name="Test Player")
+        assert one_df.iloc[0]["Tags"] == []
+
+
+# ---------------------------------------------------------------------------
 # apply_filters
 # ---------------------------------------------------------------------------
 
