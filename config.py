@@ -10,10 +10,14 @@ import os
 
 
 class Config:
-    # Path to the PGN file (required for gunicorn deployment; supplied via --pgn CLI locally)
-    PGN_PATH: str = os.environ.get("PGN_PATH", "").strip()
+    # Lichess Study ID forming the game archive (ADR 0001).
+    # Required for gunicorn deployment; supplied via --study CLI flag locally.
+    STUDY_ID: str = os.environ.get("LICHESS_STUDY_IDS", "").strip()
 
-    # Player name override. Empty string → auto-detect from PGN.
+    # Optional Lichess API token — only needed if a designated Study is private.
+    LICHESS_API_TOKEN: str | None = os.environ.get("LICHESS_API_TOKEN", "").strip() or None
+
+    # Player name override. Empty string → auto-detect from the Games.
     PLAYER_NAME: str | None = os.environ.get("PLAYER_NAME", "").strip() or None
 
     # Server binding

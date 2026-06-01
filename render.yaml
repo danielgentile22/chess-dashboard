@@ -8,10 +8,13 @@ services:
     # gunicorn targets the module-level Flask WSGI object in app.py
     startCommand: gunicorn app:server --config gunicorn.conf.py
     envVars:
-      # Path to your PGN file relative to the repo root.
-      - key: PGN_PATH
-        value: "USCF OTB FULL.pgn"
-      # Your name exactly as it appears in the PGN White/Black headers.
+      # Lichess Study ID(s) forming your game archive (ADR 0001).
+      - key: LICHESS_STUDY_IDS
+        value: "6jYtXHGp"
+      # Optional Lichess API token — only needed for private studies.
+      - key: LICHESS_API_TOKEN
+        value: ""
+      # Your name exactly as it appears in the Game White/Black headers.
       # Leave empty to auto-detect (most frequent name across all games).
       - key: PLAYER_NAME
         value: ""
