@@ -595,6 +595,69 @@ code {
 .h2h-stat-val.draw { color: var(--cs-muted); }
 .h2h-stat-val.loss { color: var(--cs-loss); }
 
+/* ── Scouting Report (issue #13) ─────────────────────────────
+   The pre-game dossier: built for a phone at the chess club.   */
+.scout-picker { margin-bottom: 14px; max-width: 420px; }
+.scout-hint {
+  color: var(--cs-dim);
+  font-size: 13px;
+  padding: 6px 2px 10px;
+}
+.scout-dossier { animation: pageIn .32s cubic-bezier(.2, .8, .2, 1) both; }
+.scout-stat-grid { grid-template-columns: repeat(6, 1fr); }
+.scout-section { margin-top: 18px; }
+.scout-section-title {
+  font-family: var(--cs-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cs-text);
+  margin-bottom: 10px;
+}
+.scout-openings { margin-top: 18px; margin-bottom: 0; }
+.scout-openings-panel {
+  background: var(--cs-card2);
+  border: 1px solid var(--cs-border);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+.scout-openings-panel .scout-section-title { margin-bottom: 8px; font-size: 13.5px; }
+.scout-opening-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--cs-border);
+  font-size: 13px;
+}
+.scout-opening-row:last-child { border-bottom: none; }
+.scout-opening-name { flex: 1; color: var(--cs-text); }
+.scout-opening-eco {
+  font-family: var(--cs-font-mono);
+  font-size: 11px;
+  color: var(--cs-dim);
+}
+.scout-opening-record {
+  font-family: var(--cs-font-mono);
+  font-size: 12px;
+  color: var(--cs-muted);
+  white-space: nowrap;
+}
+.scout-terminations { display: flex; flex-wrap: wrap; gap: 8px; }
+.scout-term-chip {
+  background: var(--cs-card2);
+  border: 1px solid var(--cs-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--cs-text);
+}
+.scout-term-count {
+  font-family: var(--cs-font-mono);
+  color: var(--cs-muted);
+  margin-left: 6px;
+}
+.scout-empty-line { color: var(--cs-dim); font-size: 12.5px; }
+
 /* ── Milestone timeline ──────────────────────────────────── */
 .milestone-list {
   display: flex;
@@ -1101,6 +1164,10 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   .empty-state { padding: 56px 18px; }
   .sync-toast { top: auto; bottom: 16px; right: 16px; }
   .celebration-banner.alert { margin: 14px 12px 0; padding: 14px 16px; }
+
+  /* Scouting Report on a phone: stat tiles go 3-up, openings stack */
+  .scout-stat-grid { grid-template-columns: repeat(3, 1fr); }
+  .scout-picker { max-width: none; }
 
   /* Game detail: board scales, metadata stacks below (issue #11) */
   .game-detail-grid { grid-template-columns: 1fr; }

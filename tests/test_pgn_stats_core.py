@@ -32,6 +32,7 @@ from pgn_stats_core import (
     performance_rating_stats,
     player_rating_over_time,
     safe_int,
+    scouting_report,
     streaks,
     tag_counts,
     termination_counts,
@@ -562,6 +563,72 @@ class TestOpponentSummary:
     def test_opponent_b_appears(self, df):
         opp = opponent_summary(df)
         assert "Opponent B" in opp["Opponent"].values
+
+
+class TestScoutingReport:
+    """The pre-game dossier on one opponent (issue #13, CONTEXT.md glossary)."""
+
+    def test_head_to_head_score(self, df):
+        # Fixture vs Opponent A: Win (G1), Win (G4), Draw (G7)
+        report = scouting_report(df, "Opponent A")
+        assert report["total"] == 3
+        assert (report["win"], report["draw"], report["loss"]) == (2, 1, 0)
+        assert report["score"] == "2.5/3"
+
+    def test_rating_gap_uses_latest_known_ratings(self, df):
+        """Gap = their latest rating vs them − my latest rating anywhere."""
+        report = scouting_report(df, "Opponent A")
+        assert report["their_rating"] == 1925   # G7 (2024-06-16), their latest
+        assert report["my_rating"] == 1810      # Daniel's latest rated game
+        assert report["rating_gap"] == 115      # positive = they're stronger
+
+    def test_timeline_lists_every_game_with_dates(self, df):
+        """Per-game results, oldest → newest, each linkable to its Game."""
+        report = scouting_report(df, "Opponent A")
+        timeline = report["timeline"]
+        assert [g["Date"] for g in timeline] == ["2024.01.06", "2024.06.15", "2024.06.16"]
+        assert [g["Outcome"] for g in timeline] == ["Win", "Win", "Draw"]
+        assert all(g["ChapterURL"] for g in timeline)
+
+    def test_openings_split_by_my_color(self, df):
+        """What they play against me, separately for my White and Black games."""
+        report = scouting_report(df, "Opponent A")
+        as_white = report["openings_as_white"]
+        as_black = report["openings_as_black"]
+        # As White I've had two Catalans (E04) against them
+        assert {o["ECO"] for o in as_white} == {"E04"}
+        assert sum(o["Games"] for o in as_white) == 2
+        # As Black they opened into a King's Indian — and I won it
+        assert [o["Opening"] for o in as_black] == ["King's Indian Defense"]
+        assert as_black[0]["Win"] == 1
+
+    def test_how_our_games_ended(self, df):
+        """Termination breakdown for the games against this opponent only."""
+        report = scouting_report(df, "Opponent A")
+        terminations = {t["Termination"]: t["Games"] for t in report["terminations"]}
+        assert terminations == {"win by resignation": 1,
+                                "loss by checkmate": 1,
+                                "Normal": 1}
+
+    def test_lessons_from_facing_them(self, df):
+        """Every Lesson written after a game vs this opponent, with Game links."""
+        report = scouting_report(df, "Opponent A")
+        lessons = report["lessons"]
+        assert len(lessons) == 3   # 1 from G1 + 2 from G4
+        assert all(lesson["ChapterURL"] for lesson in lessons)
+        texts = " ".join(lesson["Lesson"] for lesson in lessons)
+        assert "Keep the tension" in texts
+        assert "Don't grab pawns" in texts
+
+    def test_unknown_opponent_gives_empty_dossier(self, df):
+        report = scouting_report(df, "Nobody Iknow")
+        assert report["total"] == 0
+        assert report["timeline"] == []
+        assert report["lessons"] == []
+
+    def test_empty_data(self):
+        report = scouting_report(pd.DataFrame(), "Anyone")
+        assert report["total"] == 0
 
 
 class TestHeadToHead:

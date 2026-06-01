@@ -193,11 +193,11 @@ class TestCallbackIntegrity:
             known |= _collect_ids(_render(_page(path)))
 
         # Some components only exist after a user action creates them
-        # dynamically: the H2H game list (appears once an opponent is chosen)
+        # dynamically: the Scouting Report (appears once an opponent is chosen)
         # and the event detail table (appears once an event row is selected).
         from pages.events import update_event_table, update_tournament_detail
-        from pages.opponents import update_h2h
-        known |= _collect_ids(update_h2h("Opponent A", *_filter_args()))
+        from pages.opponents import update_scouting_report
+        known |= _collect_ids(update_scouting_report("Opponent A", *_filter_args()))
         event_rows = update_event_table(*_filter_args())
         known |= _collect_ids(update_tournament_detail([0], event_rows, *_filter_args()))
 
@@ -388,24 +388,47 @@ class TestOpponentsCallbacks:
         # Opponents A and B are both played more than once in the fixture
         assert update_opponents(*_filter_args()).data
 
-    def test_h2h_renders_record_for_known_opponent(self, ui_app, ui_data):
-        from pages.opponents import update_h2h
-        result = update_h2h("Opponent A", *_filter_args())
-        assert "Select an opponent" not in str(result)
-
-    def test_h2h_prompts_when_no_opponent_chosen(self, ui_app, ui_data):
-        from pages.opponents import update_h2h
-        assert "Select an opponent" in str(update_h2h(None, *_filter_args()))
-
-    def test_h2h_options_follow_the_data(self, ui_app, ui_data):
-        from pages.opponents import update_h2h_options
-        options = update_h2h_options({"seq": 1, "new_games": 0})
-        assert {"label": "Opponent A", "value": "Opponent A"} in options
-
     def test_strength_charts_build(self, ui_app, ui_data):
         from pages.opponents import update_bucket, update_scatter
         assert update_bucket(*_filter_args()).data
         assert update_scatter(*_filter_args()).data
+
+
+# ---------------------------------------------------------------------------
+# Scouting Report (issue #13) — the pre-game dossier
+# ---------------------------------------------------------------------------
+
+class TestScoutingReportPage:
+    def test_dossier_renders_for_known_opponent(self, ui_app, ui_data):
+        """Opponent picked → score, rating gap, openings, and lessons appear."""
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("Opponent A", *_filter_args()))
+        assert "2.5/3" in rendered                    # H2H score
+        assert "1925" in rendered                     # their latest rating
+        assert "King's Indian Defense" in rendered    # opening split by color
+        assert "Keep the tension" in rendered         # a Lesson from facing them
+
+    def test_dossier_lessons_link_to_their_games(self, ui_app, ui_data):
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("Opponent A", *_filter_args()))
+        assert "/game/chap0001" in rendered    # G1's Lesson → G1's detail view
+
+    def test_prompts_when_no_opponent_chosen(self, ui_app, ui_data):
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report(None, *_filter_args())).lower()
+        assert "opponent" in rendered    # "pick an opponent" hint, not a crash
+
+    def test_unknown_opponent_in_filter_says_so(self, ui_app, ui_data):
+        """An opponent filtered out of view gets a no-games message, not a crash."""
+        from pages.opponents import update_scouting_report
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        rendered = str(update_scouting_report("Opponent A", *impossible)).lower()
+        assert "no games" in rendered
+
+    def test_picker_options_follow_the_data(self, ui_app, ui_data):
+        from pages.opponents import update_scout_options
+        options = update_scout_options({"seq": 1, "new_games": 0})
+        assert {"label": "Opponent A", "value": "Opponent A"} in options
 
 
 # ---------------------------------------------------------------------------
@@ -614,12 +637,12 @@ class TestGameNavigation:
         assert row_click_to_game({"row": 0, "column_id": "Date"}, rows) is no_update
 
     def test_all_three_tables_have_navigation_callbacks(self, ui_app, ui_data):
-        """Games table, head-to-head list, and event detail all open Games."""
+        """Games table, Scouting Report timeline, and event detail all open Games."""
         from pages.events import navigate_to_game_from_event
         from pages.games import navigate_to_game
-        from pages.opponents import navigate_to_game_from_h2h
+        from pages.opponents import navigate_to_game_from_scout
 
-        for fn in (navigate_to_game, navigate_to_game_from_h2h, navigate_to_game_from_event):
+        for fn in (navigate_to_game, navigate_to_game_from_scout, navigate_to_game_from_event):
             href, _reset = fn({"row": 0, "column_id": "Date"}, self.ROWS)
             assert href == "/game/chap0003"
 

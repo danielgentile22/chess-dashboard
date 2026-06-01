@@ -129,6 +129,44 @@ def form_indicator(form: dict) -> list:
     return children
 
 
+def lesson_card(row, *, show_opponent: bool = True) -> html.Div:
+    """
+    One Lesson as a quote card: the takeaway text, its source Game's context,
+    Tags, and a link to the Game's detail view.
+
+    *row* is a ``lessons_table()`` row (Series or dict).  Used by the Lessons
+    page and inside Scouting Reports (where the opponent is implied, so
+    ``show_opponent=False``).
+    """
+    outcome = str(row["Outcome"] or "")
+    meta_bits = [
+        f"vs {row['Opponent']}" if show_opponent and row["Opponent"] else "",
+        outcome,
+        str(row["Event"] or ""),
+        str(row["Date"] or ""),
+    ]
+    detail_path = game_detail_path(row["ChapterURL"])
+
+    return html.Div(className="lesson-card", children=[
+        html.Div(className="lesson-quote", children=[
+            html.Span("💡", className="lesson-bulb"),
+            html.Span(row["Lesson"], className="lesson-text"),
+        ]),
+        html.Div(className="lesson-card-footer", children=[
+            html.Span(
+                "  ·  ".join(b for b in meta_bits if b),
+                className=f"lesson-meta outcome-{outcome.lower()}",
+            ),
+            html.Span(className="lesson-card-tags", children=[
+                html.Span(f"#{t}", className="tag-chip tag-chip-small")
+                for t in row["Tags"]
+            ]),
+            dcc.Link("View game →", href=detail_path, className="lesson-game-link")
+            if detail_path else None,
+        ]),
+    ])
+
+
 def lichess_link(chapter_url: str) -> str:
     """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
     return f"[Open ↗]({chapter_url})" if chapter_url else ""
