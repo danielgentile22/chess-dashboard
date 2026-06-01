@@ -11,6 +11,7 @@ from dash import Input, Output, State, callback, dash_table, html
 
 from components import (
     TABLE_CELL,
+    TABLE_DATA_COND,
     TABLE_HEADER,
     chart_card,
     content_card,
@@ -109,6 +110,10 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
                              terminations, start, end, events, moves, _sync=None):
     if not selected_rows or not table_data:
         return None
+    # The selection can be stale: a filter change may have shrunk the table
+    # since the row was selected.
+    if selected_rows[0] >= len(table_data):
+        return None
     row = table_data[selected_rows[0]]
     event_name = row.get("Event", "")
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
@@ -149,13 +154,7 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
                 style_table={"overflowX": "auto"},
                 style_cell={**TABLE_CELL, "fontSize": "11px"},
                 style_header=TABLE_HEADER,
-                style_data_conditional=[
-                    {"if": {"filter_query": '{Outcome} = "Win"'},
-                     "backgroundColor": "rgba(63,185,80,.13)"},
-                    {"if": {"filter_query": '{Outcome} = "Loss"'},
-                     "backgroundColor": "rgba(248,81,73,.11)"},
-                    {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]},
-                ],
+                style_data_conditional=TABLE_DATA_COND,
             ),
         ]),
     )
