@@ -90,6 +90,47 @@ def kpi_card(label: str, value_id: str, value_class: str = "") -> html.Div:
     ])
 
 
+def form_indicator(form: dict) -> list:
+    """
+    Streak fire / cold + last-5 form dots (issue #10).
+
+    Takes a ``current_form()`` dict and returns header-ready components:
+
+      * win streak ≥ 2 → 🔥 scaled to the streak length, extra glow at 5+
+      * loss streak ≥ 3 → 🧊 cold indicator
+      * last 5 Games as colored dots, oldest → newest
+
+    Reused anywhere recent form matters (the header now, opponent rows later).
+    """
+    children: list = []
+
+    if form["win_streak"] >= 2:
+        blazing = " blazing" if form["win_streak"] >= 5 else ""
+        # The fire grows with the streak (capped so it never breaks the header)
+        size = min(15 + form["win_streak"] * 1.5, 28)
+        children.append(html.Span(
+            ["🔥", html.Span(str(form["win_streak"]), className="streak-count")],
+            className=f"streak-fire{blazing}",
+            style={"fontSize": f"{size}px"},
+            title=f"{form['win_streak']}-game win streak",
+        ))
+    elif form["loss_streak"] >= 3:
+        children.append(html.Span(
+            ["🧊", html.Span(str(form["loss_streak"]), className="streak-count")],
+            className="streak-cold",
+            title=f"{form['loss_streak']}-game losing streak — it turns around",
+        ))
+
+    if form["last_5"]:
+        children.append(html.Span(
+            [html.Span(className=f"form-dot {o.lower()}", title=o) for o in form["last_5"]],
+            className="form-dots",
+            title="Last 5 games, oldest → newest",
+        ))
+
+    return children
+
+
 def empty_state(glyph: str, title: str, *lines) -> html.Div:
     """
     A deliberate empty state: a chess glyph, a serif heading, and explanation

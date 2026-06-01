@@ -21,7 +21,9 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, State, callback, dcc, html, no_update
 
 import data
-from filters import make_filter_button, make_filter_drawer
+from components import form_indicator
+from filters import FILTER_INPUTS, get_filtered, make_filter_button, make_filter_drawer
+from pgn_stats_core import current_form
 
 # ---------------------------------------------------------------------------
 # Layout
@@ -51,7 +53,7 @@ def _header(df, player_name: str) -> html.Header:
             date_range = f"{lo} – {hi}"
 
     return html.Header(className="app-header", children=[
-        # Row 1: brand + stats + actions
+        # Row 1: brand + form + stats + actions
         html.Div(className="app-header-top", children=[
             html.Div(className="app-header-brand", children=[
                 html.Span("♞", className="app-header-icon"),
@@ -59,6 +61,8 @@ def _header(df, player_name: str) -> html.Header:
                     html.Span("Chess Stats", className="app-header-title"),
                     html.Span(player_name, className="app-header-player"),
                 ], className="app-header-titles"),
+                # Streak fire + form dots (issue #10) — filled by callback
+                html.Div(id="header-form", className="header-form"),
             ]),
             html.Div(className="app-header-right", children=[
                 html.Span(
@@ -174,6 +178,13 @@ def run_sync(n_clicks, store):
         body += f" (couldn't fetch: {failed})"
     new_store = {"seq": seq, "new_games": len(outcome.new_games)}
     return new_store, True, "Sync complete", "success", body
+
+
+@callback(Output("header-form", "children"), FILTER_INPUTS)
+def update_form(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+    """Streak fire + form dots in the header — follows filters and Syncs."""
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    return form_indicator(current_form(df_f))
 
 
 @callback(

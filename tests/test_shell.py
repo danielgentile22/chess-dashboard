@@ -106,6 +106,96 @@ class TestFreshness:
 
 
 # ---------------------------------------------------------------------------
+# Streak fire + form dots (issue #10)
+# ---------------------------------------------------------------------------
+
+ALL_FILTERS = (["White", "Black"], ["Win", "Draw", "Loss"], [], None, None, [], None, None)
+
+
+class TestFormIndicator:
+    """The form_indicator component: fire / cold / dots rules."""
+
+    def _render(self, **form):
+        from components import form_indicator
+        defaults = {"win_streak": 0, "loss_streak": 0, "last_5": []}
+        return str(form_indicator({**defaults, **form}))
+
+    def test_no_streak_means_no_fire_no_cold(self):
+        rendered = self._render(win_streak=1, last_5=["Win"])
+        assert "streak-fire" not in rendered
+        assert "streak-cold" not in rendered
+
+    def test_fire_at_win_streak_2(self):
+        rendered = self._render(win_streak=2, last_5=["Win", "Win"])
+        assert "streak-fire" in rendered
+        assert "blazing" not in rendered
+
+    def test_fire_blazes_at_win_streak_5(self):
+        rendered = self._render(win_streak=5, last_5=["Win"] * 5)
+        assert "streak-fire" in rendered
+        assert "blazing" in rendered
+
+    def test_fire_grows_with_the_streak(self):
+        from components import form_indicator
+        small = form_indicator({"win_streak": 2, "loss_streak": 0, "last_5": []})
+        large = form_indicator({"win_streak": 8, "loss_streak": 0, "last_5": []})
+
+        def _fire_size(children):
+            fire = next(c for c in children if "streak-fire" in (c.className or ""))
+            return float(fire.style["fontSize"].rstrip("px"))
+
+        assert _fire_size(large) > _fire_size(small)
+
+    def test_cold_below_3_losses_shows_nothing(self):
+        rendered = self._render(loss_streak=2, last_5=["Loss", "Loss"])
+        assert "streak-cold" not in rendered
+
+    def test_cold_at_loss_streak_3(self):
+        rendered = self._render(loss_streak=3, last_5=["Loss"] * 3)
+        assert "streak-cold" in rendered
+        assert "streak-fire" not in rendered
+
+    def test_dots_ordered_oldest_to_newest(self):
+        from components import form_indicator
+        children = form_indicator(
+            {"win_streak": 1, "loss_streak": 0, "last_5": ["Loss", "Draw", "Win"]}
+        )
+        dots_wrap = next(c for c in children if "form-dots" in (c.className or ""))
+        classes = [dot.className for dot in dots_wrap.children]
+        assert classes == ["form-dot loss", "form-dot draw", "form-dot win"]
+
+    def test_empty_form_renders_nothing(self):
+        from components import form_indicator
+        assert form_indicator({"win_streak": 0, "loss_streak": 0, "last_5": []}) == []
+
+
+class TestHeaderFormCallback:
+    """update_form: the header indicators react to filters and Syncs."""
+
+    def test_fixture_data_shows_dots_but_no_streak(self):
+        """Fixture data ends on a Draw → no fire, no cold, 5 colored dots."""
+        from shell import update_form
+        rendered = str(update_form(*ALL_FILTERS))
+        assert "streak-fire" not in rendered
+        assert "streak-cold" not in rendered
+        assert rendered.count("form-dot ") == 5
+
+    def test_filtering_to_wins_lights_the_fire(self):
+        """Filters apply to the form too: wins-only → a 4-game win streak."""
+        from shell import update_form
+        wins_only = (["White", "Black"], ["Win"], [], None, None, [], None, None)
+        rendered = str(update_form(*wins_only))
+        assert "streak-fire" in rendered
+
+    def test_empty_data_shows_nothing(self):
+        from shell import update_form
+        impossible = (["White"], ["Win"], [], "2030-01-01", "2030-12-31", [], None, None)
+        rendered = str(update_form(*impossible))
+        assert "form-dot " not in rendered
+        assert "streak-fire" not in rendered
+
+
+# ---------------------------------------------------------------------------
 # Filter drawer
 # ---------------------------------------------------------------------------
 
