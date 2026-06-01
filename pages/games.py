@@ -3,13 +3,22 @@ pages/games.py
 ==============
 The Games page — every Game in the archive, filterable and sortable, with
 Open-on-Lichess links, Lesson indicators (💡), and Tags.
+
+Clicking any row opens that Game's detail view (issue #11).
 """
 from __future__ import annotations
 
 import dash
-from dash import Output, callback, dash_table, html
+from dash import Input, Output, State, callback, dash_table, html
 
-from components import TABLE_CELL, TABLE_DATA_COND, TABLE_HEADER, content_card, page_header
+from components import (
+    TABLE_CELL,
+    TABLE_DATA_COND,
+    TABLE_HEADER,
+    content_card,
+    page_header,
+    row_click_to_game,
+)
 from filters import FILTER_INPUTS, get_filtered
 
 dash.register_page(
@@ -46,8 +55,8 @@ def layout(**kwargs) -> html.Div:
         page_header("Games", "Every game in your archive"),
 
         content_card(
-            "All games (filtered)",
-            html.Div(style={"flex": "1", "overflow": "auto"}, children=[
+            "All games (filtered) — click a row to open the game",
+            html.Div(style={"flex": "1", "overflow": "auto"}, className="clickable-rows", children=[
                 dash_table.DataTable(
                     id="games-table",
                     columns=cols, data=[],
@@ -81,4 +90,21 @@ def update_games_table(colors, outcomes, terminations, start, end, events, moves
         )
     if "ChapterURL" in df_f.columns:
         out["Lichess"] = df_f["ChapterURL"].map(_lichess_link)
+        # Not a displayed column — carried in the row data so clicking the row
+        # knows which Game to open (issue #11)
+        out["ChapterURL"] = df_f["ChapterURL"]
     return out.to_dict("records")
+
+
+@callback(
+    Output("url", "href", allow_duplicate=True),
+    Output("games-table", "active_cell"),
+    Input("games-table", "active_cell"),
+    State("games-table", "derived_viewport_data"),
+    prevent_initial_call=True,
+)
+def navigate_to_game(active_cell, viewport_rows):
+    """Clicking a Game row opens its detail view."""
+    href = row_click_to_game(active_cell, viewport_rows)
+    # Reset the selection so clicking the same row again still navigates
+    return href, None

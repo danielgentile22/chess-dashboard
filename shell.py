@@ -39,6 +39,9 @@ def _nav() -> html.Nav:
             className="app-nav-link",
         )
         for page in dash.page_registry.values()
+        # Pages registered with nav=False (e.g. the Game detail view) are
+        # reached by clicking into them, not from the tabs.
+        if page.get("nav", True)
     ])
 
 
@@ -102,6 +105,10 @@ def make_shell() -> html.Div:
 
         # Cache / offline notice (filled by callback when relevant)
         html.Div(id="cache-notice"),
+
+        # Programmatic navigation target: clicking a Game row anywhere
+        # outputs a /game/<id> path here (issue #11)
+        dcc.Location(id="url", refresh="callback-nav"),
 
         # Sync machinery (invisible)
         dcc.Store(id="sync-store", data={"seq": 0, "new_games": 0}),

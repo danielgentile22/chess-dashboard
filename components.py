@@ -5,11 +5,11 @@ Shared UI building blocks for the multi-page Chess Stats Dashboard.
 
 Every page composes its layout from these helpers so the whole app keeps a
 single visual language: page headers, chart cards, KPI cards, empty states,
-and the dark DataTable styles.
+form indicators, and the dark DataTable styles.
 """
 from __future__ import annotations
 
-from dash import dcc, html
+from dash import dcc, html, no_update
 
 from styles import COLORS
 
@@ -129,6 +129,32 @@ def form_indicator(form: dict) -> list:
         ))
 
     return children
+
+
+def game_detail_path(chapter_url: str) -> str:
+    """The in-app detail route for a Game ('' if it has no ChapterURL)."""
+    if not chapter_url:
+        return ""
+    return f"/game/{chapter_url.rstrip('/').rsplit('/', 1)[-1]}"
+
+
+def row_click_to_game(active_cell, viewport_rows, ignore_columns=("Lichess",)):
+    """
+    Map a DataTable cell click to a Game detail path (issue #11).
+
+    Returns the ``/game/<chapter-id>`` path to navigate to, or ``no_update``
+    when the click shouldn't navigate: no cell, a click on an external-link
+    column, or a row without a ChapterURL.
+    """
+    if not active_cell or not viewport_rows:
+        return no_update
+    if active_cell.get("column_id") in ignore_columns:
+        return no_update  # let the Open-on-Lichess link do its own thing
+    row = active_cell.get("row")
+    if row is None or row >= len(viewport_rows):
+        return no_update
+    path = game_detail_path(viewport_rows[row].get("ChapterURL", ""))
+    return path or no_update
 
 
 def empty_state(glyph: str, title: str, *lines) -> html.Div:

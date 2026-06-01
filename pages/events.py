@@ -7,9 +7,16 @@ from __future__ import annotations
 
 import dash
 import plotly.express as px
-from dash import Input, Output, callback, dash_table, html
+from dash import Input, Output, State, callback, dash_table, html
 
-from components import TABLE_CELL, TABLE_HEADER, chart_card, content_card, page_header
+from components import (
+    TABLE_CELL,
+    TABLE_HEADER,
+    chart_card,
+    content_card,
+    page_header,
+    row_click_to_game,
+)
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import event_summary, performance_rating_stats
 from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
@@ -125,26 +132,42 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
         {"name": "Moves",       "id": "FullMoves"},
     ]
     return content_card(
-        "Event detail",
+        "Event detail — click a game to open it",
         html.Div(
             f"{event_name}  —  {row.get('Score', '')} points{pr_str}",
             style={"fontWeight": "600", "marginBottom": "10px",
                    "fontSize": "14px", "color": COLORS["text"]},
         ),
-        dash_table.DataTable(
-            columns=cols,
-            data=ev_games[["Round", "Color", "Opponent", "OpponentRating",
-                           "Result", "Outcome", "Termination", "FullMoves"]].to_dict("records"),
-            page_size=20, sort_action="native",
-            style_table={"overflowX": "auto"},
-            style_cell={**TABLE_CELL, "fontSize": "11px"},
-            style_header=TABLE_HEADER,
-            style_data_conditional=[
-                {"if": {"filter_query": '{Outcome} = "Win"'},
-                 "backgroundColor": "rgba(63,185,80,.13)"},
-                {"if": {"filter_query": '{Outcome} = "Loss"'},
-                 "backgroundColor": "rgba(248,81,73,.11)"},
-                {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]},
-            ],
-        ),
+        html.Div(className="clickable-rows", children=[
+            dash_table.DataTable(
+                id="event-games-table",
+                columns=cols,
+                data=ev_games[["Round", "Color", "Opponent", "OpponentRating",
+                               "Result", "Outcome", "Termination", "FullMoves",
+                               "ChapterURL"]].to_dict("records"),
+                page_size=20, sort_action="native",
+                style_table={"overflowX": "auto"},
+                style_cell={**TABLE_CELL, "fontSize": "11px"},
+                style_header=TABLE_HEADER,
+                style_data_conditional=[
+                    {"if": {"filter_query": '{Outcome} = "Win"'},
+                     "backgroundColor": "rgba(63,185,80,.13)"},
+                    {"if": {"filter_query": '{Outcome} = "Loss"'},
+                     "backgroundColor": "rgba(248,81,73,.11)"},
+                    {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]},
+                ],
+            ),
+        ]),
     )
+
+
+@callback(
+    Output("url", "href", allow_duplicate=True),
+    Output("event-games-table", "active_cell"),
+    Input("event-games-table", "active_cell"),
+    State("event-games-table", "derived_viewport_data"),
+    prevent_initial_call=True,
+)
+def navigate_to_game_from_event(active_cell, viewport_rows):
+    """Clicking a Game in an event's detail panel opens its detail view."""
+    return row_click_to_game(active_cell, viewport_rows), None

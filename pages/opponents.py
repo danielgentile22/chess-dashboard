@@ -11,10 +11,17 @@ from __future__ import annotations
 
 import dash
 import plotly.express as px
-from dash import Input, Output, callback, dash_table, dcc, html
+from dash import Input, Output, State, callback, dash_table, dcc, html
 
 import data
-from components import TABLE_CELL, TABLE_HEADER, chart_card, content_card, page_header
+from components import (
+    TABLE_CELL,
+    TABLE_HEADER,
+    chart_card,
+    content_card,
+    page_header,
+    row_click_to_game,
+)
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import (
     head_to_head,
@@ -139,8 +146,10 @@ def update_h2h(opponent, colors, outcomes, terminations, start, end, events, mov
             _stat("As Black W/D/L", f"{h['as_black_w']}/{h['as_black_d']}/{h['as_black_l']}"),
             _stat("Score", f"{h['win'] + .5 * h['draw']:g}/{h['total']}"),
         ]),
-        html.Div(style={"overflow": "auto", "maxHeight": "180px"}, children=[
+        html.Div(style={"overflow": "auto", "maxHeight": "180px"},
+                 className="clickable-rows", children=[
             dash_table.DataTable(
+                id="h2h-games-table",
                 columns=[
                     {"name": "Date",        "id": "Date"},
                     {"name": "Color",       "id": "Color"},
@@ -171,6 +180,18 @@ def update_h2h(opponent, colors, outcomes, terminations, start, end, events, mov
             ),
         ]),
     ])
+
+
+@callback(
+    Output("url", "href", allow_duplicate=True),
+    Output("h2h-games-table", "active_cell"),
+    Input("h2h-games-table", "active_cell"),
+    State("h2h-games-table", "derived_viewport_data"),
+    prevent_initial_call=True,
+)
+def navigate_to_game_from_h2h(active_cell, viewport_rows):
+    """Clicking a Game in the head-to-head list opens its detail view."""
+    return row_click_to_game(active_cell, viewport_rows), None
 
 
 @callback(Output("rating-bucket-bar", "figure"), FILTER_INPUTS)
