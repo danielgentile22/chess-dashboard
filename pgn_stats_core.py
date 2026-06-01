@@ -11,6 +11,7 @@ Public API
 Parsing
   load_games_df            Parse a PGN file → tidy DataFrame + player name.
   load_games_from_text     Parse PGN text (Lichess Study export) → same output.
+  extract_lessons_and_tags Extract Lessons / Tags from a game's comments (ADR 0002).
   apply_filters            Apply UI filter selections to the DataFrame.
 
 Overview
@@ -60,6 +61,7 @@ import pandas as pd
 __all__ = [
     "load_games_df",
     "load_games_from_text",
+    "extract_lessons_and_tags",
     "apply_filters",
     "win_draw_loss_counts",
     "termination_counts",
@@ -135,6 +137,70 @@ def compute_move_counts(game) -> tuple[int, int]:
     """Return (plies, full_moves) for a parsed PGN game node."""
     plies = sum(1 for _ in game.mainline_moves())
     return plies, (plies + 1) // 2
+
+
+# ---------------------------------------------------------------------------
+# Lessons and Tags (ADR 0002 — Lichess comment conventions)
+# ---------------------------------------------------------------------------
+
+# A Lesson is any comment starting with "Lesson:" (case-insensitive).
+_LESSON_RE = re.compile(r"^\s*lesson:\s*(.+)", re.IGNORECASE | re.DOTALL)
+
+# A Tag is a hashtag: '#' followed by a letter, then letters/digits/hyphens.
+# Requiring a leading letter keeps SAN checkmate suffixes (Qxf7#) and
+# numbering ("#1") from becoming Tags.
+_TAG_RE = re.compile(r"#([a-zA-Z][a-zA-Z0-9-]*)")
+
+# Lichess embeds machine annotations in comments: [%clk 1:30:00], [%cal ...],
+# [%csl ...]. Strip them before looking for Lessons/Tags.
+_LICHESS_DIRECTIVE_RE = re.compile(r"\[%[^\]]*\]")
+
+
+def _all_comments(game) -> list[str]:
+    """Every comment in a game tree (chapter-level, moves, variations), in document order."""
+    comments: list[str] = []
+
+    def _walk(node) -> None:
+        if node.comment and node.comment.strip():
+            comments.append(node.comment)
+        for child in node.variations:
+            _walk(child)
+
+    _walk(game)
+    return comments
+
+
+def extract_lessons_and_tags(game) -> tuple[list[str], list[str]]:
+    """
+    Extract a Game's Lessons and Tags from its chapter comments (ADR 0002).
+
+    Returns
+    -------
+    lessons : Comment texts that start with "Lesson:" (prefix stripped),
+              in document order.
+    tags    : Hashtags found in any comment, lowercase, deduplicated,
+              in first-seen order.
+    """
+    lessons: list[str] = []
+    tags: list[str] = []
+    seen_tags: set[str] = set()
+
+    for raw in _all_comments(game):
+        text = _LICHESS_DIRECTIVE_RE.sub("", raw).strip()
+        if not text:
+            continue
+
+        lesson_match = _LESSON_RE.match(text)
+        if lesson_match:
+            lessons.append(lesson_match.group(1).strip())
+
+        for tag in _TAG_RE.findall(text):
+            tag = tag.lower()
+            if tag not in seen_tags:
+                seen_tags.add(tag)
+                tags.append(tag)
+
+    return lessons, tags
 
 
 def outcome_for_player(result: str, color: str) -> str:
@@ -224,6 +290,9 @@ def load_games_from_text(
             chapter_name = _first_present(h, ["chaptername"])
             chapter_url = _first_present(h, ["chapterurl"])
 
+            # Lessons and Tags from chapter comments (ADR 0002)
+            lessons, tags = extract_lessons_and_tags(game)
+
             rows.append({
                 "Index": idx, "Date": date, "Time": time_tag,
                 "Event": event, "Site": site, "Round": round_tag, "Board": board_tag,
@@ -236,6 +305,7 @@ def load_games_from_text(
                 "Termination": termination, "Plies": plies, "FullMoves": fullmoves,
                 "StudyName": study_name, "ChapterName": chapter_name,
                 "ChapterURL": chapter_url,
+                "Lessons": lessons, "Tags": tags,
             })
 
     if not rows:

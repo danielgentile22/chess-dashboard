@@ -388,6 +388,9 @@ def _games_table_section(df: pd.DataFrame) -> dbc.AccordionItem:
         "FullMoves", "ECO", "Opening",
     ]
     cols = [{"name": c, "id": c} for c in display_cols if c in df.columns]
+    # Lesson indicator (💡) and Tags from chapter comments (ADR 0002)
+    cols.append({"name": "💡", "id": "LessonIndicator"})
+    cols.append({"name": "Tags", "id": "TagsDisplay"})
     # Open-on-Lichess link — rendered as markdown so it's clickable
     cols.append({"name": "Lichess", "id": "Lichess", "presentation": "markdown"})
 

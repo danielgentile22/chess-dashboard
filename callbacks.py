@@ -752,6 +752,12 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         cols = [c for c in _DISPLAY_COLS if c in df_f.columns]
         out = df_f[cols].copy()
+        if "Lessons" in df_f.columns:
+            out["LessonIndicator"] = df_f["Lessons"].map(lambda les: "💡" if les else "")
+        if "Tags" in df_f.columns:
+            out["TagsDisplay"] = df_f["Tags"].map(
+                lambda tags: " ".join(f"#{t}" for t in tags)
+            )
         if "ChapterURL" in df_f.columns:
             out["Lichess"] = df_f["ChapterURL"].map(_lichess_link)
         return out.to_dict("records")

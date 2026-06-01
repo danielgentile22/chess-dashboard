@@ -13,7 +13,15 @@ import pytest
 # ---------------------------------------------------------------------------
 # Sample PGN with 7 games covering many scenarios.
 # Shaped like a Lichess Study export: each game is one Chapter with
-# StudyName / ChapterName / ChapterURL headers.
+# StudyName / ChapterName / ChapterURL headers and chapter comments.
+#
+# Comment coverage (ADR 0002 — Lessons / Tags):
+#   game 1: chapter-level Lesson with a tag
+#   game 2: no comments at all
+#   game 3: comments with hashtags but no Lesson (mixed-case tag)
+#   game 4: two Lessons (mixed-case prefixes), one inside a variation
+#   game 5: tags spread across comments, duplicated tag, [%clk] noise
+#   games 6-7: no comments
 # ---------------------------------------------------------------------------
 
 SAMPLE_PGN = """\
@@ -33,6 +41,7 @@ SAMPLE_PGN = """\
 [ChapterName "Test Player - Opponent A"]
 [ChapterURL "https://lichess.org/study/teststudy/chap0001"]
 
+{ Lesson: Keep the tension in the center instead of releasing it early. #strategy }
 1. d4 Nf6 2. c4 e6 3. g3 d5 4. Bg2 dxc4 5. Nf3 Be7 6. O-O O-O 1-0
 
 [Event "Test Open"]
@@ -69,7 +78,7 @@ SAMPLE_PGN = """\
 [ChapterName "Test Player - Opponent C"]
 [ChapterURL "https://lichess.org/study/teststudy/chap0003"]
 
-1. d4 Nf6 2. e4 d6 3. Nc3 e5 0-1
+1. d4 Nf6 2. e4 { dubious move order } d6 3. Nc3 e5 { hung the bishop here #blunder #Tactics } 0-1
 
 [Event "Summer Cup"]
 [Site "Shelbyville"]
@@ -87,7 +96,8 @@ SAMPLE_PGN = """\
 [ChapterName "Opponent A - Test Player"]
 [ChapterURL "https://lichess.org/study/teststudy/chap0004"]
 
-1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 0-1
+{ LESSON: Don't grab pawns while behind in development. }
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 (3... d5 { lesson: Castle before starting an attack. #opening }) 4. e4 d6 0-1
 
 [Event "Summer Cup"]
 [Site "Shelbyville"]
@@ -105,7 +115,7 @@ SAMPLE_PGN = """\
 [ChapterName "Test Player - Opponent D"]
 [ChapterURL "https://lichess.org/study/teststudy/chap0005"]
 
-1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nc3 Nf6 1-0
+1. e4 e5 2. Nf3 { [%clk 1:30:00] sharp position #tactics } Nc6 3. Bc4 Bc5 4. Nc3 { converted the attack #endgame #tactics } Nf6 1-0
 
 [Event "Summer Cup"]
 [Site "Shelbyville"]
