@@ -84,6 +84,7 @@ __all__ = [
     "event_summary",
     "performance_rating_stats",
     "compute_milestones",
+    "milestone_deltas",
 ]
 
 
@@ -1149,3 +1150,67 @@ def compute_milestones(df: pd.DataFrame) -> list[dict]:
 
     items.sort(key=lambda x: x["game_num"])
     return items
+
+
+def _peak_rating(df: pd.DataFrame) -> int | None:
+    """The player's highest rating in *df*, or None if no rated games."""
+    if df.empty or "PlayerRatingNum" not in df.columns:
+        return None
+    rated = df["PlayerRatingNum"].dropna()
+    return int(rated.max()) if not rated.empty else None
+
+
+def _best_win(df: pd.DataFrame) -> tuple[int, str] | None:
+    """(rating, opponent) of the highest-rated opponent beaten, or None."""
+    if df.empty or "OpponentRatingNum" not in df.columns:
+        return None
+    beaten = df[(df["Outcome"] == "Win") & df["OpponentRatingNum"].notna()]
+    if beaten.empty:
+        return None
+    best = beaten.loc[beaten["OpponentRatingNum"].idxmax()]
+    return int(best["OpponentRatingNum"]), str(best["Opponent"])
+
+
+def milestone_deltas(old_df: pd.DataFrame, new_df: pd.DataFrame) -> list[dict]:
+    """
+    Personal bests set between two data snapshots (issue #15).
+
+    Compares the pre-Sync and post-Sync Games and reports every record that
+    the new Games broke.  Nothing is persisted: the comparison is the whole
+    state (ADR 0002).
+
+    Returns a list of deltas, each:
+      {"kind": "peak_rating", "old": <previous best>, "new": <new best>,
+       "description": <celebration text>}
+
+    An empty *old_df* (or one with no baseline value for a record) produces
+    no delta for it — there is nothing to beat, so nothing to celebrate.
+    """
+    deltas: list[dict] = []
+
+    old_peak, new_peak = _peak_rating(old_df), _peak_rating(new_df)
+    if old_peak is not None and new_peak is not None and new_peak > old_peak:
+        deltas.append({
+            "kind": "peak_rating", "old": old_peak, "new": new_peak,
+            "description": f"New peak rating: {new_peak} (was {old_peak})",
+        })
+
+    old_streak = streaks(old_df)["longest_streak_wins_only"]
+    new_streak = streaks(new_df)["longest_streak_wins_only"]
+    if old_streak > 0 and new_streak > old_streak:
+        deltas.append({
+            "kind": "win_streak", "old": old_streak, "new": new_streak,
+            "description": (f"New longest win streak: {new_streak} games in a row "
+                            f"(was {old_streak})"),
+        })
+
+    old_best, new_best = _best_win(old_df), _best_win(new_df)
+    if old_best is not None and new_best is not None and new_best[0] > old_best[0]:
+        rating, opponent = new_best
+        deltas.append({
+            "kind": "giant_kill", "old": old_best[0], "new": rating,
+            "description": (f"Beat your highest-rated opponent yet: "
+                            f"{opponent} ({rating}, previous best {old_best[0]})"),
+        })
+
+    return deltas

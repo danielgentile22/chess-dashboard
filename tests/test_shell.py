@@ -49,7 +49,7 @@ class TestSyncButton:
     def test_successful_sync_bumps_store_and_reports(self, sample_pgn_text):
         from shell import run_sync
         with stub_studies(teststudy=sample_pgn_text):
-            store, is_open, header, icon, body = run_sync(1, {"seq": 0, "new_games": 0})
+            store, is_open, header, icon, body, _ = run_sync(1, {"seq": 0, "new_games": 0})
 
         assert store["seq"] == 1
         assert is_open is True
@@ -60,7 +60,7 @@ class TestSyncButton:
         from shell import run_sync
         grown = sample_pgn_text + "\n\n" + sample_pgn_study2_text
         with stub_studies(teststudy=grown):
-            store, _, _, icon, body = run_sync(1, {"seq": 0, "new_games": 0})
+            store, _, _, icon, body, _ = run_sync(1, {"seq": 0, "new_games": 0})
 
         assert icon == "success"
         assert store["new_games"] == 2
@@ -70,12 +70,55 @@ class TestSyncButton:
         from lichess_client import LichessUnreachableError
         from shell import run_sync
         with stub_studies(teststudy=LichessUnreachableError("lichess is down")):
-            store, is_open, header, icon, body = run_sync(1, {"seq": 0, "new_games": 0})
+            store, is_open, header, icon, body, _ = run_sync(1, {"seq": 0, "new_games": 0})
 
         assert store is no_update           # charts must NOT re-render
         assert is_open is True
         assert icon == "danger"
         assert len(data.get_df()) == 7      # current data untouched
+
+
+# ---------------------------------------------------------------------------
+# Milestone celebrations (issue #15)
+# ---------------------------------------------------------------------------
+
+class TestCelebrations:
+    """A Sync that sets a personal best earns a gold banner."""
+
+    def _sync_grown_archive(self, sample_pgn_text, sample_pgn_study2_text):
+        """Run a Sync that adds Study 2's games (new peak rating + new streak)."""
+        from shell import run_sync
+        grown = sample_pgn_text + "\n\n" + sample_pgn_study2_text
+        with stub_studies(teststudy=grown):
+            return run_sync(1, {"seq": 0, "new_games": 0})
+
+    def test_record_breaking_sync_shows_celebration(self, sample_pgn_text,
+                                                    sample_pgn_study2_text):
+        outputs = self._sync_grown_archive(sample_pgn_text, sample_pgn_study2_text)
+        celebration = outputs[-1]
+        rendered = str(celebration)
+        assert "1815" in rendered                  # the new peak rating…
+        assert "1810" in rendered                  # …and the record it broke
+        assert "win streak" in rendered.lower()    # the new longest streak too
+
+    def test_celebration_is_dismissible(self, sample_pgn_text, sample_pgn_study2_text):
+        outputs = self._sync_grown_archive(sample_pgn_text, sample_pgn_study2_text)
+        celebration = outputs[-1]
+        assert celebration.dismissable is True
+
+    def test_sync_without_new_bests_changes_nothing(self, sample_pgn_text):
+        """Re-Syncing the same games breaks no records → the zone is untouched."""
+        from shell import run_sync
+        with stub_studies(teststudy=sample_pgn_text):
+            outputs = run_sync(1, {"seq": 0, "new_games": 0})
+        assert outputs[-1] is no_update
+
+    def test_failed_sync_changes_nothing(self):
+        from lichess_client import LichessUnreachableError
+        from shell import run_sync
+        with stub_studies(teststudy=LichessUnreachableError("down")):
+            outputs = run_sync(1, {"seq": 0, "new_games": 0})
+        assert outputs[-1] is no_update
 
 
 # ---------------------------------------------------------------------------

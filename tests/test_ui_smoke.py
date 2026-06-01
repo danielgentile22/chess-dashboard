@@ -172,6 +172,13 @@ class TestShell:
             assert "color-filter" not in page_ids
             assert "date-filter" not in page_ids
 
+    def test_celebration_zone_lives_in_shell_not_pages(self, shell_ids, ui_data):
+        """A celebration earned by a Sync must survive page navigation (issue #15):
+        the zone never unmounts because it's part of the shell, not a page."""
+        assert "celebration-zone" in shell_ids
+        for path, _ in PAGES:
+            assert "celebration-zone" not in _collect_ids(_render(_page(path)))
+
 
 # ---------------------------------------------------------------------------
 # Callback integrity: every callback wires to components that exist
