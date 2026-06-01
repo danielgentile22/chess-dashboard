@@ -296,6 +296,9 @@ code {
   width: 100%;
 }
 .page { animation: pageIn .32s cubic-bezier(.2, .8, .2, 1) both; }
+/* Review mode renders a position:fixed overlay inside the page; the page's
+   animated transform would become its containing block, so it goes off. */
+.page-no-anim { animation: none; }
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(7px); }
   to   { opacity: 1; transform: none; }
@@ -702,6 +705,160 @@ code {
   text-align: right; padding-top: 1px;
 }
 .milestone-desc { font-size: 13px; color: var(--cs-text); flex: 1; }
+
+/* ── Pre-game review mode (issue #19) ─────────────────────────
+   Full-screen, card-by-card, built for one hand and five minutes. */
+.review-launch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 9px 18px;
+  background: var(--cs-card);
+  border: 1px solid var(--cs-border);
+  border-radius: 999px;
+  color: var(--cs-text) !important;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.review-launch-btn:hover {
+  border-color: var(--cs-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px rgba(210,153,34,.15);
+}
+.review-launch-icon { color: var(--cs-accent); font-size: 16px; }
+.scout-review-launch { margin-top: 14px; margin-bottom: 0; }
+
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(210,153,34,.05), transparent),
+    var(--cs-bg);
+  animation: pageIn .3s ease-out both;
+}
+.review-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--cs-border);
+}
+.review-titles { display: flex; flex-direction: column; line-height: 1.2; }
+.review-title {
+  font-family: var(--cs-font-display);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+.review-subtitle { font-size: 12.5px; color: var(--cs-accent); }
+.review-done-link {
+  color: var(--cs-muted) !important;
+  font-size: 14px;
+  text-decoration: none !important;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.review-done-link:hover { color: var(--cs-text) !important; background: var(--cs-card2); }
+
+/* The card: one giant tap target */
+.review-card-tap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 24px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.review-card {
+  max-width: 620px;
+  width: 100%;
+  text-align: left;
+  animation: reviewCardIn .35s cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes reviewCardIn {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: none; }
+}
+.review-reason {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(88,166,255,.12);
+  border: 1px solid rgba(88,166,255,.35);
+  color: var(--cs-primary);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 22px;
+}
+.review-reason.weakness {
+  background: rgba(248,81,73,.12);
+  border-color: rgba(248,81,73,.4);
+  color: var(--cs-loss);
+}
+.review-lesson-text {
+  font-family: var(--cs-font-display);
+  font-size: clamp(24px, 4.5vw, 34px);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--cs-text);
+}
+.review-card-footer {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.review-card-meta { font-size: 13px; color: var(--cs-muted); }
+.review-card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* The send-off */
+.review-done-card, .review-empty-card { text-align: center; }
+.review-done-glyph { font-size: 54px; margin-bottom: 14px; }
+.review-done-title {
+  font-family: var(--cs-font-display);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+.review-done-line { margin-top: 10px; font-size: 15px; color: var(--cs-muted); }
+.review-empty-card { margin: auto; max-width: 480px; }
+
+/* Bottom controls — thumb territory */
+.review-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 22px calc(18px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--cs-border);
+}
+.review-prev-btn {
+  background: var(--cs-card);
+  border: 1px solid var(--cs-border);
+  border-radius: 999px;
+  color: var(--cs-text);
+  font-size: 13.5px;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+.review-prev-btn:hover { border-color: var(--cs-muted); }
+.review-progress {
+  font-family: var(--cs-font-mono);
+  font-size: 14px;
+  color: var(--cs-accent);
+  letter-spacing: .05em;
+}
+.review-tap-hint { font-size: 11.5px; color: var(--cs-dim); }
 
 /* ── Recurring weakness callouts (issue #18) ──────────────────
    "#time-trouble appears in 4 of your last 5 losses" — the
