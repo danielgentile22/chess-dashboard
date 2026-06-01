@@ -8,9 +8,9 @@ only sets up the skeleton and initial empty state.
 """
 from __future__ import annotations
 
-import pandas as pd
 import dash_bootstrap_components as dbc
-from dash import dcc, html, dash_table
+import pandas as pd
+from dash import dash_table, dcc, html
 
 from styles import COLORS
 
@@ -104,10 +104,6 @@ def _filters_section(df: pd.DataFrame) -> dbc.AccordionItem:
     full_moves = df["FullMoves"].dropna()
     min_mv = int(full_moves.min()) if not full_moves.empty else 1
     max_mv = int(full_moves.max()) if not full_moves.empty else 100
-
-    opp_ratings = df["OpponentRatingNum"].dropna()
-    min_opp = int(opp_ratings.min()) if not opp_ratings.empty else 0
-    max_opp = int(opp_ratings.max()) if not opp_ratings.empty else 3000
 
     return dbc.AccordionItem(
         title="Filters",

@@ -24,8 +24,8 @@ import sys
 
 import dash_bootstrap_components as dbc
 
-from config import config
 import data
+from config import config
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,8 +38,9 @@ logger = logging.getLogger(__name__)
 def build_app(pgn_path: str, player_name=None):
     """Parse the PGN, build the Dash app, and return (dash_app, server)."""
     from dash import Dash
-    from layout import make_layout
+
     from callbacks import register_callbacks
+    from layout import make_layout
 
     df, detected = data.initialize(pgn_path, player_name=player_name)
 

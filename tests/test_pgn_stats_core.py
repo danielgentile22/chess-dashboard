@@ -9,31 +9,29 @@ from __future__ import annotations
 import math
 
 import pandas as pd
-import pytest
 
 from pgn_stats_core import (
+    activity_data,
     apply_filters,
-    win_draw_loss_counts,
-    termination_counts,
-    streaks,
-    kpi_stats,
-    win_rate_over_time,
-    player_rating_over_time,
-    opponent_summary,
+    compute_milestones,
+    event_summary,
+    game_length_data,
     head_to_head,
+    kpi_stats,
     opening_summary,
     opponent_rating_bucket_summary,
-    outcome_vs_rating_data,
-    game_length_data,
-    activity_data,
-    event_summary,
-    performance_rating_stats,
-    compute_milestones,
-    safe_int,
+    opponent_summary,
     outcome_for_player,
+    outcome_vs_rating_data,
+    performance_rating_stats,
+    player_rating_over_time,
+    safe_int,
+    streaks,
+    termination_counts,
+    win_draw_loss_counts,
+    win_rate_over_time,
     winner_from_result,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper utilities
@@ -118,7 +116,7 @@ class TestLoadGamesDf:
         """PlayerRatingNum should be numeric where available."""
         rated = df["PlayerRatingNum"].dropna()
         assert len(rated) > 0
-        assert rated.dtype.kind == "f"
+        assert pd.api.types.is_numeric_dtype(rated)
 
     def test_rating_diff_computed(self, df):
         """RatingDiff = OpponentRatingNum - PlayerRatingNum."""
@@ -157,7 +155,7 @@ class TestApplyFilters:
         assert len(out) == len(df)
 
     def test_filter_date(self, df):
-        out = apply_filters(df, [], [], [], "2024-06-01", "2024-06-30", date_start="2024-06-01", date_end="2024-06-30")
+        out = apply_filters(df, [], [], [], date_start="2024-06-01", date_end="2024-06-30")
         assert (out["Date_dt"].dt.month == 6).all()
 
     def test_filter_by_event(self, df):
