@@ -23,6 +23,7 @@ from pgn_stats_core import (
     kpi_stats,
     lessons_table,
     load_games_from_text,
+    milestone_deltas,
     opening_summary,
     opponent_rating_bucket_summary,
     opponent_summary,
@@ -824,6 +825,84 @@ class TestComputeMilestones:
             assert "game_num" in m
             assert "description" in m
             assert "kind" in m
+
+
+# ---------------------------------------------------------------------------
+# Milestone celebrations (issue #15) — comparing two data snapshots
+# ---------------------------------------------------------------------------
+
+def _snapshot(games: list[dict]) -> pd.DataFrame:
+    """A minimal Games DataFrame snapshot for milestone-delta tests."""
+    return pd.DataFrame({
+        "Outcome": [g.get("outcome", "Win") for g in games],
+        "Opponent": [g.get("opponent", "Someone") for g in games],
+        "PlayerRatingNum": [float(g["my_rating"]) if g.get("my_rating") else None
+                            for g in games],
+        "OpponentRatingNum": [float(g["opp_rating"]) if g.get("opp_rating") else None
+                              for g in games],
+        "Date_dt": pd.date_range("2024-01-01", periods=len(games)),
+        "Index": range(1, len(games) + 1),
+    })
+
+
+class TestMilestoneDeltas:
+    def test_new_peak_rating_detected(self):
+        old = _snapshot([{"my_rating": 1800}, {"my_rating": 1810}])
+        new = _snapshot([{"my_rating": 1800}, {"my_rating": 1810},
+                         {"my_rating": 1850}])
+        deltas = milestone_deltas(old, new)
+        peak = next(d for d in deltas if d["kind"] == "peak_rating")
+        assert peak["old"] == 1810
+        assert peak["new"] == 1850
+        assert "1850" in peak["description"]
+
+    def test_new_longest_win_streak_detected(self):
+        old = _snapshot([{"outcome": "Win"}, {"outcome": "Win"}, {"outcome": "Loss"}])
+        new = _snapshot([{"outcome": "Win"}, {"outcome": "Win"}, {"outcome": "Loss"},
+                         {"outcome": "Win"}, {"outcome": "Win"}, {"outcome": "Win"}])
+        deltas = milestone_deltas(old, new)
+        streak = next(d for d in deltas if d["kind"] == "win_streak")
+        assert streak["old"] == 2
+        assert streak["new"] == 3
+
+    def test_win_against_new_highest_rated_opponent_detected(self):
+        old = _snapshot([{"outcome": "Win", "opp_rating": 1900, "opponent": "Old Best"},
+                         {"outcome": "Loss", "opp_rating": 2100, "opponent": "Lost To"}])
+        new = _snapshot([{"outcome": "Win", "opp_rating": 1900, "opponent": "Old Best"},
+                         {"outcome": "Loss", "opp_rating": 2100, "opponent": "Lost To"},
+                         {"outcome": "Win", "opp_rating": 2050, "opponent": "Giant"}])
+        deltas = milestone_deltas(old, new)
+        kill = next(d for d in deltas if d["kind"] == "giant_kill")
+        # Losses against strong players don't count — only beaten opponents
+        assert kill["old"] == 1900
+        assert kill["new"] == 2050
+        assert "Giant" in kill["description"]
+
+    def test_no_celebration_when_nothing_improved(self):
+        """A Sync that brings a loss (or nothing) sets no records."""
+        old = _snapshot([{"outcome": "Win", "my_rating": 1810, "opp_rating": 1900}])
+        new = _snapshot([{"outcome": "Win", "my_rating": 1810, "opp_rating": 1900},
+                         {"outcome": "Loss", "my_rating": 1805, "opp_rating": 2000}])
+        assert milestone_deltas(old, new) == []
+        assert milestone_deltas(old, old) == []
+
+    def test_no_baseline_means_no_celebration(self):
+        """An empty pre-Sync snapshot: nothing to beat → nothing to celebrate."""
+        new = _snapshot([{"outcome": "Win", "my_rating": 1850, "opp_rating": 1900}])
+        assert milestone_deltas(pd.DataFrame(), new) == []
+
+    def test_one_sync_can_break_several_records(self, sample_pgn_text,
+                                                 sample_pgn_study2_text):
+        """The real fixture flow: Study 2's games set a new peak AND a new streak."""
+        old, _ = load_games_from_text(sample_pgn_text, player_name="Test Player")
+        new, _ = load_games_from_text(
+            sample_pgn_text + "\n\n" + sample_pgn_study2_text,
+            player_name="Test Player",
+        )
+        kinds = {d["kind"] for d in milestone_deltas(old, new)}
+        # Study 2 brings: a 1815 rating (old peak 1810) and a 4-game win
+        # streak (old longest 3); its only win is vs a 1700 (old best 1930).
+        assert kinds == {"peak_rating", "win_streak"}
 
 
 # ---------------------------------------------------------------------------

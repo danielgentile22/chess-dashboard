@@ -5,10 +5,11 @@ Shared UI building blocks for the multi-page Chess Stats Dashboard.
 
 Every page composes its layout from these helpers so the whole app keeps a
 single visual language: page headers, chart cards, KPI cards, empty states,
-form indicators, and the dark DataTable styles.
+form indicators, celebration banners, and the dark DataTable styles.
 """
 from __future__ import annotations
 
+import dash_bootstrap_components as dbc
 from dash import dcc, html, no_update
 
 from styles import COLORS
@@ -169,3 +170,28 @@ def empty_state(glyph: str, title: str, *lines) -> html.Div:
         html.Div(title, className="empty-state-title"),
         *[html.Div(line, className="empty-state-line") for line in lines],
     ])
+
+
+def celebration_banner(deltas: list[dict]) -> dbc.Alert:
+    """
+    The gold milestone celebration (issue #15): shown once after a Sync that
+    set a personal best, dismissible, and gone for good once dismissed.
+
+    Takes the ``milestone_deltas()`` list — one line per record broken.
+    """
+    headline = ("New personal best!" if len(deltas) == 1
+                else f"{len(deltas)} new personal bests!")
+    return dbc.Alert(
+        [
+            html.Div(className="celebration-headline", children=[
+                html.Span("🏆", className="celebration-trophy"),
+                html.Span(headline, className="celebration-title"),
+            ]),
+            html.Ul(className="celebration-list", children=[
+                html.Li(d["description"]) for d in deltas
+            ]),
+        ],
+        is_open=True,
+        dismissable=True,
+        className="celebration-banner",
+    )

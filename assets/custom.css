@@ -640,6 +640,48 @@ code {
 }
 .milestone-desc { font-size: 13px; color: var(--cs-text); flex: 1; }
 
+/* ── Milestone celebrations (issue #15) ───────────────────────
+   The one place outside the active tab where gold is allowed:
+   a personal best earned by a Sync.                            */
+.celebration-banner.alert {
+  margin: 18px 24px 0;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(210,153,34,.16), rgba(210,153,34,.05));
+  border: 1px solid rgba(210,153,34,.45);
+  border-radius: var(--cs-radius);
+  color: var(--cs-text);
+  box-shadow: 0 0 28px rgba(210,153,34,.12), inset 0 1px 0 rgba(210,153,34,.18);
+  animation: celebrationIn .5s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+@keyframes celebrationIn {
+  from { opacity: 0; transform: translateY(-10px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+.celebration-headline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.celebration-trophy { font-size: 22px; }
+.celebration-title {
+  font-family: var(--cs-font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cs-accent);
+}
+.celebration-list {
+  margin: 8px 0 0;
+  padding-left: 36px;
+  font-size: 13.5px;
+  color: var(--cs-text);
+}
+.celebration-list li { margin-top: 3px; }
+.celebration-list li::marker { color: var(--cs-accent); }
+.celebration-banner .btn-close {
+  filter: invert(1) brightness(1.6);
+  font-size: 12px;
+}
+
 /* ── Activity heatmap calendar (issue #14) ───────────────── */
 .activity-year { margin-bottom: 18px; }
 .activity-year:last-child { margin-bottom: 4px; }
@@ -1058,6 +1100,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 
   .empty-state { padding: 56px 18px; }
   .sync-toast { top: auto; bottom: 16px; right: 16px; }
+  .celebration-banner.alert { margin: 14px 12px 0; padding: 14px 16px; }
 
   /* Game detail: board scales, metadata stacks below (issue #11) */
   .game-detail-grid { grid-template-columns: 1fr; }
