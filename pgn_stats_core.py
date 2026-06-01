@@ -75,6 +75,7 @@ __all__ = [
     "player_rating_over_time",
     "opponent_summary",
     "head_to_head",
+    "scouting_report",
     "opening_summary",
     "opponent_rating_bucket_summary",
     "outcome_vs_rating_data",
@@ -673,6 +674,75 @@ def head_to_head(df: pd.DataFrame, opponent: str) -> dict:
         ]].rename(columns={"PlayerRating": "MyRating", "OpponentRating": "OppRating"})
         .to_dict("records"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Scouting Report (issue #13)
+# ---------------------------------------------------------------------------
+
+def scouting_report(df: pd.DataFrame, opponent: str) -> dict:
+    """
+    The pre-game dossier on one opponent (CONTEXT.md: Scouting Report).
+
+    Composes everything Daniel wants to know right before facing someone
+    again: the head-to-head score and rating gap, the per-game results
+    timeline, the openings they've played against him (split by his color),
+    how those Games ended, and the Lessons he wrote after facing them.
+    """
+    report: dict = {
+        "opponent": opponent,
+        "total": 0, "win": 0, "draw": 0, "loss": 0, "score": "0/0",
+        "their_rating": None, "my_rating": None, "rating_gap": None,
+        "timeline": [],
+        "openings_as_white": [], "openings_as_black": [],
+        "terminations": [],
+        "lessons": [],
+    }
+    if df.empty or "Opponent" not in df.columns:
+        return report
+
+    h2h = head_to_head(df, opponent)
+    total = h2h["total"]
+    report.update({
+        "total": total,
+        "win": h2h.get("win", 0),
+        "draw": h2h.get("draw", 0),
+        "loss": h2h.get("loss", 0),
+        "score": f"{h2h.get('win', 0) + 0.5 * h2h.get('draw', 0):g}/{total}",
+        # Per-game results, oldest → newest (head_to_head sorts by date)
+        "timeline": h2h.get("game_rows", []),
+    })
+    if total == 0:
+        return report
+
+    # Rating gap: their latest known rating (vs Daniel) against Daniel's
+    # latest rating anywhere — "where do I stand if we play tomorrow?"
+    games = df[df["Opponent"] == opponent]
+    their_rated = games[games["Date_dt"].notna() & games["OpponentRatingNum"].notna()]
+    if not their_rated.empty:
+        report["their_rating"] = int(
+            their_rated.sort_values("Date_dt").iloc[-1]["OpponentRatingNum"]
+        )
+    my_rated = df[df["Date_dt"].notna() & df["PlayerRatingNum"].notna()]
+    if not my_rated.empty:
+        report["my_rating"] = int(
+            my_rated.sort_values("Date_dt").iloc[-1]["PlayerRatingNum"]
+        )
+    if report["their_rating"] is not None and report["my_rating"] is not None:
+        report["rating_gap"] = report["their_rating"] - report["my_rating"]
+
+    # Openings they've played against me, split by my color
+    for color, key in (("White", "openings_as_white"), ("Black", "openings_as_black")):
+        _, openings = opening_summary(games[games["Color"] == color])
+        report[key] = openings.to_dict("records")
+
+    # How our games ended
+    report["terminations"] = termination_counts(games).to_dict("records")
+
+    # The differentiator: every Lesson written after facing them
+    report["lessons"] = lessons_table(df, opponent=opponent).to_dict("records")
+
+    return report
 
 
 # ---------------------------------------------------------------------------

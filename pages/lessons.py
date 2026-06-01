@@ -17,7 +17,7 @@ import dash
 from dash import ALL, Input, Output, State, callback, ctx, dcc, html, no_update
 
 import data
-from components import content_card, game_detail_path, page_header
+from components import content_card, lesson_card, page_header
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import CANONICAL_TAGS, lessons_table, tag_counts
 
@@ -67,36 +67,6 @@ def layout(**kwargs) -> html.Div:
 # ---------------------------------------------------------------------------
 # Rendering helpers
 # ---------------------------------------------------------------------------
-
-def _lesson_card(row) -> html.Div:
-    outcome = str(row["Outcome"] or "")
-    meta_bits = [
-        f"vs {row['Opponent']}" if row["Opponent"] else "",
-        outcome,
-        str(row["Event"] or ""),
-        str(row["Date"] or ""),
-    ]
-    detail_path = game_detail_path(row["ChapterURL"])
-
-    return html.Div(className="lesson-card", children=[
-        html.Div(className="lesson-quote", children=[
-            html.Span("💡", className="lesson-bulb"),
-            html.Span(row["Lesson"], className="lesson-text"),
-        ]),
-        html.Div(className="lesson-card-footer", children=[
-            html.Span(
-                "  ·  ".join(b for b in meta_bits if b),
-                className=f"lesson-meta outcome-{outcome.lower()}",
-            ),
-            html.Span(className="lesson-card-tags", children=[
-                html.Span(f"#{t}", className="tag-chip tag-chip-small")
-                for t in row["Tags"]
-            ]),
-            dcc.Link("View game →", href=detail_path, className="lesson-game-link")
-            if detail_path else None,
-        ]),
-    ])
-
 
 def _convention_explainer() -> html.Div:
     """The empty state: how to write Lessons on Lichess (ADR 0002)."""
@@ -192,7 +162,7 @@ def update_lessons_page(selected_tags, opponent, colors, outcomes, terminations,
     if lessons.empty:
         return _convention_explainer(), strip
 
-    cards = [_lesson_card(row) for _, row in lessons.iterrows()]
+    cards = [lesson_card(row) for _, row in lessons.iterrows()]
     count_label = html.Div(
         f"{len(lessons)} lesson{'s' if len(lessons) != 1 else ''}",
         className="lesson-count",
