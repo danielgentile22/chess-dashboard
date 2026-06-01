@@ -39,9 +39,6 @@ WDL_COLOR_MAP: dict[str, str] = {
     "Loss": COLORS["loss"],
 }
 
-# Ordered colour sequence for multi-series charts
-WDL_COLOR_SEQUENCE: list[str] = [COLORS["win"], COLORS["draw"], COLORS["loss"]]
-
 # ECO family labels
 ECO_FAMILY: dict[str, str] = {
     "A": "A — Flank / Indian",
