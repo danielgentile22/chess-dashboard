@@ -107,6 +107,57 @@ class TestPartialFailure:
         assert "study2" in str(exc_info.value)
 
 
+class TestCache:
+    """A successful Sync writes a disposable PGN cache (never a source of truth — ADR 0001)."""
+
+    def test_successful_sync_writes_cache_file(self, sample_pgn_text, tmp_path):
+        cache = tmp_path / "games.pgn"
+        with stub_studies(study1=sample_pgn_text):
+            sync.sync_studies(["study1"], player_name="Test Player", cache_path=str(cache))
+
+        assert cache.exists()
+        # The cache holds real PGN that parses back to the same games
+        cached_df, _, _ = sync.load_from_cache(str(cache), player_name="Test Player")
+        assert len(cached_df) == 7
+
+    def test_next_sync_overwrites_cache(
+        self, sample_pgn_text, sample_pgn_study2_text, tmp_path
+    ):
+        cache = tmp_path / "games.pgn"
+        with stub_studies(study1=sample_pgn_text):
+            sync.sync_studies(["study1"], player_name="Test Player", cache_path=str(cache))
+        with stub_studies(study1=sample_pgn_text, study2=sample_pgn_study2_text):
+            sync.sync_studies(
+                ["study1", "study2"], player_name="Test Player", cache_path=str(cache)
+            )
+
+        cached_df, _, _ = sync.load_from_cache(str(cache), player_name="Test Player")
+        assert len(cached_df) == 9  # the bigger, newer dataset
+
+    def test_load_from_cache_reports_cache_age(self, sample_pgn_text, tmp_path):
+        cache = tmp_path / "games.pgn"
+        with stub_studies(study1=sample_pgn_text):
+            sync.sync_studies(["study1"], player_name="Test Player", cache_path=str(cache))
+
+        _, _, cached_at = sync.load_from_cache(str(cache), player_name="Test Player")
+        assert cached_at is not None  # a timestamp the UI can show
+
+    def test_load_from_missing_cache_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            sync.load_from_cache(str(tmp_path / "nope.pgn"), player_name="Test Player")
+
+    def test_unwritable_cache_path_does_not_break_the_sync(self, sample_pgn_text):
+        """The app stays stateless on hosts without a writable disk (ADR 0002)."""
+        with stub_studies(study1=sample_pgn_text):
+            result = sync.sync_studies(
+                ["study1"], player_name="Test Player",
+                cache_path="/nonexistent-dir/sub/games.pgn",
+            )
+
+        # Sync still succeeded; the cache write failure was only logged
+        assert len(result.df) == 7
+
+
 class TestDetectNewGames:
     """New-Game detection compares ChapterURLs against the previous Sync's data."""
 

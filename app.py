@@ -36,14 +36,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def build_app(study_ids: list[str], player_name=None, token=None):
+def build_app(study_ids: list[str], player_name=None, token=None, cache_path=None):
     """Sync the designated Studies, build the Dash app, and return (dash_app, server)."""
     from dash import Dash
 
     from callbacks import register_callbacks
     from layout import make_layout
 
-    df, detected = data.initialize(study_ids, player_name=player_name, token=token)
+    df, detected = data.initialize(
+        study_ids, player_name=player_name, token=token, cache_path=cache_path
+    )
 
     dash_app = Dash(
         __name__,
@@ -83,6 +85,7 @@ if config.STUDY_IDS:
             config.STUDY_IDS,
             player_name=config.PLAYER_NAME,
             token=config.LICHESS_API_TOKEN,
+            cache_path=config.CACHE_PATH,
         )
     except (SyncError, RuntimeError) as _exc:
         _exit_with_sync_error(_exc, f"LICHESS_STUDY_IDS={config.STUDY_IDS!r}")
@@ -105,6 +108,8 @@ def main():
     ap.add_argument("--player", default=config.PLAYER_NAME)
     ap.add_argument("--token",  default=config.LICHESS_API_TOKEN,
                     help="Lichess API token (only needed for private studies)")
+    ap.add_argument("--cache",  default=config.CACHE_PATH,
+                    help="PGN cache file for offline fallback (default: games.pgn)")
     ap.add_argument("--host",   default=config.HOST)
     ap.add_argument("--port",   default=config.PORT, type=int)
     ap.add_argument("--debug",  action="store_true", default=config.DEBUG)
@@ -115,7 +120,9 @@ def main():
         ap.error("at least one --study (or LICHESS_STUDY_IDS) is required")
 
     try:
-        dash_app, _ = build_app(study_ids, player_name=args.player, token=args.token)
+        dash_app, _ = build_app(
+            study_ids, player_name=args.player, token=args.token, cache_path=args.cache
+        )
     except (SyncError, RuntimeError) as exc:
         _exit_with_sync_error(exc, f"--study {study_ids!r}")
 

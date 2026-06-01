@@ -465,6 +465,9 @@ def make_layout(df: pd.DataFrame, player_name: str) -> html.Div:
             ]),
         ]),
 
+        # ── Cache / offline notice (filled by callback when relevant) ──
+        html.Div(id="cache-notice"),
+
         # ── Sync machinery (invisible) ─────────────────────────
         # Bumped after every successful Sync; every chart callback listens to it.
         dcc.Store(id="sync-store", data={"seq": 0, "new_games": 0}),
