@@ -40,21 +40,24 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
     """Sync the designated Studies, build the Dash app, and return (dash_app, server)."""
     from dash import Dash
 
-    from callbacks import register_callbacks
-    from layout import make_layout
-
-    df, detected = data.initialize(
+    _df, detected = data.initialize(
         study_ids, player_name=player_name, token=token, cache_path=cache_path
     )
 
+    # Creating the app imports every module in pages/ (each registers its own
+    # route and callbacks), so the data store must be initialized first.
     dash_app = Dash(
         __name__,
-        external_stylesheets=[dbc.themes.CYBORG],
+        use_pages=True,
+        external_stylesheets=[dbc.themes.CYBORG, dbc.icons.BOOTSTRAP],
         suppress_callback_exceptions=True,
         title=f"Chess Stats — {detected}",
     )
-    dash_app.layout = make_layout(df, detected)
-    register_callbacks(dash_app)
+
+    # Layout as a *function*: every browser page load rebuilds the shell from
+    # the current data store, so header stats and filter options stay fresh.
+    import shell
+    dash_app.layout = shell.make_shell
 
     @dash_app.server.route("/health")
     def health():
