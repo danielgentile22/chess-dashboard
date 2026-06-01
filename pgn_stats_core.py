@@ -51,11 +51,9 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from typing import Optional, Tuple
 
-import numpy as np
-import pandas as pd
 import chess.pgn
+import pandas as pd
 
 __all__ = [
     "load_games_df",
@@ -97,7 +95,7 @@ def _first_present(h: dict, keys: list[str], default: str = "") -> str:
     return default
 
 
-def safe_int(x) -> Optional[int]:
+def safe_int(x) -> int | None:
     """
     Parse a rating-like string to int; return None on any failure.
     Handles "1850", "1850P" (provisional), and "?" gracefully.
@@ -130,7 +128,7 @@ def infer_player_name_from_rows(rows: list[dict]) -> str:
     return Counter(names).most_common(1)[0][0]
 
 
-def compute_move_counts(game) -> Tuple[int, int]:
+def compute_move_counts(game) -> tuple[int, int]:
     """Return (plies, full_moves) for a parsed PGN game node."""
     plies = sum(1 for _ in game.mainline_moves())
     return plies, (plies + 1) // 2
@@ -156,7 +154,7 @@ def winner_from_result(result: str) -> str:
 
 def load_games_df(
     pgn_path: str,
-    player_name: Optional[str] = None,
+    player_name: str | None = None,
 ) -> tuple[pd.DataFrame, str]:
     """
     Parse a PGN file and return a tidy DataFrame + detected player name.
@@ -173,7 +171,7 @@ def load_games_df(
     detected  : The player name used for all perspective columns.
     """
     rows: list[dict] = []
-    with open(pgn_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(pgn_path, encoding="utf-8", errors="ignore") as f:
         idx = 0
         while True:
             game = chess.pgn.read_game(f)
@@ -274,13 +272,13 @@ def apply_filters(
     colors: list[str],
     outcomes: list[str],
     terminations: list[str],
-    date_start: Optional[str],
-    date_end: Optional[str],
-    events: Optional[list[str]] = None,
-    min_moves: Optional[int] = None,
-    max_moves: Optional[int] = None,
-    min_opp_rating: Optional[int] = None,
-    max_opp_rating: Optional[int] = None,
+    date_start: str | None,
+    date_end: str | None,
+    events: list[str] | None = None,
+    min_moves: int | None = None,
+    max_moves: int | None = None,
+    min_opp_rating: int | None = None,
+    max_opp_rating: int | None = None,
 ) -> pd.DataFrame:
     """
     Apply UI filter selections to *df* and return a filtered copy.
@@ -319,9 +317,10 @@ def apply_filters(
 
 def win_draw_loss_counts(df: pd.DataFrame) -> pd.Series:
     """Return a Series with counts for Win, Draw, Loss, Unknown outcomes."""
-    return df["Outcome"].value_counts().reindex(
-        ["Win", "Draw", "Loss", "Unknown"], fill_value=0
-    )
+    outcomes = ["Win", "Draw", "Loss", "Unknown"]
+    if df.empty or "Outcome" not in df.columns:
+        return pd.Series(0, index=pd.Index(outcomes), name="count")
+    return df["Outcome"].value_counts().reindex(outcomes, fill_value=0)
 
 
 def termination_counts(df: pd.DataFrame) -> pd.DataFrame:
@@ -410,7 +409,7 @@ def kpi_stats(df: pd.DataFrame) -> dict:
     decisive = counts["Win"] + counts["Draw"] + counts["Loss"]
 
     rated_player = df["PlayerRatingNum"].dropna()
-    current_rating: Optional[int] = None
+    current_rating: int | None = None
     dated = df[df["Date_dt"].notna() & df["PlayerRatingNum"].notna()]
     if not dated.empty:
         current_rating = int(dated.sort_values("Date_dt").iloc[-1]["PlayerRatingNum"])
@@ -762,7 +761,9 @@ def event_summary(df: pd.DataFrame) -> pd.DataFrame:
         loss = int((g["Outcome"] == "Loss").sum())
         games = int(len(g))
         rated = g[g["OpponentRatingNum"].notna()].copy()
-        hi_n = hi_r = hi_o = lo_n = lo_r = lo_o = ""
+        hi_n = hi_o = lo_n = lo_o = ""
+        hi_r: int | str = ""
+        lo_r: int | str = ""
         if not rated.empty:
             hr = rated.loc[rated["OpponentRatingNum"].idxmax()]
             lr = rated.loc[rated["OpponentRatingNum"].idxmin()]
@@ -790,12 +791,15 @@ def performance_rating_stats(df: pd.DataFrame) -> dict:
 
     Returns dict: performance_rating, avg_opp_rating, score, score_pct, rated_games.
     """
+    empty = {"performance_rating": None, "avg_opp_rating": None,
+             "score": 0.0, "score_pct": 0.0, "rated_games": 0}
+    if df.empty or "OpponentRatingNum" not in df.columns:
+        return empty
     rated = df[
         df["OpponentRatingNum"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])
     ].copy()
     if rated.empty:
-        return {"performance_rating": None, "avg_opp_rating": None,
-                "score": 0.0, "score_pct": 0.0, "rated_games": 0}
+        return empty
     wins = int((rated["Outcome"] == "Win").sum())
     draws = int((rated["Outcome"] == "Draw").sum())
     total = len(rated)
@@ -863,7 +867,7 @@ def compute_milestones(df: pd.DataFrame) -> list[dict]:
         _add(r, f"Game #{n}", "milestone")
 
     # Highest rated opponent beaten
-    beaten = d[d["Outcome"] == "Win"][d["OpponentRatingNum"].notna()]
+    beaten = d[(d["Outcome"] == "Win") & d["OpponentRatingNum"].notna()]
     if not beaten.empty:
         r = beaten.loc[beaten["OpponentRatingNum"].idxmax()]
         _add(r, f"Beat highest-rated opponent: {r['Opponent']} ({int(r['OpponentRatingNum'])})", "peak")

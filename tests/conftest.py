@@ -5,8 +5,6 @@ Shared fixtures for the chess stats test suite.
 """
 from __future__ import annotations
 
-import io
-import tempfile
 from pathlib import Path
 
 import pandas as pd

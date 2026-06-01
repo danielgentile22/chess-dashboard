@@ -45,7 +45,7 @@ All charts are dark-themed (GitHub-inspired palette) and update instantly when a
 
 ### Prerequisites
 
-- Python 3.9 or newer
+- Python 3.10 or newer
 - A PGN export of your games (USCF, FIDE, Lichess, Chess.com, etc.)
 
 ### Install with Make (recommended)

@@ -11,7 +11,6 @@ so this is thread-safe for concurrent Dash callbacks.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import pandas as pd
 
@@ -23,7 +22,7 @@ _df: pd.DataFrame = pd.DataFrame()
 _player: str = ""
 
 
-def initialize(pgn_path: str, player_name: Optional[str] = None) -> tuple[pd.DataFrame, str]:
+def initialize(pgn_path: str, player_name: str | None = None) -> tuple[pd.DataFrame, str]:
     """
     Parse *pgn_path* and cache the resulting DataFrame module-wide.
 

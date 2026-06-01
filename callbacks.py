@@ -11,37 +11,35 @@ components.  No global mutable state is written here.
 """
 from __future__ import annotations
 
-import math
 from datetime import date
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Input, Output, State, callback_context, html, dash_table, no_update
+from dash import Input, Output, callback_context, dash_table, html, no_update
 
 import data
 from pgn_stats_core import (
+    activity_data,
     apply_filters,
-    win_draw_loss_counts,
-    termination_counts,
-    streaks,
-    kpi_stats,
-    win_rate_over_time,
-    player_rating_over_time,
-    opponent_summary,
+    compute_milestones,
+    event_summary,
+    game_length_data,
     head_to_head,
+    kpi_stats,
     opening_summary,
     opponent_rating_bucket_summary,
+    opponent_summary,
     outcome_vs_rating_data,
-    game_length_data,
-    activity_data,
-    event_summary,
     performance_rating_stats,
-    compute_milestones,
+    player_rating_over_time,
+    streaks,
+    termination_counts,
+    win_draw_loss_counts,
+    win_rate_over_time,
 )
-from styles import COLORS, WDL_COLOR_MAP, WDL_COLOR_SEQUENCE, apply_dark_theme, empty_fig
+from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
 
 # ---------------------------------------------------------------------------
 # Shared helpers
