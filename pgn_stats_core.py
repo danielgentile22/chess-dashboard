@@ -10,6 +10,7 @@ Public API
 ----------
 Parsing
   load_games_df            Parse a PGN file → tidy DataFrame + player name.
+  load_games_from_text     Parse PGN text (Lichess Study export) → same output.
   apply_filters            Apply UI filter selections to the DataFrame.
 
 Overview
@@ -48,6 +49,7 @@ Milestones
 """
 from __future__ import annotations
 
+import io
 import math
 import re
 from collections import Counter
@@ -57,6 +59,7 @@ import pandas as pd
 
 __all__ = [
     "load_games_df",
+    "load_games_from_text",
     "apply_filters",
     "win_draw_loss_counts",
     "termination_counts",
@@ -170,8 +173,23 @@ def load_games_df(
     df        : One row per game (see column docs in module docstring).
     detected  : The player name used for all perspective columns.
     """
-    rows: list[dict] = []
     with open(pgn_path, encoding="utf-8", errors="ignore") as f:
+        return load_games_from_text(f.read(), player_name=player_name)
+
+
+def load_games_from_text(
+    pgn_text: str,
+    player_name: str | None = None,
+) -> tuple[pd.DataFrame, str]:
+    """
+    Parse PGN text (e.g. a Lichess Study export) and return a tidy DataFrame
+    + detected player name.
+
+    Same contract as :func:`load_games_df`, but takes the PGN content directly
+    instead of a file path.
+    """
+    rows: list[dict] = []
+    with io.StringIO(pgn_text) as f:
         idx = 0
         while True:
             game = chess.pgn.read_game(f)

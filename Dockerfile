@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Default environment (override at runtime)
-ENV PGN_PATH="USCF OTB FULL.pgn" \
+ENV LICHESS_STUDY_IDS="abcdWXYZ" \
     PLAYER_NAME="" \
     PORT=8050
 

@@ -22,6 +22,11 @@ env/
 .cache/
 flask_session/
 
+# Local PGN cache of the last successful Sync (the Lichess Studies are the
+# source of truth — ADR 0001). Never commit game data.
+games.pgn
+*.pgn
+
 # IDE
 .vscode/
 .idea/

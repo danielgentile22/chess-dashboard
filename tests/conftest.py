@@ -123,6 +123,12 @@ SAMPLE_PGN = """\
 
 
 @pytest.fixture(scope="session")
+def sample_pgn_text() -> str:
+    """The sample PGN as raw text (what the Lichess client returns)."""
+    return SAMPLE_PGN
+
+
+@pytest.fixture(scope="session")
 def sample_pgn_path(tmp_path_factory) -> Path:
     """Write SAMPLE_PGN to a temp file and return its path."""
     p = tmp_path_factory.mktemp("pgn") / "test_games.pgn"

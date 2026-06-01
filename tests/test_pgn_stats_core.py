@@ -18,6 +18,7 @@ from pgn_stats_core import (
     game_length_data,
     head_to_head,
     kpi_stats,
+    load_games_from_text,
     opening_summary,
     opponent_rating_bucket_summary,
     opponent_summary,
@@ -131,6 +132,25 @@ class TestLoadGamesDf:
 
     def test_eco_present(self, df):
         assert df["ECO"].str.strip().ne("").all()
+
+
+# ---------------------------------------------------------------------------
+# load_games_from_text
+# ---------------------------------------------------------------------------
+
+class TestLoadGamesFromText:
+    def test_parses_pgn_text_same_as_file(self, sample_pgn_text, df):
+        """PGN text (as returned by the Lichess client) parses identically to a file."""
+        text_df, player = load_games_from_text(sample_pgn_text, player_name="Test Player")
+        assert player == "Test Player"
+        assert len(text_df) == len(df)
+        assert list(text_df.columns) == list(df.columns)
+        assert text_df["Outcome"].tolist() == df["Outcome"].tolist()
+
+    def test_empty_text_gives_empty_df(self):
+        text_df, player = load_games_from_text("", player_name="Someone")
+        assert text_df.empty
+        assert player == "Someone"
 
 
 # ---------------------------------------------------------------------------
