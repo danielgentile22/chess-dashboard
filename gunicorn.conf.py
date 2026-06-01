@@ -4,15 +4,16 @@ gunicorn.conf.py
 Gunicorn configuration for production deployment.
 Loaded automatically when gunicorn is started from the project root.
 """
-import multiprocessing
 import os
 
 # Bind
 bind = f"0.0.0.0:{os.environ.get('PORT', '8050')}"
 
-# Workers: 2 × CPU cores + 1 is the standard formula for I/O-bound apps.
-# For a personal dashboard, 2 workers is plenty.
-workers = int(os.environ.get("WEB_CONCURRENCY", min(2, multiprocessing.cpu_count() + 1)))
+# Workers: must be 1. The dashboard keeps Synced games in worker memory and
+# the Sync button atomically swaps that in-memory data; with multiple workers
+# only the worker that handled the Sync request would see the new games.
+# (For a single-user dashboard one worker is also plenty.)
+workers = int(os.environ.get("WEB_CONCURRENCY", 1))
 worker_class = "sync"
 timeout = 120
 

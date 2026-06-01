@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/danielgentile22/uscf-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/danielgentile22/uscf-dashboard/actions/workflows/ci.yml)
 
-An interactive analytics dashboard for your over-the-board chess games, built with Python and Plotly Dash. Drop in any PGN file and explore your entire game history through a dark-themed, fully filterable interface — all in the browser, no database required.
+An interactive analytics dashboard for your over-the-board chess games, built with Python and Plotly Dash. Point it at the Lichess Study (or Studies) where you archive your games and explore your entire game history through a dark-themed, fully filterable interface — all in the browser, no database required.
+
+Your designated Lichess Studies are the source of truth (see `docs/adr/0001`): the dashboard Syncs every Game directly from the Lichess API at startup — no manual PGN exports.
 
 ---
 
@@ -45,8 +47,8 @@ All charts are dark-themed (GitHub-inspired palette) and update instantly when a
 
 ### Prerequisites
 
-- Python 3.9 or newer
-- A PGN export of your games (USCF, FIDE, Lichess, Chess.com, etc.)
+- Python 3.10 or newer
+- A Lichess Study containing your games (one Game per Chapter), e.g. `https://lichess.org/study/6jYtXHGp` → study ID `6jYtXHGp`
 
 ### Install with Make (recommended)
 
@@ -54,7 +56,7 @@ All charts are dark-themed (GitHub-inspired palette) and update instantly when a
 git clone https://github.com/danielgentile22/uscf-dashboard.git
 cd uscf-dashboard
 make install        # creates .venv and installs runtime deps
-make run PGN="your-games.pgn"
+make run STUDY=6jYtXHGp
 ```
 
 Then open [http://localhost:8050](http://localhost:8050).
@@ -67,24 +69,47 @@ cd uscf-dashboard
 python3 -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python app.py --pgn "your-games.pgn"
+python app.py --study 6jYtXHGp
 ```
 
 ### CLI options
 
 | Flag | Default | Description |
 |---|---|---|
-| `--pgn` | *(required)* | Path to your PGN file |
-| `--player` | auto-detected | Your name as it appears in PGN headers |
+| `--study` | `$LICHESS_STUDY_IDS` | Lichess study ID to Sync games from (repeat for multiple Studies) |
+| `--player` | auto-detected | Your name as it appears in Game headers |
+| `--token` | `$LICHESS_API_TOKEN` | Lichess API token (only for private studies) |
 | `--host` | `127.0.0.1` | Host to bind to |
 | `--port` | `8050` | Port to listen on |
 | `--debug` | off | Enable Dash hot-reload mode |
 
+When your archive grows past Lichess's 64-chapter Study limit, designate the next Study too:
+
+```bash
+python app.py --study 6jYtXHGp --study abcd1234
+```
+
+Games from all designated Studies are merged, deduplicated by chapter, and sorted by date.
+
 If your name isn't auto-detected, pass it explicitly:
 
 ```bash
-python app.py --pgn "your-games.pgn" --player "Last, First"
+python app.py --study 6jYtXHGp --player "Last, First"
 ```
+
+### Environment variables
+
+| Variable | Description |
+|---|---|
+| `LICHESS_STUDY_IDS` | Comma-separated Lichess study IDs to Sync from (e.g. `6jYtXHGp,abcd1234`) |
+| `LICHESS_API_TOKEN` | Optional API token, only needed if a Study is private |
+| `PLAYER_NAME` | Override player-name auto-detection |
+| `CACHE_PATH` | PGN cache of the last successful Sync, used as offline fallback (default: `games.pgn`) |
+| `HOST` / `PORT` / `DEBUG` | Server binding and debug mode |
+
+### Offline resilience
+
+Every successful Sync writes a local PGN cache. If Lichess is unreachable when the app starts, it boots from that cache and shows a "cached data" notice; if a Sync from the header button fails, the data you're looking at stays untouched and an error toast appears. The cache is disposable — the designated Studies on Lichess remain the only source of truth.
 
 ---
 
@@ -112,10 +137,8 @@ docker compose up --build
 
 # Or just build the image
 docker build -t chess-stats .
-docker run -p 8050:8050 -e PGN_PATH="USCF OTB FULL.pgn" chess-stats
+docker run -p 8050:8050 -e LICHESS_STUDY_IDS="6jYtXHGp" chess-stats
 ```
-
-The `docker-compose.yml` mounts the project directory read-only, so you can swap in a new PGN without rebuilding.
 
 ---
 
@@ -124,7 +147,7 @@ The `docker-compose.yml` mounts the project directory read-only, so you can swap
 This repo includes `render.yaml` for one-click deployment on [Render](https://render.com).
 
 1. **Fork** this repository.
-2. Place your PGN file in the repo root (or update `PGN_PATH` in `render.yaml`).
+2. Set `LICHESS_STUDY_IDS` in `render.yaml` (or in the Render dashboard) to your study ID.
 3. Create a **New Web Service** on Render, connect your fork — Render auto-detects `render.yaml`.
 4. Optionally set `PLAYER_NAME` in the Render dashboard if auto-detection is wrong.
 
@@ -144,9 +167,9 @@ web: gunicorn app:server --config gunicorn.conf.py
 
 ---
 
-## PGN Compatibility
+## Game / PGN Compatibility
 
-Built primarily for **USCF over-the-board PGN exports**, but compatible with any standard PGN that includes:
+Games are read from Lichess Study chapters (which Lichess serves as standard PGN). Any chapter that includes the headers below works:
 
 | Header | Required? | Notes |
 |---|---|---|
@@ -158,8 +181,6 @@ Built primarily for **USCF over-the-board PGN exports**, but compatible with any
 | `ECO` / `Opening` | Optional | Opening analysis section |
 | `Termination` | Optional | Termination breakdown chart |
 
-Also tested with Lichess and Chess.com exports.
-
 ---
 
 ## Project Structure
@@ -167,17 +188,24 @@ Also tested with Lichess and Chess.com exports.
 ```
 chess-stats-dashboard/
 ├── app.py                   # Entry point — Dash factory, CLI, gunicorn server
-├── config.py                # Environment variable config (PGN_PATH, PORT, …)
-├── data.py                  # Module-level DataFrame singleton
+├── config.py                # Environment variable config (LICHESS_STUDY_IDS, PORT, …)
+├── data.py                  # Module-level data store (Synced from Lichess)
+├── sync.py                  # Sync orchestrator: Studies → merged Games
+├── lichess_client.py        # Lichess API client (the only module that talks HTTP)
 ├── layout.py                # Full Dash layout (skeleton, KPI bar, all sections)
 ├── callbacks.py             # All Dash callbacks (20+ focused functions)
 ├── styles.py                # Color palette, dark-theme helpers, empty_fig()
 ├── pgn_stats_core.py        # PGN parsing and all statistics functions
 ├── assets/
 │   └── custom.css           # Dark theme overrides, component styles
+├── docs/adr/                # Architecture decision records
 ├── tests/
-│   ├── conftest.py          # Shared fixtures (sample PGN, dataframe)
-│   └── test_pgn_stats_core.py  # 21 test classes covering every public function
+│   ├── conftest.py          # Shared fixtures (sample Studies, dataframe)
+│   ├── test_pgn_stats_core.py  # Parser + stats function tests
+│   ├── test_lichess_client.py  # Lichess client tests (mocked HTTP)
+│   ├── test_sync.py         # Sync orchestrator tests (stubbed client)
+│   ├── test_config.py       # Config parsing tests
+│   └── test_data.py         # Data store tests (stubbed client)
 ├── requirements.txt         # Runtime dependencies
 ├── requirements-dev.txt     # Dev dependencies (pytest, ruff, mypy)
 ├── pyproject.toml           # Project metadata + tool configuration
@@ -194,9 +222,11 @@ chess-stats-dashboard/
 
 ### Key design decisions
 
+**Lichess Studies are the source of truth** (ADR 0001). Games are Synced from the designated Studies via the Lichess API; nothing is uploaded or exported by hand. `lichess_client.py` is the only module that talks HTTP.
+
 **`pgn_stats_core.py` is framework-agnostic.** Every statistics function takes a Pandas DataFrame and returns a DataFrame or dict. You can import and call them from a Jupyter notebook or any other frontend without touching any Dash code.
 
-**No database.** The PGN is parsed once at startup and stored in a module-level singleton (`data.py`). All callbacks read from this shared DataFrame — no serialisation overhead, no `dcc.Store` round-trips, instant filter response.
+**No database.** Games are Synced once at startup and stored in a module-level store (`data.py`). All callbacks read from this shared DataFrame — no serialisation overhead, no `dcc.Store` round-trips, instant filter response.
 
 **One filter helper, many callbacks.** All 20+ callbacks share the same `FILTER_INPUTS` list and a single `_get_filtered()` helper. Dash runs independent callbacks in parallel, so all charts update concurrently when you change a filter.
 

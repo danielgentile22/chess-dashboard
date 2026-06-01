@@ -8,16 +8,22 @@ services:
     # gunicorn targets the module-level Flask WSGI object in app.py
     startCommand: gunicorn app:server --config gunicorn.conf.py
     envVars:
-      # Path to your PGN file relative to the repo root.
-      - key: PGN_PATH
-        value: "USCF OTB FULL.pgn"
-      # Your name exactly as it appears in the PGN White/Black headers.
+      # Comma-separated Lichess Study IDs forming your game archive (ADR 0001).
+      # Add the next Study's ID here when the current one hits the
+      # 64-chapter limit, e.g. "6jYtXHGp,abcd1234".
+      - key: LICHESS_STUDY_IDS
+        value: "6jYtXHGp"
+      # Optional Lichess API token — only needed for private studies.
+      - key: LICHESS_API_TOKEN
+        value: ""
+      # Your name exactly as it appears in the Game White/Black headers.
       # Leave empty to auto-detect (most frequent name across all games).
       - key: PLAYER_NAME
         value: ""
-      # Gunicorn worker count — 2 is fine for a personal dashboard.
+      # Gunicorn worker count — must be 1: Synced games live in worker
+      # memory and the Sync button swaps them in-place.
       - key: WEB_CONCURRENCY
-        value: "2"
+        value: "1"
       # Set to "debug" for verbose gunicorn logs.
       - key: LOG_LEVEL
         value: "info"

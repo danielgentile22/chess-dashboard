@@ -10,6 +10,8 @@ Public API
 ----------
 Parsing
   load_games_df            Parse a PGN file → tidy DataFrame + player name.
+  load_games_from_text     Parse PGN text (Lichess Study export) → same output.
+  extract_lessons_and_tags Extract Lessons / Tags from a game's comments (ADR 0002).
   apply_filters            Apply UI filter selections to the DataFrame.
 
 Overview
@@ -48,17 +50,18 @@ Milestones
 """
 from __future__ import annotations
 
+import io
 import math
 import re
 from collections import Counter
-from typing import Optional, Tuple
 
-import numpy as np
-import pandas as pd
 import chess.pgn
+import pandas as pd
 
 __all__ = [
     "load_games_df",
+    "load_games_from_text",
+    "extract_lessons_and_tags",
     "apply_filters",
     "win_draw_loss_counts",
     "termination_counts",
@@ -97,7 +100,7 @@ def _first_present(h: dict, keys: list[str], default: str = "") -> str:
     return default
 
 
-def safe_int(x) -> Optional[int]:
+def safe_int(x) -> int | None:
     """
     Parse a rating-like string to int; return None on any failure.
     Handles "1850", "1850P" (provisional), and "?" gracefully.
@@ -130,10 +133,74 @@ def infer_player_name_from_rows(rows: list[dict]) -> str:
     return Counter(names).most_common(1)[0][0]
 
 
-def compute_move_counts(game) -> Tuple[int, int]:
+def compute_move_counts(game) -> tuple[int, int]:
     """Return (plies, full_moves) for a parsed PGN game node."""
     plies = sum(1 for _ in game.mainline_moves())
     return plies, (plies + 1) // 2
+
+
+# ---------------------------------------------------------------------------
+# Lessons and Tags (ADR 0002 — Lichess comment conventions)
+# ---------------------------------------------------------------------------
+
+# A Lesson is any comment starting with "Lesson:" (case-insensitive).
+_LESSON_RE = re.compile(r"^\s*lesson:\s*(.+)", re.IGNORECASE | re.DOTALL)
+
+# A Tag is a hashtag: '#' followed by a letter, then letters/digits/hyphens.
+# Requiring a leading letter keeps SAN checkmate suffixes (Qxf7#) and
+# numbering ("#1") from becoming Tags.
+_TAG_RE = re.compile(r"#([a-zA-Z][a-zA-Z0-9-]*)")
+
+# Lichess embeds machine annotations in comments: [%clk 1:30:00], [%cal ...],
+# [%csl ...]. Strip them before looking for Lessons/Tags.
+_LICHESS_DIRECTIVE_RE = re.compile(r"\[%[^\]]*\]")
+
+
+def _all_comments(game) -> list[str]:
+    """Every comment in a game tree (chapter-level, moves, variations), in document order."""
+    comments: list[str] = []
+
+    def _walk(node) -> None:
+        if node.comment and node.comment.strip():
+            comments.append(node.comment)
+        for child in node.variations:
+            _walk(child)
+
+    _walk(game)
+    return comments
+
+
+def extract_lessons_and_tags(game) -> tuple[list[str], list[str]]:
+    """
+    Extract a Game's Lessons and Tags from its chapter comments (ADR 0002).
+
+    Returns
+    -------
+    lessons : Comment texts that start with "Lesson:" (prefix stripped),
+              in document order.
+    tags    : Hashtags found in any comment, lowercase, deduplicated,
+              in first-seen order.
+    """
+    lessons: list[str] = []
+    tags: list[str] = []
+    seen_tags: set[str] = set()
+
+    for raw in _all_comments(game):
+        text = _LICHESS_DIRECTIVE_RE.sub("", raw).strip()
+        if not text:
+            continue
+
+        lesson_match = _LESSON_RE.match(text)
+        if lesson_match:
+            lessons.append(lesson_match.group(1).strip())
+
+        for tag in _TAG_RE.findall(text):
+            tag = tag.lower()
+            if tag not in seen_tags:
+                seen_tags.add(tag)
+                tags.append(tag)
+
+    return lessons, tags
 
 
 def outcome_for_player(result: str, color: str) -> str:
@@ -156,7 +223,7 @@ def winner_from_result(result: str) -> str:
 
 def load_games_df(
     pgn_path: str,
-    player_name: Optional[str] = None,
+    player_name: str | None = None,
 ) -> tuple[pd.DataFrame, str]:
     """
     Parse a PGN file and return a tidy DataFrame + detected player name.
@@ -172,8 +239,23 @@ def load_games_df(
     df        : One row per game (see column docs in module docstring).
     detected  : The player name used for all perspective columns.
     """
+    with open(pgn_path, encoding="utf-8", errors="ignore") as f:
+        return load_games_from_text(f.read(), player_name=player_name)
+
+
+def load_games_from_text(
+    pgn_text: str,
+    player_name: str | None = None,
+) -> tuple[pd.DataFrame, str]:
+    """
+    Parse PGN text (e.g. a Lichess Study export) and return a tidy DataFrame
+    + detected player name.
+
+    Same contract as :func:`load_games_df`, but takes the PGN content directly
+    instead of a file path.
+    """
     rows: list[dict] = []
-    with open(pgn_path, "r", encoding="utf-8", errors="ignore") as f:
+    with io.StringIO(pgn_text) as f:
         idx = 0
         while True:
             game = chess.pgn.read_game(f)
@@ -202,6 +284,15 @@ def load_games_df(
             timecontrol = _first_present(h, ["timecontrol"])
             plies, fullmoves = compute_move_counts(game)
 
+            # Lichess Study identity (ADR 0001): ChapterURL is the permanent
+            # identity of a Game; empty for PGNs that aren't Study exports.
+            study_name = _first_present(h, ["studyname"])
+            chapter_name = _first_present(h, ["chaptername"])
+            chapter_url = _first_present(h, ["chapterurl"])
+
+            # Lessons and Tags from chapter comments (ADR 0002)
+            lessons, tags = extract_lessons_and_tags(game)
+
             rows.append({
                 "Index": idx, "Date": date, "Time": time_tag,
                 "Event": event, "Site": site, "Round": round_tag, "Board": board_tag,
@@ -212,6 +303,9 @@ def load_games_df(
                 "BlackRatingNum": safe_int(black_rating), "BlackID": black_id,
                 "Result": result, "Winner": winner_from_result(result),
                 "Termination": termination, "Plies": plies, "FullMoves": fullmoves,
+                "StudyName": study_name, "ChapterName": chapter_name,
+                "ChapterURL": chapter_url,
+                "Lessons": lessons, "Tags": tags,
             })
 
     if not rows:
@@ -274,13 +368,13 @@ def apply_filters(
     colors: list[str],
     outcomes: list[str],
     terminations: list[str],
-    date_start: Optional[str],
-    date_end: Optional[str],
-    events: Optional[list[str]] = None,
-    min_moves: Optional[int] = None,
-    max_moves: Optional[int] = None,
-    min_opp_rating: Optional[int] = None,
-    max_opp_rating: Optional[int] = None,
+    date_start: str | None,
+    date_end: str | None,
+    events: list[str] | None = None,
+    min_moves: int | None = None,
+    max_moves: int | None = None,
+    min_opp_rating: int | None = None,
+    max_opp_rating: int | None = None,
 ) -> pd.DataFrame:
     """
     Apply UI filter selections to *df* and return a filtered copy.
@@ -319,9 +413,10 @@ def apply_filters(
 
 def win_draw_loss_counts(df: pd.DataFrame) -> pd.Series:
     """Return a Series with counts for Win, Draw, Loss, Unknown outcomes."""
-    return df["Outcome"].value_counts().reindex(
-        ["Win", "Draw", "Loss", "Unknown"], fill_value=0
-    )
+    outcomes = ["Win", "Draw", "Loss", "Unknown"]
+    if df.empty or "Outcome" not in df.columns:
+        return pd.Series(0, index=pd.Index(outcomes), name="count")
+    return df["Outcome"].value_counts().reindex(outcomes, fill_value=0)
 
 
 def termination_counts(df: pd.DataFrame) -> pd.DataFrame:
@@ -410,7 +505,7 @@ def kpi_stats(df: pd.DataFrame) -> dict:
     decisive = counts["Win"] + counts["Draw"] + counts["Loss"]
 
     rated_player = df["PlayerRatingNum"].dropna()
-    current_rating: Optional[int] = None
+    current_rating: int | None = None
     dated = df[df["Date_dt"].notna() & df["PlayerRatingNum"].notna()]
     if not dated.empty:
         current_rating = int(dated.sort_values("Date_dt").iloc[-1]["PlayerRatingNum"])
@@ -540,6 +635,7 @@ def head_to_head(df: pd.DataFrame, opponent: str) -> dict:
         "game_rows": d[[
             "Date", "Color", "Outcome", "Result",
             "PlayerRating", "OpponentRating", "Event", "Round", "Termination", "FullMoves",
+            "ChapterURL",
         ]].rename(columns={"PlayerRating": "MyRating", "OpponentRating": "OppRating"})
         .to_dict("records"),
     }
@@ -762,7 +858,9 @@ def event_summary(df: pd.DataFrame) -> pd.DataFrame:
         loss = int((g["Outcome"] == "Loss").sum())
         games = int(len(g))
         rated = g[g["OpponentRatingNum"].notna()].copy()
-        hi_n = hi_r = hi_o = lo_n = lo_r = lo_o = ""
+        hi_n = hi_o = lo_n = lo_o = ""
+        hi_r: int | str = ""
+        lo_r: int | str = ""
         if not rated.empty:
             hr = rated.loc[rated["OpponentRatingNum"].idxmax()]
             lr = rated.loc[rated["OpponentRatingNum"].idxmin()]
@@ -790,12 +888,15 @@ def performance_rating_stats(df: pd.DataFrame) -> dict:
 
     Returns dict: performance_rating, avg_opp_rating, score, score_pct, rated_games.
     """
+    empty = {"performance_rating": None, "avg_opp_rating": None,
+             "score": 0.0, "score_pct": 0.0, "rated_games": 0}
+    if df.empty or "OpponentRatingNum" not in df.columns:
+        return empty
     rated = df[
         df["OpponentRatingNum"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])
     ].copy()
     if rated.empty:
-        return {"performance_rating": None, "avg_opp_rating": None,
-                "score": 0.0, "score_pct": 0.0, "rated_games": 0}
+        return empty
     wins = int((rated["Outcome"] == "Win").sum())
     draws = int((rated["Outcome"] == "Draw").sum())
     total = len(rated)
@@ -863,7 +964,7 @@ def compute_milestones(df: pd.DataFrame) -> list[dict]:
         _add(r, f"Game #{n}", "milestone")
 
     # Highest rated opponent beaten
-    beaten = d[d["Outcome"] == "Win"][d["OpponentRatingNum"].notna()]
+    beaten = d[(d["Outcome"] == "Win") & d["OpponentRatingNum"].notna()]
     if not beaten.empty:
         r = beaten.loc[beaten["OpponentRatingNum"].idxmax()]
         _add(r, f"Beat highest-rated opponent: {r['Opponent']} ({int(r['OpponentRatingNum'])})", "peak")

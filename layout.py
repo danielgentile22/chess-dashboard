@@ -8,9 +8,9 @@ only sets up the skeleton and initial empty state.
 """
 from __future__ import annotations
 
-import pandas as pd
 import dash_bootstrap_components as dbc
-from dash import dcc, html, dash_table
+import pandas as pd
+from dash import dash_table, dcc, html
 
 from styles import COLORS
 
@@ -104,10 +104,6 @@ def _filters_section(df: pd.DataFrame) -> dbc.AccordionItem:
     full_moves = df["FullMoves"].dropna()
     min_mv = int(full_moves.min()) if not full_moves.empty else 1
     max_mv = int(full_moves.max()) if not full_moves.empty else 100
-
-    opp_ratings = df["OpponentRatingNum"].dropna()
-    min_opp = int(opp_ratings.min()) if not opp_ratings.empty else 0
-    max_opp = int(opp_ratings.max()) if not opp_ratings.empty else 3000
 
     return dbc.AccordionItem(
         title="Filters",
@@ -392,6 +388,11 @@ def _games_table_section(df: pd.DataFrame) -> dbc.AccordionItem:
         "FullMoves", "ECO", "Opening",
     ]
     cols = [{"name": c, "id": c} for c in display_cols if c in df.columns]
+    # Lesson indicator (💡) and Tags from chapter comments (ADR 0002)
+    cols.append({"name": "💡", "id": "LessonIndicator"})
+    cols.append({"name": "Tags", "id": "TagsDisplay"})
+    # Open-on-Lichess link — rendered as markdown so it's clickable
+    cols.append({"name": "Lichess", "id": "Lichess", "presentation": "markdown"})
 
     return dbc.AccordionItem(
         title="All Games",
@@ -414,6 +415,7 @@ def _games_table_section(df: pd.DataFrame) -> dbc.AccordionItem:
                             columns=cols, data=[],
                             page_size=25, sort_action="native",
                             filter_action="native",
+                            markdown_options={"link_target": "_blank"},
                             style_table={"overflowX": "auto"},
                             style_cell=_TABLE_CELL,
                             style_header=_TABLE_HEADER,
@@ -449,10 +451,35 @@ def make_layout(df: pd.DataFrame, player_name: str) -> html.Div:
                 html.Span(f"Chess Stats — {player_name}"),
             ]),
             html.Div(className="app-header-right", children=[
-                html.Span([html.Strong(f"{total}"), " games"], className="app-header-stat"),
-                html.Span(date_range, className="app-header-stat"),
+                html.Span(
+                    [html.Strong(f"{total}"), " games"],
+                    id="header-games-count", className="app-header-stat",
+                ),
+                html.Span(date_range, id="header-date-range", className="app-header-stat"),
+                html.Span("", id="sync-freshness", className="app-header-stat"),
+                dbc.Button(
+                    "↻ Sync", id="sync-button",
+                    size="sm", outline=True, color="info",
+                    style={"fontSize": "12px", "padding": "2px 12px"},
+                ),
             ]),
         ]),
+
+        # ── Cache / offline notice (filled by callback when relevant) ──
+        html.Div(id="cache-notice"),
+
+        # ── Sync machinery (invisible) ─────────────────────────
+        # Bumped after every successful Sync; every chart callback listens to it.
+        dcc.Store(id="sync-store", data={"seq": 0, "new_games": 0}),
+        # Keeps the "synced X ago" label fresh.
+        dcc.Interval(id="freshness-interval", interval=30_000, n_intervals=0),
+        dbc.Toast(
+            id="sync-toast",
+            header="Sync", icon="success",
+            is_open=False, dismissable=True, duration=8000,
+            style={"position": "fixed", "top": 70, "right": 20,
+                   "width": 380, "zIndex": 1999},
+        ),
 
         # ── Page body ──────────────────────────────────────────
         dbc.Container(fluid=True, style={"maxWidth": "1580px", "padding": "0 16px 40px"}, children=[
