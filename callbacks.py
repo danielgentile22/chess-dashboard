@@ -66,6 +66,11 @@ _TABLE_HEADER = dict(
 )
 
 
+def _lichess_link(chapter_url: str) -> str:
+    """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
+    return f"[Open ↗]({chapter_url})" if chapter_url else ""
+
+
 def _get_filtered(colors, outcomes, terminations, start_date, end_date, events, moves) -> pd.DataFrame:
     """Apply all filter inputs and return the filtered DataFrame."""
     df = data.get_df()
@@ -470,9 +475,15 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
                         {"name": "Opp Rtg",     "id": "OppRating"},
                         {"name": "Moves",       "id": "FullMoves"},
                         {"name": "Termination", "id": "Termination"},
+                        {"name": "Lichess",     "id": "Lichess",
+                         "presentation": "markdown"},
                     ],
-                    data=h["game_rows"],
+                    data=[
+                        {**row, "Lichess": _lichess_link(row.get("ChapterURL", ""))}
+                        for row in h["game_rows"]
+                    ],
                     page_size=20, sort_action="native",
+                    markdown_options={"link_target": "_blank"},
                     style_table={"overflowX": "auto"},
                     style_cell={**_TABLE_CELL, "fontSize": "11px", "padding": "5px 8px"},
                     style_header=_TABLE_HEADER,
@@ -740,4 +751,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     def update_games_table(colors, outcomes, terminations, start, end, events, moves):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         cols = [c for c in _DISPLAY_COLS if c in df_f.columns]
-        return df_f[cols].to_dict("records")
+        out = df_f[cols].copy()
+        if "ChapterURL" in df_f.columns:
+            out["Lichess"] = df_f["ChapterURL"].map(_lichess_link)
+        return out.to_dict("records")

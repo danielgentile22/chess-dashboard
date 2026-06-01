@@ -218,6 +218,12 @@ def load_games_from_text(
             timecontrol = _first_present(h, ["timecontrol"])
             plies, fullmoves = compute_move_counts(game)
 
+            # Lichess Study identity (ADR 0001): ChapterURL is the permanent
+            # identity of a Game; empty for PGNs that aren't Study exports.
+            study_name = _first_present(h, ["studyname"])
+            chapter_name = _first_present(h, ["chaptername"])
+            chapter_url = _first_present(h, ["chapterurl"])
+
             rows.append({
                 "Index": idx, "Date": date, "Time": time_tag,
                 "Event": event, "Site": site, "Round": round_tag, "Board": board_tag,
@@ -228,6 +234,8 @@ def load_games_from_text(
                 "BlackRatingNum": safe_int(black_rating), "BlackID": black_id,
                 "Result": result, "Winner": winner_from_result(result),
                 "Termination": termination, "Plies": plies, "FullMoves": fullmoves,
+                "StudyName": study_name, "ChapterName": chapter_name,
+                "ChapterURL": chapter_url,
             })
 
     if not rows:
@@ -557,6 +565,7 @@ def head_to_head(df: pd.DataFrame, opponent: str) -> dict:
         "game_rows": d[[
             "Date", "Color", "Outcome", "Result",
             "PlayerRating", "OpponentRating", "Event", "Round", "Termination", "FullMoves",
+            "ChapterURL",
         ]].rename(columns={"PlayerRating": "MyRating", "OpponentRating": "OppRating"})
         .to_dict("records"),
     }
