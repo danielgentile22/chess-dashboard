@@ -231,12 +231,11 @@ def weakness_callout(callout: dict, *, compact: bool = False) -> html.Div:
                      className="weakness-game-link")
         )
     else:
+        linkable = [url for url in callout["chapter_urls"] if url]
         children.append(html.Div(className="weakness-games", children=[
-            link for link in (
-                dcc.Link(f"Game {i} →", href=game_detail_path(url),
-                         className="weakness-game-link")
-                for i, url in enumerate(callout["chapter_urls"], start=1) if url
-            )
+            dcc.Link(f"Game {i} →", href=game_detail_path(url),
+                     className="weakness-game-link")
+            for i, url in enumerate(linkable, start=1)
         ]))
     return html.Div(children, className="weakness-callout" + (" compact" if compact else ""))
 

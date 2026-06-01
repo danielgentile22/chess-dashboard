@@ -107,8 +107,8 @@ def _openings_panel(title: str, openings: list[dict]) -> html.Div:
             for o in openings
         ]
     else:
-        rows = [html.Div("No games with this color yet",
-                         className="scout-empty-line")]
+        # Either no games with this color, or the games carry no opening data
+        rows = [html.Div("No opening data", className="scout-empty-line")]
     return html.Div(className="scout-openings-panel", children=[
         html.Div(title, className="scout-section-title"), *rows,
     ])
@@ -122,7 +122,7 @@ def _render_dossier(report: dict) -> html.Div:
     else:
         # Positive gap = they're rated above you = the harder game
         gap_str = f"+{gap}" if gap > 0 else str(gap)
-        gap_cls = "loss" if gap > 0 else "win"
+        gap_cls = "loss" if gap > 0 else ("win" if gap < 0 else "")
 
     timeline_table = dash_table.DataTable(
         id="scout-games-table",
