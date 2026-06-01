@@ -90,16 +90,19 @@ def _year_calendar_fig(year_daily: pd.DataFrame, year: int) -> go.Figure:
 
     for day in days:
         week, weekday = (day - first_monday).days // 7, day.weekday()
+        # day.day instead of strftime %-d: the no-leading-zero directive is
+        # platform-specific (glibc/BSD only)
+        day_label = f"{day:%b} {day.day}, {day.year}"
         if day in by_day.index:
             row = by_day.loc[day]
             game_z[weekday][week] = max(-_NET_CLAMP, min(_NET_CLAMP, int(row["Net"])))
             plural = "s" if row["Games"] > 1 else ""
             hover[weekday][week] = (
-                f"<b>{day:%b %-d, %Y}</b> — {row['Games']} game{plural}<br>{row['Detail']}"
+                f"<b>{day_label}</b> — {row['Games']} game{plural}<br>{row['Detail']}"
             )
         else:
             base_z[weekday][week] = 0
-            hover[weekday][week] = f"{day:%b %-d, %Y}<br>No games"
+            hover[weekday][week] = f"{day_label}<br>No games"
 
     # Month labels sit under the week containing the 1st of each month
     month_ticks = [(pd.Timestamp(year=year, month=m, day=1) - first_monday).days // 7

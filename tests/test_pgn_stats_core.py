@@ -992,6 +992,33 @@ class TestDailyActivity:
         assert len(daily) == 1
         assert daily["Games"].sum() == 1
 
+    def test_unfinished_games_are_excluded(self):
+        """A Game with no result yet (Outcome 'Unknown') isn't a calendar day —
+        same convention as the monthly/day-of-week activity charts."""
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Other"]
+[Result "*"]
+
+1. e4 e5 *
+
+[Event "T"]
+[Site "S"]
+[Date "2024.03.08"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+
+1. e4 1-0
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        daily = daily_activity(games)
+        assert len(daily) == 1                  # only the finished game's day
+        assert daily["Games"].sum() == daily[["Win", "Draw", "Loss"]].sum().sum()
+
 
 # ---------------------------------------------------------------------------
 # Events
@@ -1134,6 +1161,17 @@ class TestMilestoneDeltas:
         """An empty pre-Sync snapshot: nothing to beat → nothing to celebrate."""
         new = _snapshot([{"outcome": "Win", "my_rating": 1850, "opp_rating": 1900}])
         assert milestone_deltas(pd.DataFrame(), new) == []
+
+    def test_first_ever_win_streak_is_celebrated(self):
+        """Going from no streak at all (real games, zero wins in a row) to a
+        streak IS a personal best — a baseline of 0 from real games counts."""
+        old = _snapshot([{"outcome": "Loss"}, {"outcome": "Draw"}])
+        new = _snapshot([{"outcome": "Loss"}, {"outcome": "Draw"},
+                         {"outcome": "Win"}, {"outcome": "Win"}])
+        deltas = milestone_deltas(old, new)
+        streak = next(d for d in deltas if d["kind"] == "win_streak")
+        assert streak["old"] == 0
+        assert streak["new"] == 2
 
     def test_one_sync_can_break_several_records(self, sample_pgn_text,
                                                  sample_pgn_study2_text):

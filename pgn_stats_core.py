@@ -703,7 +703,10 @@ def scouting_report(df: pd.DataFrame, opponent: str) -> dict:
     if df.empty or "Opponent" not in df.columns:
         return report
 
-    h2h = head_to_head(df, opponent)
+    # The opponent's games, filtered once; everything below works on this slice
+    games = df[df["Opponent"] == opponent]
+
+    h2h = head_to_head(games, opponent)
     total = h2h["total"]
     report.update({
         "total": total,
@@ -717,19 +720,17 @@ def scouting_report(df: pd.DataFrame, opponent: str) -> dict:
     if total == 0:
         return report
 
+    def _latest_rating(frame: pd.DataFrame, column: str) -> int | None:
+        """The rating in the most recent dated game (ties broken by Index)."""
+        rated = frame[frame["Date_dt"].notna() & frame[column].notna()]
+        if rated.empty:
+            return None
+        return int(rated.sort_values(["Date_dt", "Index"]).iloc[-1][column])
+
     # Rating gap: their latest known rating (vs Daniel) against Daniel's
     # latest rating anywhere — "where do I stand if we play tomorrow?"
-    games = df[df["Opponent"] == opponent]
-    their_rated = games[games["Date_dt"].notna() & games["OpponentRatingNum"].notna()]
-    if not their_rated.empty:
-        report["their_rating"] = int(
-            their_rated.sort_values("Date_dt").iloc[-1]["OpponentRatingNum"]
-        )
-    my_rated = df[df["Date_dt"].notna() & df["PlayerRatingNum"].notna()]
-    if not my_rated.empty:
-        report["my_rating"] = int(
-            my_rated.sort_values("Date_dt").iloc[-1]["PlayerRatingNum"]
-        )
+    report["their_rating"] = _latest_rating(games, "OpponentRatingNum")
+    report["my_rating"] = _latest_rating(df, "PlayerRatingNum")
     if report["their_rating"] is not None and report["my_rating"] is not None:
         report["rating_gap"] = report["their_rating"] - report["my_rating"]
 
@@ -742,7 +743,7 @@ def scouting_report(df: pd.DataFrame, opponent: str) -> dict:
     report["terminations"] = termination_counts(games).to_dict("records")
 
     # The differentiator: every Lesson written after facing them
-    report["lessons"] = lessons_table(df, opponent=opponent).to_dict("records")
+    report["lessons"] = lessons_table(games).to_dict("records")
 
     return report
 
@@ -949,11 +950,13 @@ def daily_activity(df: pd.DataFrame) -> pd.DataFrame:
       Detail           : that day's Games as text, one per line
                          ("Win vs Opponent A<br>Draw vs Opponent B") for hover
     Days without Games don't appear (the calendar shows them as empty cells).
+    Unfinished games (Outcome "Unknown") are excluded — same convention as
+    the monthly/day-of-week activity charts.
     """
     if df.empty or "Date_dt" not in df.columns:
         return pd.DataFrame(columns=_DAILY_COLS)
 
-    d = df[df["Date_dt"].notna()].copy()
+    d = df[df["Date_dt"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
     if d.empty:
         return pd.DataFrame(columns=_DAILY_COLS)
 
@@ -1214,9 +1217,9 @@ def recurring_weaknesses(
     if dated.empty:
         window_label = ""
     else:
-        start, end = dated["Date_dt"].min(), dated["Date_dt"].max()
-        window_label = (f"{start:%b %Y}" if f"{start:%b %Y}" == f"{end:%b %Y}"
-                        else f"{start:%b %Y} – {end:%b %Y}")
+        start = f"{dated['Date_dt'].min():%b %Y}"
+        end = f"{dated['Date_dt'].max():%b %Y}"
+        window_label = start if start == end else f"{start} – {end}"
 
     callouts: list[dict] = []
     for tag, loss_count in loss_tag_counts.items():
@@ -1406,9 +1409,11 @@ def milestone_deltas(old_df: pd.DataFrame, new_df: pd.DataFrame) -> list[dict]:
             "description": f"New peak rating: {new_peak} (was {old_peak})",
         })
 
+    # A baseline of 0 from real games still counts: someone whose archive has
+    # no win streak yet deserves the banner for their first one.
     old_streak = streaks(old_df)["longest_streak_wins_only"]
     new_streak = streaks(new_df)["longest_streak_wins_only"]
-    if old_streak > 0 and new_streak > old_streak:
+    if not old_df.empty and new_streak > old_streak:
         deltas.append({
             "kind": "win_streak", "old": old_streak, "new": new_streak,
             "description": (f"New longest win streak: {new_streak} games in a row "
