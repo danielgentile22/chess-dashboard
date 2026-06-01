@@ -84,3 +84,91 @@ class TestInitialize:
                 data.initialize(["badstudy"], player_name="Test Player")
 
         assert not data.is_loaded()
+
+    def test_initialize_records_sync_time(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.synced_at() is not None
+
+
+# ---------------------------------------------------------------------------
+# refresh() — the Sync button path (issue #6)
+# ---------------------------------------------------------------------------
+
+class TestRefresh:
+    def test_refresh_picks_up_new_games(self, sample_pgn_text, sample_pgn_study2_text):
+        """A Game added on Lichess appears after refresh(), and is reported as new."""
+        # Startup: only study1's 7 games exist
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+        assert len(data.get_df()) == 7
+
+        # On Lichess, the study now has 2 more games (simulated by study2's content
+        # appended to study1's export under the same study ID)
+        grown_study = sample_pgn_text + "\n\n" + sample_pgn_study2_text
+        with stub_studies(study1=grown_study):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert len(data.get_df()) == 9  # 7 + 3 - 1 duplicate
+        # The two genuinely new Games are reported with opponent + result
+        assert len(outcome.new_games) == 2
+        opponents = {g["Opponent"] for g in outcome.new_games}
+        assert opponents == {"Opponent E", "Opponent A"}
+        for g in outcome.new_games:
+            assert g["Outcome"] in ("Win", "Draw", "Loss", "Unknown")
+
+    def test_no_change_refresh_reports_nothing_new(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert outcome.new_games == []
+        assert len(data.get_df()) == 7
+
+    def test_failed_refresh_leaves_current_data_untouched(self, sample_pgn_text):
+        """Atomic swap: a failed Sync never disturbs what's currently shown."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+        df_before = data.get_df()
+        synced_before = data.synced_at()
+
+        with stub_studies(study1=LichessUnreachableError("lichess is down")):
+            outcome = data.refresh()
+
+        assert outcome.status == "error"
+        assert "down" in outcome.error
+        # Current data and freshness are exactly what they were
+        assert data.get_df() is df_before
+        assert data.synced_at() == synced_before
+
+    def test_refresh_updates_sync_time_on_success(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+            before = data.synced_at()
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert data.synced_at() >= before
+
+    def test_concurrent_refresh_is_ignored_not_doubled(self, sample_pgn_text):
+        """A Sync triggered while one is running reports 'already running'."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+            # Simulate an in-flight Sync holding the lock
+            acquired = data._sync_lock.acquire(blocking=False)
+            assert acquired
+            try:
+                outcome = data.refresh()
+            finally:
+                data._sync_lock.release()
+
+        assert outcome.status == "already_running"
+        assert len(data.get_df()) == 7  # nothing changed
+
+    def test_refresh_before_initialize_errors_cleanly(self):
+        outcome = data.refresh()
+        assert outcome.status == "error"

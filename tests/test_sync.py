@@ -105,3 +105,38 @@ class TestPartialFailure:
         # The error names every Study that failed
         assert "study1" in str(exc_info.value)
         assert "study2" in str(exc_info.value)
+
+
+class TestDetectNewGames:
+    """New-Game detection compares ChapterURLs against the previous Sync's data."""
+
+    def test_games_with_unseen_chapter_urls_are_new(
+        self, sample_pgn_text, sample_pgn_study2_text
+    ):
+        # Previous sync had only study1; now study2 is designated too
+        with stub_studies(study1=sample_pgn_text):
+            before = sync.sync_studies(["study1"], player_name="Test Player")
+        with stub_studies(study1=sample_pgn_text, study2=sample_pgn_study2_text):
+            after = sync.sync_studies(["study1", "study2"], player_name="Test Player")
+
+        new = sync.detect_new_games(after.df, set(before.df["ChapterURL"]))
+
+        # Study 2 has 2 new games (its third is a duplicate of study 1's chap0007)
+        assert len(new) == 2
+        assert set(new["Opponent"]) == {"Opponent E", "Opponent A"}
+
+    def test_no_change_sync_detects_nothing_new(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            before = sync.sync_studies(["study1"], player_name="Test Player")
+            after = sync.sync_studies(["study1"], player_name="Test Player")
+
+        new = sync.detect_new_games(after.df, set(before.df["ChapterURL"]))
+        assert len(new) == 0
+
+    def test_first_sync_everything_is_new(self, sample_pgn_text):
+        """Against an empty previous state, every Game is new."""
+        with stub_studies(study1=sample_pgn_text):
+            result = sync.sync_studies(["study1"], player_name="Test Player")
+
+        new = sync.detect_new_games(result.df, set())
+        assert len(new) == 7

@@ -99,6 +99,7 @@ body {
   gap: 24px;
   font-size: 12px;
   color: var(--cs-muted);
+  align-items: center;
 }
 .app-header-stat strong { color: var(--cs-text); }
 

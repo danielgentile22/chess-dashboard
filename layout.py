@@ -451,10 +451,32 @@ def make_layout(df: pd.DataFrame, player_name: str) -> html.Div:
                 html.Span(f"Chess Stats — {player_name}"),
             ]),
             html.Div(className="app-header-right", children=[
-                html.Span([html.Strong(f"{total}"), " games"], className="app-header-stat"),
-                html.Span(date_range, className="app-header-stat"),
+                html.Span(
+                    [html.Strong(f"{total}"), " games"],
+                    id="header-games-count", className="app-header-stat",
+                ),
+                html.Span(date_range, id="header-date-range", className="app-header-stat"),
+                html.Span("", id="sync-freshness", className="app-header-stat"),
+                dbc.Button(
+                    "↻ Sync", id="sync-button",
+                    size="sm", outline=True, color="info",
+                    style={"fontSize": "12px", "padding": "2px 12px"},
+                ),
             ]),
         ]),
+
+        # ── Sync machinery (invisible) ─────────────────────────
+        # Bumped after every successful Sync; every chart callback listens to it.
+        dcc.Store(id="sync-store", data={"seq": 0, "new_games": 0}),
+        # Keeps the "synced X ago" label fresh.
+        dcc.Interval(id="freshness-interval", interval=30_000, n_intervals=0),
+        dbc.Toast(
+            id="sync-toast",
+            header="Sync", icon="success",
+            is_open=False, dismissable=True, duration=8000,
+            style={"position": "fixed", "top": 70, "right": 20,
+                   "width": 380, "zIndex": 1999},
+        ),
 
         # ── Page body ──────────────────────────────────────────
         dbc.Container(fluid=True, style={"maxWidth": "1580px", "padding": "0 16px 40px"}, children=[
