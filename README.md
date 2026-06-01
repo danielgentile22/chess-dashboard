@@ -10,8 +10,29 @@ Your designated Lichess Studies are the source of truth (see `docs/adr/0001`): t
 
 ## Features
 
+### Pages
+
+The dashboard is a multi-page app — each page loads only its own charts, so it stays fast on a phone:
+
+| Page | What you get |
+|---|---|
+| **Overview** | 10 KPI cards · last-20 streak badges · W/D/L donut · termination breakdown · milestone timeline |
+| **Trends** | Rating over time with trend overlay · cumulative win rate · games per month · win rate by day of week · game-length distribution |
+| **Openings** | ECO family breakdown (A/B/C/D/E) · full opening detail table |
+| **Opponents** | Stacked W/D/L bar per opponent · head-to-head analyzer · outcome by rating bucket · outcome vs. rating scatter |
+| **Events** | Performance per tournament · selectable event table → per-event game list + performance rating |
+| **Games** | Every game with Open-on-Lichess links, Lesson indicators (💡), and Tags — click any row to open the game |
+| **Lessons** | Every `Lesson:` you've written on Lichess, filterable by Tag and opponent, with a tag taxonomy strip |
+
+Clicking a Game anywhere opens its **detail view**: an embedded interactive Lichess board (your annotations and variations playable in place) alongside the Game's Lessons, Tags, and metadata.
+
+### Header
+
+The sticky header celebrates current form: a 🔥 that grows with your win streak (extra glow at 5+), a 🧊 on cold streaks, and your last 5 games as colored dots. Plus the Sync button and a "synced X ago" freshness label.
+
 ### Filters
-A persistent filter bar lets you slice every chart simultaneously:
+
+A global filter drawer (right side on desktop, dropdown on phones) slices every chart on every page simultaneously — and the selection survives navigation:
 
 | Filter | Options |
 |---|---|
@@ -22,22 +43,6 @@ A persistent filter bar lets you slice every chart simultaneously:
 | **Date range** | Calendar date picker |
 | **Event** | Multi-select tournament picker |
 | **Move count** | Range slider (e.g. games between 20–60 moves) |
-
-### Dashboard Sections
-
-| Section | What you get |
-|---|---|
-| **KPI Bar** | 10 live cards: games, win %, draw %, loss %, current rating, peak rating, FIDE performance rating, longest win streak, unique opponents, favourite opening |
-| **Overview** | Streak badge visualiser (last 20 games as W/D/L icons) · WDL donut chart · Termination breakdown bar |
-| **Timeline** | Cumulative win-rate line chart · Rating over time with linear trend overlay |
-| **Openings** | ECO family breakdown (A/B/C/D/E) · Full opening detail table sortable by W/D/L |
-| **Opponents** | Stacked W/D/L bar per opponent · Head-to-head deep-dive (select any opponent for a full stats card + game list) |
-| **Strength** | Outcome by opponent rating bucket · Outcome vs. rating scatter plot |
-| **Game Length** | Move-count histogram · Statistics card (mean, median, shortest, longest) |
-| **Activity** | Games per month · Win rate by day of week |
-| **Events** | Performance per tournament · Selectable event table → per-event game list + performance rating |
-| **Milestones** | Chronological timeline of personal bests (rating highs, streak records, first win, etc.) |
-| **All Games** | Full filterable, sortable DataTable of every game |
 
 All charts are dark-themed (GitHub-inspired palette) and update instantly when any filter changes.
 
@@ -187,25 +192,37 @@ Games are read from Lichess Study chapters (which Lichess serves as standard PGN
 
 ```
 chess-stats-dashboard/
-├── app.py                   # Entry point — Dash factory, CLI, gunicorn server
+├── app.py                   # Entry point — Dash factory (use_pages), CLI, gunicorn server
 ├── config.py                # Environment variable config (LICHESS_STUDY_IDS, PORT, …)
 ├── data.py                  # Module-level data store (Synced from Lichess)
 ├── sync.py                  # Sync orchestrator: Studies → merged Games
 ├── lichess_client.py        # Lichess API client (the only module that talks HTTP)
-├── layout.py                # Full Dash layout (skeleton, KPI bar, all sections)
-├── callbacks.py             # All Dash callbacks (20+ focused functions)
+├── shell.py                 # Persistent app chrome: header, nav tabs, sync machinery
+├── filters.py               # Global filter drawer + shared FILTER_INPUTS
+├── components.py            # Shared UI building blocks (cards, KPI tiles, form dots, …)
 ├── styles.py                # Color palette, dark-theme helpers, empty_fig()
-├── pgn_stats_core.py        # PGN parsing and all statistics functions
+├── pgn_stats_core.py        # PGN parsing, statistics, and insights functions
+├── pages/                   # One module per page (Dash Pages)
+│   ├── overview.py          #   /          KPIs, streaks, W/D/L, milestones
+│   ├── trends.py            #   /trends    rating, win rate, activity, game length
+│   ├── openings.py          #   /openings  ECO families + openings table
+│   ├── opponents.py         #   /opponents records, head-to-head, strength
+│   ├── events.py            #   /events    tournament performance
+│   ├── games.py             #   /games     full games table
+│   ├── lessons.py           #   /lessons   Lessons + Tag filtering
+│   └── game_detail.py       #   /game/<id> embedded Lichess board + metadata
 ├── assets/
-│   └── custom.css           # Dark theme overrides, component styles
+│   └── custom.css           # Dark theme, typography, component styles
 ├── docs/adr/                # Architecture decision records
 ├── tests/
-│   ├── conftest.py          # Shared fixtures (sample Studies, dataframe)
-│   ├── test_pgn_stats_core.py  # Parser + stats function tests
+│   ├── conftest.py          # Shared fixtures (sample Studies, dataframe, UI app)
+│   ├── test_pgn_stats_core.py  # Parser + stats + insights function tests
 │   ├── test_lichess_client.py  # Lichess client tests (mocked HTTP)
 │   ├── test_sync.py         # Sync orchestrator tests (stubbed client)
 │   ├── test_config.py       # Config parsing tests
-│   └── test_data.py         # Data store tests (stubbed client)
+│   ├── test_data.py         # Data store tests (stubbed client)
+│   ├── test_shell.py        # Shell + filter callback tests
+│   └── test_ui_smoke.py     # UI smoke harness: every page boots, renders, wires up
 ├── requirements.txt         # Runtime dependencies
 ├── requirements-dev.txt     # Dev dependencies (pytest, ruff, mypy)
 ├── pyproject.toml           # Project metadata + tool configuration
@@ -228,7 +245,11 @@ chess-stats-dashboard/
 
 **No database.** Games are Synced once at startup and stored in a module-level store (`data.py`). All callbacks read from this shared DataFrame — no serialisation overhead, no `dcc.Store` round-trips, instant filter response.
 
-**One filter helper, many callbacks.** All 20+ callbacks share the same `FILTER_INPUTS` list and a single `_get_filtered()` helper. Dash runs independent callbacks in parallel, so all charts update concurrently when you change a filter.
+**Multi-page via Dash Pages.** Each page is one module under `pages/` that registers its own route and callbacks. The shell (header, nav, filter drawer) never unmounts, so filter state survives navigation for free.
+
+**One filter helper, many callbacks.** Every chart callback on every page shares the same `FILTER_INPUTS` list and `filters.get_filtered()` helper. Dash runs independent callbacks in parallel, so all charts update concurrently when you change a filter.
+
+**Lessons live on Lichess** (ADR 0002). A Game's Lesson is a chapter comment starting with `Lesson:`; hashtags become Tags. The dashboard extracts both during Sync and never stores them itself — writing happens on Lichess only.
 
 **FIDE performance rating.** Calculated as `PR = avg_opponent_rating + 400 × log10(p / (1 − p))`, capped at ±800 from the average, matching the standard FIDE formula.
 
