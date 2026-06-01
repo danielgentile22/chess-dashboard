@@ -210,6 +210,37 @@ def empty_state(glyph: str, title: str, *lines) -> html.Div:
     ])
 
 
+def weakness_callout(callout: dict, *, compact: bool = False) -> html.Div:
+    """
+    A recurring-weakness callout (issue #18): the Tag, the stat, the time
+    window, and the Games behind it.
+
+    The full form (Lessons page) links each Game; the compact form (Overview)
+    is just the headline plus a pointer to the Lessons page.
+    """
+    children: list = [
+        html.Div(className="weakness-headline", children=[
+            html.Span("⚠", className="weakness-icon"),
+            html.Span(callout["stat"], className="weakness-stat"),
+            html.Span(callout["window"], className="weakness-window"),
+        ]),
+    ]
+    if compact:
+        children.append(
+            dcc.Link("Review these lessons →", href="/lessons",
+                     className="weakness-game-link")
+        )
+    else:
+        children.append(html.Div(className="weakness-games", children=[
+            link for link in (
+                dcc.Link(f"Game {i} →", href=game_detail_path(url),
+                         className="weakness-game-link")
+                for i, url in enumerate(callout["chapter_urls"], start=1) if url
+            )
+        ]))
+    return html.Div(children, className="weakness-callout" + (" compact" if compact else ""))
+
+
 def celebration_banner(deltas: list[dict]) -> dbc.Alert:
     """
     The gold milestone celebration (issue #15): shown once after a Sync that

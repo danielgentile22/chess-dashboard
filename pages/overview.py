@@ -13,11 +13,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dash import Output, callback, html
 
-from components import chart_card, content_card, kpi_card, page_header
+from components import chart_card, content_card, kpi_card, page_header, weakness_callout
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import (
     compute_milestones,
     kpi_stats,
+    recurring_weaknesses,
     streaks,
     termination_counts,
     win_draw_loss_counts,
@@ -50,6 +51,9 @@ def layout(**kwargs) -> html.Div:
             kpi_card("Unique Opponents",   "kpi-opps"),
             kpi_card("Favourite Opening",  "kpi-fav-opn"),
         ]),
+
+        # The most severe recurring weakness, if any (issue #18)
+        html.Div(id="top-weakness"),
 
         # Form + outcome charts
         html.Div(className="g3", children=[
@@ -108,6 +112,16 @@ def update_kpis(colors, outcomes, terminations, start, end, events, moves, _sync
         str(k["unique_opponents"]),
         fav_short,
     )
+
+
+@callback(Output("top-weakness", "children"), FILTER_INPUTS)
+def update_top_weakness(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+    """The single most severe recurring weakness (issue #18). Silent below threshold."""
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    callouts = recurring_weaknesses(df_f)
+    if not callouts:
+        return None
+    return weakness_callout(callouts[0], compact=True)
 
 
 @callback(

@@ -703,6 +703,50 @@ code {
 }
 .milestone-desc { font-size: 13px; color: var(--cs-text); flex: 1; }
 
+/* ── Recurring weakness callouts (issue #18) ──────────────────
+   "#time-trouble appears in 4 of your last 5 losses" — the
+   insight that makes Tags pay off. Loss-red, deliberately loud. */
+.weakness-callouts { margin-bottom: 18px; }
+.weakness-callout {
+  background: linear-gradient(135deg, rgba(248,81,73,.10), rgba(248,81,73,.03));
+  border: 1px solid rgba(248,81,73,.4);
+  border-left: 3px solid var(--cs-loss);
+  border-radius: var(--cs-radius);
+  padding: 14px 18px;
+  margin-bottom: 10px;
+}
+.weakness-callout.compact { margin-bottom: 18px; }
+.weakness-headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.weakness-icon { font-size: 16px; color: var(--cs-loss); }
+.weakness-stat {
+  font-family: var(--cs-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+.weakness-window {
+  font-family: var(--cs-font-mono);
+  font-size: 11px;
+  color: var(--cs-muted);
+}
+.weakness-games {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+}
+.weakness-game-link {
+  font-size: 12.5px;
+  color: var(--cs-primary);
+  text-decoration: none;
+}
+.weakness-game-link:hover { text-decoration: underline; }
+
 /* ── Milestone celebrations (issue #15) ───────────────────────
    The one place outside the active tab where gold is allowed:
    a personal best earned by a Sync.                            */
