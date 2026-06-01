@@ -16,6 +16,7 @@ from pgn_stats_core import (
     apply_filters,
     compute_milestones,
     current_form,
+    daily_activity,
     event_summary,
     game_length_data,
     head_to_head,
@@ -679,6 +680,72 @@ class TestActivityData:
         present = dw["DayOfWeek"].tolist()
         indices = [order.index(d) for d in present if d in order]
         assert indices == sorted(indices)
+
+
+class TestDailyActivity:
+    """Per-day aggregation behind the activity heatmap calendar (issue #14)."""
+
+    def test_one_row_per_day_with_games(self, df):
+        # Fixture days: 2024-01-06 (2 games), 01-07 (1), 06-15 (2), 06-16 (2)
+        daily = daily_activity(df)
+        assert len(daily) == 4
+        assert list(daily["Date_dt"]) == sorted(daily["Date_dt"])
+        assert daily["Games"].sum() == 7
+
+    def test_day_results_color_the_cell(self, df):
+        """Net = Win − Loss decides whether a day reads green or red."""
+        daily = daily_activity(df).set_index("Date_dt")
+        jan6 = daily.loc[pd.Timestamp("2024-01-06")]   # Win + Draw
+        assert (jan6["Win"], jan6["Draw"], jan6["Loss"]) == (1, 1, 0)
+        assert jan6["Net"] == 1
+
+        jan7 = daily.loc[pd.Timestamp("2024-01-07")]   # the only Loss
+        assert jan7["Net"] == -1
+
+        jun15 = daily.loc[pd.Timestamp("2024-06-15")]  # two Wins → strongest green
+        assert jun15["Net"] == 2
+
+    def test_each_day_lists_its_games_for_hover(self, df):
+        """Hovering/tapping a cell shows that day's Games: opponent + result."""
+        daily = daily_activity(df).set_index("Date_dt")
+        jan6 = daily.loc[pd.Timestamp("2024-01-06")]
+        assert "Win vs Opponent A" in jan6["Detail"]
+        assert "Draw vs Opponent B" in jan6["Detail"]
+
+        jun16 = daily.loc[pd.Timestamp("2024-06-16")]
+        assert "Win vs Opponent B" in jun16["Detail"]
+        assert "Draw vs Opponent A" in jun16["Detail"]
+
+    def test_empty_data(self):
+        daily = daily_activity(pd.DataFrame())
+        assert daily.empty
+        assert "Net" in daily.columns  # chart code can rely on the shape
+
+    def test_undated_games_are_excluded(self):
+        """A Game without a date can't sit on a calendar."""
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "????.??.??"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+
+1. e4 1-0
+
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+
+1. e4 1-0
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        daily = daily_activity(games)
+        assert len(daily) == 1
+        assert daily["Games"].sum() == 1
 
 
 # ---------------------------------------------------------------------------

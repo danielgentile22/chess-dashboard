@@ -80,6 +80,7 @@ __all__ = [
     "outcome_vs_rating_data",
     "game_length_data",
     "activity_data",
+    "daily_activity",
     "event_summary",
     "performance_rating_stats",
     "compute_milestones",
@@ -856,6 +857,44 @@ def activity_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     dw = dw.sort_values("_o").drop(columns=["_o"])
 
     return m, dw
+
+
+_DAILY_COLS = ["Date_dt", "Games", "Win", "Draw", "Loss", "Net", "Detail"]
+
+
+def daily_activity(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Per-day Game results for the activity heatmap calendar (issue #14).
+
+    One row per calendar day that has dated Games, sorted by day.
+    Columns:
+      Date_dt          : the day
+      Games            : how many Games were played
+      Win, Draw, Loss  : outcome counts
+      Net              : Win − Loss (positive = winning day → green,
+                         negative = losing day → red; drives the cell color)
+      Detail           : that day's Games as text, one per line
+                         ("Win vs Opponent A<br>Draw vs Opponent B") for hover
+    Days without Games don't appear (the calendar shows them as empty cells).
+    """
+    if df.empty or "Date_dt" not in df.columns:
+        return pd.DataFrame(columns=_DAILY_COLS)
+
+    d = df[df["Date_dt"].notna()].copy()
+    if d.empty:
+        return pd.DataFrame(columns=_DAILY_COLS)
+
+    d["Day"] = d["Date_dt"].dt.normalize()
+    daily = (
+        d.groupby("Day")["Outcome"].value_counts().unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+    )
+    daily["Games"] = d.groupby("Day").size()
+    daily["Net"] = daily["Win"] - daily["Loss"]
+    d["_line"] = d["Outcome"].astype(str) + " vs " + d["Opponent"].astype(str)
+    daily["Detail"] = d.groupby("Day")["_line"].agg("<br>".join)
+    out = daily.reset_index().rename(columns={"Day": "Date_dt"})
+    return out.sort_values("Date_dt").reset_index(drop=True)[_DAILY_COLS]
 
 
 # ---------------------------------------------------------------------------
