@@ -247,3 +247,136 @@ class TestOverviewCallbacks:
         update_wdl(*impossible)
         update_terminations(*impossible)
         update_milestones(*impossible)
+
+
+# ---------------------------------------------------------------------------
+# Trends page callbacks (issue #9)
+# ---------------------------------------------------------------------------
+
+class TestTrendsCallbacks:
+    def test_timeline_charts_build(self, ui_app, ui_data):
+        from pages.trends import update_rating, update_winrate
+        assert update_rating(*_filter_args()).data, "rating chart has no traces"
+        assert update_winrate(*_filter_args()).data, "win-rate chart has no traces"
+
+    def test_activity_charts_build(self, ui_app, ui_data):
+        from pages.trends import update_dow, update_monthly
+        assert update_monthly(*_filter_args()).data
+        assert update_dow(*_filter_args()).data
+
+    def test_game_length_chart_and_stats(self, ui_app, ui_data):
+        from pages.trends import update_length_hist, update_length_stats
+        assert update_length_hist(*_filter_args()).data
+        assert update_length_stats(*_filter_args()) is not None
+
+    def test_empty_filter_result_does_not_error(self, ui_app, ui_data):
+        from pages.trends import (
+            update_dow,
+            update_length_hist,
+            update_length_stats,
+            update_monthly,
+            update_rating,
+            update_winrate,
+        )
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        for cb in (update_rating, update_winrate, update_monthly,
+                   update_dow, update_length_hist, update_length_stats):
+            cb(*impossible)
+
+
+# ---------------------------------------------------------------------------
+# Openings page callbacks (issue #9)
+# ---------------------------------------------------------------------------
+
+class TestOpeningsCallbacks:
+    def test_family_chart_builds(self, ui_app, ui_data):
+        from pages.openings import update_opening_family
+        assert update_opening_family(*_filter_args()).data
+
+    def test_openings_table_lists_fixture_openings(self, ui_app, ui_data):
+        from pages.openings import update_opening_table
+        rows = update_opening_table(*_filter_args())
+        assert "E04" in {r["ECO"] for r in rows}
+
+    def test_openings_table_respects_filters(self, ui_app, ui_data):
+        from pages.openings import update_opening_table
+        all_rows = update_opening_table(*_filter_args())
+        win_rows = update_opening_table(*_filter_args(outcomes=["Win"]))
+        assert len(win_rows) < len(all_rows)
+
+
+# ---------------------------------------------------------------------------
+# Opponents page callbacks (issue #9)
+# ---------------------------------------------------------------------------
+
+class TestOpponentsCallbacks:
+    def test_opponent_bar_builds(self, ui_app, ui_data):
+        from pages.opponents import update_opponents
+        # Opponents A and B are both played more than once in the fixture
+        assert update_opponents(*_filter_args()).data
+
+    def test_h2h_renders_record_for_known_opponent(self, ui_app, ui_data):
+        from pages.opponents import update_h2h
+        result = update_h2h("Opponent A", *_filter_args())
+        assert "Select an opponent" not in str(result)
+
+    def test_h2h_prompts_when_no_opponent_chosen(self, ui_app, ui_data):
+        from pages.opponents import update_h2h
+        assert "Select an opponent" in str(update_h2h(None, *_filter_args()))
+
+    def test_h2h_options_follow_the_data(self, ui_app, ui_data):
+        from pages.opponents import update_h2h_options
+        options = update_h2h_options({"seq": 1, "new_games": 0})
+        assert {"label": "Opponent A", "value": "Opponent A"} in options
+
+    def test_strength_charts_build(self, ui_app, ui_data):
+        from pages.opponents import update_bucket, update_scatter
+        assert update_bucket(*_filter_args()).data
+        assert update_scatter(*_filter_args()).data
+
+
+# ---------------------------------------------------------------------------
+# Events page callbacks (issue #9)
+# ---------------------------------------------------------------------------
+
+class TestEventsCallbacks:
+    def test_event_chart_and_table(self, ui_app, ui_data):
+        from pages.events import update_event_bar, update_event_table
+        assert update_event_bar(*_filter_args()).data
+        rows = update_event_table(*_filter_args())
+        assert {r["Event"] for r in rows} == {"Test Open", "Summer Cup"}
+
+    def test_tournament_detail_for_selected_row(self, ui_app, ui_data):
+        from pages.events import update_event_table, update_tournament_detail
+        rows = update_event_table(*_filter_args())
+        detail = update_tournament_detail([0], rows, *_filter_args())
+        assert detail is not None
+
+    def test_no_selection_means_no_detail(self, ui_app, ui_data):
+        from pages.events import update_event_table, update_tournament_detail
+        rows = update_event_table(*_filter_args())
+        assert update_tournament_detail([], rows, *_filter_args()) is None
+
+
+# ---------------------------------------------------------------------------
+# Games page callbacks (issue #9)
+# ---------------------------------------------------------------------------
+
+class TestGamesCallbacks:
+    def test_every_game_listed_with_lichess_link(self, ui_app, ui_data):
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        assert len(rows) == 7
+        assert all("lichess.org" in r["Lichess"] for r in rows)
+
+    def test_lesson_indicators_and_tags(self, ui_app, ui_data):
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        # Fixture games 1 and 4 carry Lesson: comments
+        assert sum(1 for r in rows if r["LessonIndicator"] == "💡") == 2
+        # Tags render as hashtags
+        assert any("#strategy" in r["TagsDisplay"] for r in rows)
+
+    def test_games_table_respects_filters(self, ui_app, ui_data):
+        from pages.games import update_games_table
+        assert len(update_games_table(*_filter_args(outcomes=["Win"]))) == 4
