@@ -11,37 +11,36 @@ components.  No global mutable state is written here.
 """
 from __future__ import annotations
 
-import math
-from datetime import date
-from typing import Optional
+from datetime import date, datetime, timezone
 
+import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Input, Output, State, callback_context, html, dash_table, no_update
+from dash import Input, Output, State, callback_context, dash_table, html, no_update
 
 import data
 from pgn_stats_core import (
+    activity_data,
     apply_filters,
-    win_draw_loss_counts,
-    termination_counts,
-    streaks,
-    kpi_stats,
-    win_rate_over_time,
-    player_rating_over_time,
-    opponent_summary,
+    compute_milestones,
+    event_summary,
+    game_length_data,
     head_to_head,
+    kpi_stats,
     opening_summary,
     opponent_rating_bucket_summary,
+    opponent_summary,
     outcome_vs_rating_data,
-    game_length_data,
-    activity_data,
-    event_summary,
     performance_rating_stats,
-    compute_milestones,
+    player_rating_over_time,
+    streaks,
+    termination_counts,
+    win_draw_loss_counts,
+    win_rate_over_time,
 )
-from styles import COLORS, WDL_COLOR_MAP, WDL_COLOR_SEQUENCE, apply_dark_theme, empty_fig
+from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -66,6 +65,34 @@ _TABLE_HEADER = dict(
     color=COLORS["accent"], border=f"1px solid {COLORS['border']}",
     fontSize="10px", letterSpacing="0.07em", textTransform="uppercase",
 )
+
+
+def _lichess_link(chapter_url: str) -> str:
+    """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
+    return f"[Open ↗]({chapter_url})" if chapter_url else ""
+
+
+def _freshness_label(synced_at: datetime | None) -> str:
+    """'synced X ago' label for the header ('' if never synced)."""
+    if synced_at is None:
+        return ""
+    age = (datetime.now(timezone.utc) - synced_at).total_seconds()
+    if age < 60:
+        return "synced just now"
+    if age < 3600:
+        return f"synced {int(age // 60)} min ago"
+    if age < 86400:
+        return f"synced {int(age // 3600)} h ago"
+    return f"synced {int(age // 86400)} d ago"
+
+
+def _describe_new_games(new_games: list[dict]) -> str:
+    """Toast body for a successful Sync, e.g. '2 new games: vs Edwards (Win), vs Lopez (Loss)'."""
+    if not new_games:
+        return "No new games — everything is already up to date."
+    parts = [f"vs {g['Opponent']} ({g['Outcome']})" for g in new_games]
+    n = len(new_games)
+    return f"{n} new game{'s' if n > 1 else ''}: " + ", ".join(parts)
 
 
 def _get_filtered(colors, outcomes, terminations, start_date, end_date, events, moves) -> pd.DataFrame:
@@ -101,6 +128,8 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         Input("date-filter",        "end_date"),
         Input("event-filter",       "value"),
         Input("moves-filter",       "value"),
+        # Bumped after every successful Sync so all charts re-render on fresh data
+        Input("sync-store",         "data"),
     ]
 
     # ------------------------------------------------------------------ #
@@ -153,7 +182,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Filter badge                                                         #
     # ------------------------------------------------------------------ #
     @app.callback(Output("filter-badge", "children"), FILTER_INPUTS)
-    def update_badge(colors, outcomes, terminations, start, end, events, moves):
+    def update_badge(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         total = len(data.get_df())
         filtered = len(df_f)
@@ -177,7 +206,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         Output("kpi-fav-opn",  "children"),
         FILTER_INPUTS,
     )
-    def update_kpi(colors, outcomes, terminations, start, end, events, moves):
+    def update_kpi(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         k = kpi_stats(df_f)
         def _r(x): return str(int(x)) if x is not None else "—"
@@ -205,7 +234,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         Output("streak-stats",  "children"),
         FILTER_INPUTS,
     )
-    def update_streak(colors, outcomes, terminations, start, end, events, moves):
+    def update_streak(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         s = streaks(df_f)
 
@@ -240,7 +269,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # W/D/L donut                                                          #
     # ------------------------------------------------------------------ #
     @app.callback(Output("wdl-pie", "figure"), FILTER_INPUTS)
-    def update_wdl(colors, outcomes, terminations, start, end, events, moves):
+    def update_wdl(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         counts = win_draw_loss_counts(df_f)
         pie_df = counts[counts > 0].reset_index()
@@ -273,7 +302,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Termination bar                                                       #
     # ------------------------------------------------------------------ #
     @app.callback(Output("termination-bar", "figure"), FILTER_INPUTS)
-    def update_termination(colors, outcomes, terminations, start, end, events, moves):
+    def update_termination(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         tc = termination_counts(df_f)
         if tc.empty:
@@ -298,7 +327,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Win rate over time                                                    #
     # ------------------------------------------------------------------ #
     @app.callback(Output("winrate-line", "figure"), FILTER_INPUTS)
-    def update_winrate(colors, outcomes, terminations, start, end, events, moves):
+    def update_winrate(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         wr = win_rate_over_time(df_f)
         if wr.empty:
@@ -331,7 +360,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Rating over time                                                      #
     # ------------------------------------------------------------------ #
     @app.callback(Output("rating-line", "figure"), FILTER_INPUTS)
-    def update_rating(colors, outcomes, terminations, start, end, events, moves):
+    def update_rating(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         pr = player_rating_over_time(df_f)
         if pr.empty:
@@ -365,7 +394,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Opening family bar                                                   #
     # ------------------------------------------------------------------ #
     @app.callback(Output("opening-family-bar", "figure"), FILTER_INPUTS)
-    def update_opening_family(colors, outcomes, terminations, start, end, events, moves):
+    def update_opening_family(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         fam, _ = opening_summary(df_f)
         if fam.empty:
@@ -388,7 +417,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Opening table                                                         #
     # ------------------------------------------------------------------ #
     @app.callback(Output("opening-table", "data"), FILTER_INPUTS)
-    def update_opening_table(colors, outcomes, terminations, start, end, events, moves):
+    def update_opening_table(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         _, opn = opening_summary(df_f)
         return opn.head(50).to_dict("records")
@@ -397,7 +426,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Opponent bar                                                          #
     # ------------------------------------------------------------------ #
     @app.callback(Output("opponent-bar", "figure"), FILTER_INPUTS)
-    def update_opponents(colors, outcomes, terminations, start, end, events, moves):
+    def update_opponents(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         opp = opponent_summary(df_f)
         if opp.empty:
@@ -424,7 +453,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         Input("h2h-opponent", "value"),
         FILTER_INPUTS,
     )
-    def update_h2h(opponent, colors, outcomes, terminations, start, end, events, moves):
+    def update_h2h(opponent, colors, outcomes, terminations, start, end, events, moves, _sync=None):
         if not opponent:
             return html.Div("Select an opponent above.", style={"color": COLORS["dim"], "fontSize": "12px"})
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
@@ -472,9 +501,15 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
                         {"name": "Opp Rtg",     "id": "OppRating"},
                         {"name": "Moves",       "id": "FullMoves"},
                         {"name": "Termination", "id": "Termination"},
+                        {"name": "Lichess",     "id": "Lichess",
+                         "presentation": "markdown"},
                     ],
-                    data=h["game_rows"],
+                    data=[
+                        {**row, "Lichess": _lichess_link(row.get("ChapterURL", ""))}
+                        for row in h["game_rows"]
+                    ],
                     page_size=20, sort_action="native",
+                    markdown_options={"link_target": "_blank"},
                     style_table={"overflowX": "auto"},
                     style_cell={**_TABLE_CELL, "fontSize": "11px", "padding": "5px 8px"},
                     style_header=_TABLE_HEADER,
@@ -493,7 +528,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Rating bucket bar                                                     #
     # ------------------------------------------------------------------ #
     @app.callback(Output("rating-bucket-bar", "figure"), FILTER_INPUTS)
-    def update_bucket(colors, outcomes, terminations, start, end, events, moves):
+    def update_bucket(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         buckets = opponent_rating_bucket_summary(df_f)
         if buckets.empty:
@@ -514,7 +549,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Outcome vs rating scatter                                             #
     # ------------------------------------------------------------------ #
     @app.callback(Output("outcome-scatter", "figure"), FILTER_INPUTS)
-    def update_scatter(colors, outcomes, terminations, start, end, events, moves):
+    def update_scatter(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         sc = outcome_vs_rating_data(df_f)
         if sc.empty:
@@ -542,7 +577,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Game length histogram                                                 #
     # ------------------------------------------------------------------ #
     @app.callback(Output("length-hist", "figure"), FILTER_INPUTS)
-    def update_length_hist(colors, outcomes, terminations, start, end, events, moves):
+    def update_length_hist(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         hist_df, _ = game_length_data(df_f)
         if hist_df.empty:
@@ -560,7 +595,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Game length stats card                                               #
     # ------------------------------------------------------------------ #
     @app.callback(Output("length-stats", "children"), FILTER_INPUTS)
-    def update_length_stats(colors, outcomes, terminations, start, end, events, moves):
+    def update_length_stats(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         _, avgs = game_length_data(df_f)
         if not avgs:
@@ -588,7 +623,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Activity — monthly bar                                               #
     # ------------------------------------------------------------------ #
     @app.callback(Output("monthly-bar", "figure"), FILTER_INPUTS)
-    def update_monthly(colors, outcomes, terminations, start, end, events, moves):
+    def update_monthly(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         m, _ = activity_data(df_f)
         if m.empty:
@@ -609,7 +644,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Activity — day of week                                               #
     # ------------------------------------------------------------------ #
     @app.callback(Output("dow-bar", "figure"), FILTER_INPUTS)
-    def update_dow(colors, outcomes, terminations, start, end, events, moves):
+    def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         _, dw = activity_data(df_f)
         if dw.empty:
@@ -633,7 +668,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Event stacked bar                                                     #
     # ------------------------------------------------------------------ #
     @app.callback(Output("event-bar", "figure"), FILTER_INPUTS)
-    def update_event_bar(colors, outcomes, terminations, start, end, events, moves):
+    def update_event_bar(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         ev = event_summary(df_f)
         if ev.empty:
@@ -653,7 +688,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Event table + tournament detail                                       #
     # ------------------------------------------------------------------ #
     @app.callback(Output("event-table", "data"), FILTER_INPUTS)
-    def update_event_table(colors, outcomes, terminations, start, end, events, moves):
+    def update_event_table(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         return event_summary(df_f).to_dict("records")
 
@@ -664,7 +699,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         FILTER_INPUTS,
     )
     def update_tournament_detail(selected_rows, table_data, colors, outcomes,
-                                 terminations, start, end, events, moves):
+                                 terminations, start, end, events, moves, _sync=None):
         if not selected_rows or not table_data:
             return None
         row = table_data[selected_rows[0]]
@@ -719,7 +754,7 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # Milestones                                                            #
     # ------------------------------------------------------------------ #
     @app.callback(Output("milestones-content", "children"), FILTER_INPUTS)
-    def update_milestones(colors, outcomes, terminations, start, end, events, moves):
+    def update_milestones(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         ms = compute_milestones(df_f)
         if not ms:
@@ -739,7 +774,138 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
     # All games table                                                       #
     # ------------------------------------------------------------------ #
     @app.callback(Output("games-table", "data"), FILTER_INPUTS)
-    def update_games_table(colors, outcomes, terminations, start, end, events, moves):
+    def update_games_table(colors, outcomes, terminations, start, end, events, moves, _sync=None):
         df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
         cols = [c for c in _DISPLAY_COLS if c in df_f.columns]
-        return df_f[cols].to_dict("records")
+        out = df_f[cols].copy()
+        if "Lessons" in df_f.columns:
+            out["LessonIndicator"] = df_f["Lessons"].map(lambda les: "💡" if les else "")
+        if "Tags" in df_f.columns:
+            out["TagsDisplay"] = df_f["Tags"].map(
+                lambda tags: " ".join(f"#{t}" for t in tags)
+            )
+        if "ChapterURL" in df_f.columns:
+            out["Lichess"] = df_f["ChapterURL"].map(_lichess_link)
+        return out.to_dict("records")
+
+    # ------------------------------------------------------------------ #
+    # Sync button → re-Sync all designated Studies, show outcome toast    #
+    # ------------------------------------------------------------------ #
+    @app.callback(
+        Output("sync-store", "data"),
+        Output("sync-toast", "is_open"),
+        Output("sync-toast", "header"),
+        Output("sync-toast", "icon"),
+        Output("sync-toast", "children"),
+        Input("sync-button", "n_clicks"),
+        State("sync-store", "data"),
+        prevent_initial_call=True,
+    )
+    def run_sync(n_clicks, store):
+        outcome = data.refresh()
+
+        if outcome.status == "already_running":
+            return (no_update, True, "Sync already running", "warning",
+                    "A Sync is already in progress — hang tight.")
+
+        if outcome.status == "error":
+            return (no_update, True, "Sync failed", "danger",
+                    f"{outcome.error} — still showing your current games.")
+
+        # Success: bump the store so every chart re-renders on the new data
+        seq = (store or {}).get("seq", 0) + 1
+        body = _describe_new_games(outcome.new_games)
+        if outcome.failures:
+            failed = ", ".join(study_id for study_id, _ in outcome.failures)
+            body += f" (couldn't fetch: {failed})"
+        new_store = {"seq": seq, "new_games": len(outcome.new_games)}
+        return new_store, True, "Sync complete", "success", body
+
+    # ------------------------------------------------------------------ #
+    # "Synced X ago" freshness label + cached-data notice                 #
+    # ------------------------------------------------------------------ #
+    @app.callback(
+        Output("sync-freshness", "children"),
+        Output("cache-notice", "children"),
+        Input("freshness-interval", "n_intervals"),
+        Input("sync-store", "data"),
+    )
+    def update_freshness(_n, _sync):
+        if data.source() == "cache":
+            cached = data.cached_at()
+            when = f"{cached:%Y-%m-%d %H:%M} UTC" if cached else "an earlier run"
+            notice = dbc.Alert(
+                [
+                    html.Strong("Showing cached data "),
+                    f"from {when} — Lichess was unreachable at startup. "
+                    "Click Sync to retry.",
+                ],
+                color="warning", className="mb-0",
+                style={"borderRadius": 0, "textAlign": "center",
+                       "padding": "8px", "fontSize": "13px"},
+            )
+            return "showing cached data", notice
+        return _freshness_label(data.synced_at()), None
+
+    # ------------------------------------------------------------------ #
+    # Filter options + header stats follow the current data, not the      #
+    # data the app started with                                            #
+    # ------------------------------------------------------------------ #
+    @app.callback(
+        Output("termination-filter", "options"),
+        Output("event-filter", "options"),
+        Output("h2h-opponent", "options"),
+        Output("date-filter", "min_date_allowed"),
+        Output("date-filter", "max_date_allowed"),
+        Output("date-filter", "start_date", allow_duplicate=True),
+        Output("date-filter", "end_date", allow_duplicate=True),
+        Output("moves-filter", "min"),
+        Output("moves-filter", "max"),
+        Output("moves-filter", "value"),
+        Output("header-games-count", "children"),
+        Output("header-date-range", "children"),
+        Input("sync-store", "data"),
+        prevent_initial_call=True,  # the layout holds correct startup values
+    )
+    def update_filter_options(sync_store):
+        df = data.get_df()
+        if df.empty:
+            return (no_update,) * 12
+
+        termination_options = sorted(
+            [t for t in df["Termination"].dropna().unique() if str(t).strip()]
+        )
+        event_options = sorted(
+            [e for e in df["Event"].dropna().unique() if str(e).strip()]
+        )
+        opponent_options = sorted(df["Opponent"].dropna().unique().tolist())
+
+        dated = df[df["Date_dt"].notna()]
+        min_date = dated["Date_dt"].min().date().isoformat() if not dated.empty else None
+        max_date = dated["Date_dt"].max().date().isoformat() if not dated.empty else None
+
+        full_moves = df["FullMoves"].dropna()
+        min_mv = int(full_moves.min()) if not full_moves.empty else 1
+        max_mv = int(full_moves.max()) if not full_moves.empty else 100
+
+        # Only push the *selected* ranges back to "everything" when new Games
+        # arrived (so they're immediately visible); otherwise leave the user's
+        # selection alone.
+        has_new_games = (sync_store or {}).get("new_games", 0) > 0
+        start_value = min_date if has_new_games else no_update
+        end_value = max_date if has_new_games else no_update
+        moves_value = [min_mv, max_mv] if has_new_games else no_update
+
+        date_range = f"{dated['Date_dt'].min():%b %Y} – {dated['Date_dt'].max():%b %Y}" \
+            if not dated.empty else ""
+
+        return (
+            [{"label": t, "value": t} for t in termination_options],
+            [{"label": e, "value": e} for e in event_options],
+            [{"label": o, "value": o} for o in opponent_options],
+            min_date, max_date,
+            start_value, end_value,
+            min_mv, max_mv, moves_value,
+            [html.Strong(f"{len(df)}"), " games"],
+            date_range,
+        )

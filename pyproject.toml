@@ -3,7 +3,7 @@ name = "chess-stats-dashboard"
 version = "2.0.0"
 description = "Interactive OTB chess analytics dashboard powered by Plotly Dash"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
     "dash>=2.14.0",
@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
     "python-chess>=1.9.0",
+    "requests>=2.31.0",
     "gunicorn>=21.0.0",
 ]
 
@@ -33,12 +34,14 @@ addopts = "-v --tb=short"
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
 ignore = ["E501"]  # line length handled by formatter
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 ignore_missing_imports = true
 warn_return_any = false
 warn_unused_ignores = true

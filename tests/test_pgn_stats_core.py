@@ -9,31 +9,30 @@ from __future__ import annotations
 import math
 
 import pandas as pd
-import pytest
 
 from pgn_stats_core import (
+    activity_data,
     apply_filters,
-    win_draw_loss_counts,
-    termination_counts,
-    streaks,
-    kpi_stats,
-    win_rate_over_time,
-    player_rating_over_time,
-    opponent_summary,
+    compute_milestones,
+    event_summary,
+    game_length_data,
     head_to_head,
+    kpi_stats,
+    load_games_from_text,
     opening_summary,
     opponent_rating_bucket_summary,
-    outcome_vs_rating_data,
-    game_length_data,
-    activity_data,
-    event_summary,
-    performance_rating_stats,
-    compute_milestones,
-    safe_int,
+    opponent_summary,
     outcome_for_player,
+    outcome_vs_rating_data,
+    performance_rating_stats,
+    player_rating_over_time,
+    safe_int,
+    streaks,
+    termination_counts,
+    win_draw_loss_counts,
+    win_rate_over_time,
     winner_from_result,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper utilities
@@ -118,7 +117,7 @@ class TestLoadGamesDf:
         """PlayerRatingNum should be numeric where available."""
         rated = df["PlayerRatingNum"].dropna()
         assert len(rated) > 0
-        assert rated.dtype.kind == "f"
+        assert pd.api.types.is_numeric_dtype(rated)
 
     def test_rating_diff_computed(self, df):
         """RatingDiff = OpponentRatingNum - PlayerRatingNum."""
@@ -133,6 +132,133 @@ class TestLoadGamesDf:
 
     def test_eco_present(self, df):
         assert df["ECO"].str.strip().ne("").all()
+
+
+# ---------------------------------------------------------------------------
+# load_games_from_text
+# ---------------------------------------------------------------------------
+
+class TestLoadGamesFromText:
+    def test_parses_pgn_text_same_as_file(self, sample_pgn_text, df):
+        """PGN text (as returned by the Lichess client) parses identically to a file."""
+        text_df, player = load_games_from_text(sample_pgn_text, player_name="Test Player")
+        assert player == "Test Player"
+        assert len(text_df) == len(df)
+        assert list(text_df.columns) == list(df.columns)
+        assert text_df["Outcome"].tolist() == df["Outcome"].tolist()
+
+    def test_empty_text_gives_empty_df(self):
+        text_df, player = load_games_from_text("", player_name="Someone")
+        assert text_df.empty
+        assert player == "Someone"
+
+
+# ---------------------------------------------------------------------------
+# Chapter metadata (Game identity — ADR 0001 / issue #3)
+# ---------------------------------------------------------------------------
+
+# A PGN that did not come from a Lichess Study (no chapter headers at all).
+PGN_WITHOUT_CHAPTER_HEADERS = """\
+[Event "Plain Old Tournament"]
+[Date "2024.03.10"]
+[White "Test Player"]
+[Black "Opponent X"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 1-0
+"""
+
+
+class TestChapterMetadata:
+    def test_chapter_url_is_the_game_identity(self, df):
+        """Every Game in a Study export carries its permanent ChapterURL."""
+        assert (df["ChapterURL"].str.startswith("https://lichess.org/study/")).all()
+        # ChapterURL is unique per Game — it is the identity key
+        assert df["ChapterURL"].nunique() == len(df)
+
+    def test_study_name_extracted(self, df):
+        assert (df["StudyName"] == "Test Study").all()
+
+    def test_chapter_name_extracted(self, df):
+        assert df["ChapterName"].str.contains(" - ").all()
+
+    def test_games_without_chapter_headers_get_empty_values(self):
+        """Non-Study PGNs still parse; chapter fields are just empty."""
+        plain_df, _ = load_games_from_text(
+            PGN_WITHOUT_CHAPTER_HEADERS, player_name="Test Player"
+        )
+        assert len(plain_df) == 1
+        assert (plain_df["ChapterURL"] == "").all()
+        assert (plain_df["StudyName"] == "").all()
+        assert (plain_df["ChapterName"] == "").all()
+
+
+# ---------------------------------------------------------------------------
+# Lessons and Tags (ADR 0002 — comment conventions / issue #4)
+# ---------------------------------------------------------------------------
+
+class TestLessons:
+    """A Lesson is a chapter comment starting with 'Lesson:' (case-insensitive)."""
+
+    def test_chapter_comment_with_lesson_prefix_becomes_a_lesson(self, df):
+        game1 = df[df["ChapterURL"].str.endswith("chap0001")].iloc[0]
+        assert game1["Lessons"] == [
+            "Keep the tension in the center instead of releasing it early. #strategy"
+        ]
+
+    def test_game_with_no_comments_has_no_lessons(self, df):
+        game2 = df[df["ChapterURL"].str.endswith("chap0002")].iloc[0]
+        assert game2["Lessons"] == []
+
+    def test_comments_without_prefix_are_not_lessons(self, df):
+        """Ordinary annotations (game 3 has two) never become Lessons."""
+        game3 = df[df["ChapterURL"].str.endswith("chap0003")].iloc[0]
+        assert game3["Lessons"] == []
+
+    def test_multiple_lessons_with_mixed_case_prefixes(self, df):
+        """Game 4 has 'LESSON:' at chapter level and 'lesson:' inside a variation."""
+        game4 = df[df["ChapterURL"].str.endswith("chap0004")].iloc[0]
+        assert len(game4["Lessons"]) == 2
+        assert "Don't grab pawns while behind in development." in game4["Lessons"]
+        assert "Castle before starting an attack. #opening" in game4["Lessons"]
+
+
+class TestTags:
+    """A Tag is a hashtag in any chapter comment, normalized to lowercase."""
+
+    def test_tag_extracted_from_lesson_comment(self, df):
+        game1 = df[df["ChapterURL"].str.endswith("chap0001")].iloc[0]
+        assert game1["Tags"] == ["strategy"]
+
+    def test_game_with_no_comments_has_no_tags(self, df):
+        game2 = df[df["ChapterURL"].str.endswith("chap0002")].iloc[0]
+        assert game2["Tags"] == []
+
+    def test_mixed_case_tags_normalized_to_lowercase(self, df):
+        """Game 3 has '#blunder #Tactics' → both lowercase."""
+        game3 = df[df["ChapterURL"].str.endswith("chap0003")].iloc[0]
+        assert sorted(game3["Tags"]) == ["blunder", "tactics"]
+
+    def test_tags_spread_across_comments_are_merged_and_deduplicated(self, df):
+        """Game 5 has #tactics in two comments and #endgame in one."""
+        game5 = df[df["ChapterURL"].str.endswith("chap0005")].iloc[0]
+        assert sorted(game5["Tags"]) == ["endgame", "tactics"]
+
+    def test_lichess_clock_annotations_are_not_tags(self, df):
+        """[%clk 1:30:00] style noise must never produce Tags."""
+        for _, game in df.iterrows():
+            for tag in game["Tags"]:
+                assert "clk" not in tag
+                assert ":" not in tag
+
+    def test_checkmate_symbol_in_moves_is_not_a_tag(self):
+        """The '#' checkmate suffix in SAN (e.g. Qe3#) must not produce Tags."""
+        pgn = (
+            '[Event "T"]\n[White "Test Player"]\n[Black "X"]\n[Result "1-0"]\n\n'
+            "1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# { mated with Qxf7# } 1-0\n"
+        )
+        one_df, _ = load_games_from_text(pgn, player_name="Test Player")
+        assert one_df.iloc[0]["Tags"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +283,7 @@ class TestApplyFilters:
         assert len(out) == len(df)
 
     def test_filter_date(self, df):
-        out = apply_filters(df, [], [], [], "2024-06-01", "2024-06-30", date_start="2024-06-01", date_end="2024-06-30")
+        out = apply_filters(df, [], [], [], date_start="2024-06-01", date_end="2024-06-30")
         assert (out["Date_dt"].dt.month == 6).all()
 
     def test_filter_by_event(self, df):
@@ -283,6 +409,12 @@ class TestHeadToHead:
         h = head_to_head(df, "Opponent A")
         assert h["total"] == 3
         assert h["win"] + h["draw"] + h["loss"] == 3
+
+    def test_game_rows_carry_chapter_url(self, df):
+        """Each head-to-head game row links back to its Lichess chapter."""
+        h = head_to_head(df, "Opponent A")
+        for row in h["game_rows"]:
+            assert row["ChapterURL"].startswith("https://lichess.org/study/")
 
     def test_missing_opponent(self, df):
         h = head_to_head(df, "Nobody")

@@ -42,7 +42,7 @@ jobs:
         run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run pytest with coverage
-        run: pytest tests/ -v --cov=pgn_stats_core --cov-report=term-missing
+        run: pytest tests/ -v --cov=pgn_stats_core --cov=lichess_client --cov=sync --cov=data --cov=config --cov-report=term-missing
 
   typecheck:
     name: Type check (mypy)
@@ -61,4 +61,4 @@ jobs:
         run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run mypy
-        run: mypy pgn_stats_core.py
+        run: mypy pgn_stats_core.py lichess_client.py sync.py data.py config.py
