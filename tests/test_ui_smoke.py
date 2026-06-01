@@ -56,24 +56,24 @@ def _filter_args(**overrides):
             a["end"], a["events"], a["moves"], a["sync"])
 
 
+def _walk_components(component):
+    """Yield every Dash component in a layout tree (depth-first)."""
+    if component is None or isinstance(component, (str, int, float, bool)):
+        return
+    if isinstance(component, (list, tuple)):
+        for item in component:
+            yield from _walk_components(item)
+        return
+    yield component
+    yield from _walk_components(getattr(component, "children", None))
+
+
 def _collect_ids(component) -> set[str]:
     """Recursively collect every component ID in a layout tree."""
-    ids: set[str] = set()
-
-    def _walk(node):
-        if node is None or isinstance(node, (str, int, float, bool)):
-            return
-        if isinstance(node, (list, tuple)):
-            for item in node:
-                _walk(item)
-            return
-        node_id = getattr(node, "id", None)
-        if isinstance(node_id, str):
-            ids.add(node_id)
-        _walk(getattr(node, "children", None))
-
-    _walk(component)
-    return ids
+    return {
+        node.id for node in _walk_components(component)
+        if isinstance(getattr(node, "id", None), str)
+    }
 
 
 def _page(path: str) -> dict:
@@ -298,6 +298,56 @@ class TestTrendsCallbacks:
         for cb in (update_rating, update_winrate, update_monthly,
                    update_dow, update_length_hist, update_length_stats):
             cb(*impossible)
+
+    # -- Activity heatmap calendar (issue #14) ------------------------------
+
+    @staticmethod
+    def _calendar_hover_text(calendar_blocks) -> str:
+        """All hover text across every cell of every year's calendar."""
+        figures = [
+            comp.figure for block in calendar_blocks
+            for comp in _walk_components(block)
+            if getattr(comp, "figure", None) is not None
+        ]
+        return " ".join(
+            cell
+            for fig in figures
+            for trace in fig.data
+            for row in (trace.text or [])
+            for cell in row
+        )
+
+    def test_activity_calendar_one_block_per_year(self, ui_app, ui_data):
+        """Fixture Games are all from 2024 → exactly one year block."""
+        from pages.trends import update_activity_calendar
+        years = update_activity_calendar(*_filter_args())
+        labels = [c.children for block in years for c in _walk_components(block)
+                  if "activity-year-label" in (getattr(c, "className", "") or "")]
+        assert labels == ["2024"]
+
+    def test_activity_calendar_cells_carry_the_days_games(self, ui_app, ui_data):
+        """Hovering a cell shows that day's Games (opponent, result)."""
+        from pages.trends import update_activity_calendar
+        hover = self._calendar_hover_text(update_activity_calendar(*_filter_args()))
+        assert "Win vs Opponent A" in hover
+        assert "Draw vs Opponent B" in hover
+        assert "No games" in hover  # days without Games are visibly empty
+
+    def test_activity_calendar_responds_to_filters(self, ui_app, ui_data):
+        """Filtering to wins-only removes the loss day's games from the calendar."""
+        from pages.trends import update_activity_calendar
+        all_hover = self._calendar_hover_text(update_activity_calendar(*_filter_args()))
+        wins_hover = self._calendar_hover_text(
+            update_activity_calendar(*_filter_args(outcomes=["Win"]))
+        )
+        assert "Loss vs Opponent C" in all_hover
+        assert "Loss vs Opponent C" not in wins_hover
+
+    def test_activity_calendar_empty_filter_shows_empty_state(self, ui_app, ui_data):
+        from pages.trends import update_activity_calendar
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        result = update_activity_calendar(*impossible)
+        assert "empty-state" in str(getattr(result, "className", ""))
 
 
 # ---------------------------------------------------------------------------

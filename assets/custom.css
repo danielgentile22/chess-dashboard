@@ -640,6 +640,37 @@ code {
 }
 .milestone-desc { font-size: 13px; color: var(--cs-text); flex: 1; }
 
+/* ── Activity heatmap calendar (issue #14) ───────────────── */
+.activity-year { margin-bottom: 18px; }
+.activity-year:last-child { margin-bottom: 4px; }
+.activity-year-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.activity-year-label {
+  font-family: var(--cs-font-display);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+.activity-year-stats {
+  font-family: var(--cs-font-mono);
+  font-size: 11px;
+  color: var(--cs-muted);
+  letter-spacing: .02em;
+}
+.activity-cal-scroll { overflow-x: auto; overflow-y: hidden; }
+.activity-cal-scroll::-webkit-scrollbar { height: 6px; }
+.activity-cal-scroll::-webkit-scrollbar-thumb {
+  background: var(--cs-border);
+  border-radius: 3px;
+}
+/* Cells stay readable: the calendar never squeezes below ~13px per week
+   (phones scroll it sideways instead) */
+.activity-cal-graph { min-width: 720px; }
+
 /* ── Dash DataTable dark overrides ───────────────────────── */
 .dash-table-container .dash-spreadsheet-container table,
 .dash-table-container .dash-spreadsheet-inner td,
