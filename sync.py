@@ -8,17 +8,24 @@ Games, dedupes by ChapterURL (the permanent Game identity — ADR 0001), and
 sorts by date.  One Study failing never loses the Games of the Studies that
 succeeded; only when *every* Study fails is the Sync itself a failure.
 
+A successful Sync also refreshes a local PGN cache so the dashboard can boot
+when Lichess is unreachable.  The cache is disposable and never a source of
+truth (ADR 0001); a host without a writable disk just goes without it.
+
 Public API
 ----------
 sync_studies      Fetch + merge all designated Studies → SyncResult.
 detect_new_games  Which Games of a Sync are new vs. the previous one.
+load_from_cache   Parse the PGN cache of the last successful Sync.
 SyncResult        The outcome: merged df, player, per-Study failures.
 SyncError         Raised when no designated Study could be fetched.
 """
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -27,7 +34,13 @@ from pgn_stats_core import load_games_from_text
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["SyncError", "SyncResult", "detect_new_games", "sync_studies"]
+__all__ = [
+    "SyncError",
+    "SyncResult",
+    "detect_new_games",
+    "load_from_cache",
+    "sync_studies",
+]
 
 
 class SyncError(Exception):
@@ -53,10 +66,15 @@ def sync_studies(
     study_ids: list[str],
     player_name: str | None = None,
     token: str | None = None,
+    cache_path: str | None = None,
 ) -> SyncResult:
     """
     Sync every designated Study and return the merged, deduped, date-sorted
     Games.
+
+    When *cache_path* is given, a successful Sync also (over)writes the PGN
+    cache there.  A failed cache write is logged and ignored — the cache is
+    an offline fallback, never a requirement.
 
     Raises
     ------
@@ -77,7 +95,8 @@ def sync_studies(
         details = "; ".join(f"{sid}: {reason}" for sid, reason in failures)
         raise SyncError(f"No designated Study could be fetched. {details}")
 
-    df, player = load_games_from_text("\n\n".join(pgn_texts), player_name=player_name)
+    merged_pgn = "\n\n".join(pgn_texts)
+    df, player = load_games_from_text(merged_pgn, player_name=player_name)
     df = _dedupe_and_sort(df)
 
     if failures:
@@ -88,7 +107,43 @@ def sync_studies(
             ", ".join(sid for sid, _ in failures), len(df),
         )
 
+    if cache_path:
+        _write_cache(cache_path, merged_pgn)
+
     return SyncResult(df=df, player=player, failures=failures)
+
+
+def load_from_cache(
+    cache_path: str,
+    player_name: str | None = None,
+) -> tuple[pd.DataFrame, str, datetime]:
+    """
+    Parse the PGN cache of the last successful Sync.
+
+    Returns (df, player, cached_at) where *cached_at* is when that Sync
+    happened (the file's modification time, UTC).
+
+    Raises FileNotFoundError if there is no cache.
+    """
+    with open(cache_path, encoding="utf-8", errors="ignore") as f:
+        pgn_text = f.read()
+    df, player = load_games_from_text(pgn_text, player_name=player_name)
+    df = _dedupe_and_sort(df)
+    cached_at = datetime.fromtimestamp(os.path.getmtime(cache_path), tz=timezone.utc)
+    return df, player, cached_at
+
+
+def _write_cache(cache_path: str, pgn_text: str) -> None:
+    """Atomically (over)write the PGN cache; failures are logged, never raised."""
+    try:
+        tmp_path = f"{cache_path}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(pgn_text)
+        os.replace(tmp_path, cache_path)
+        logger.info("Wrote Sync cache: %s", cache_path)
+    except OSError as exc:
+        logger.warning("Could not write Sync cache %r (continuing without): %s",
+                       cache_path, exc)
 
 
 def detect_new_games(df: pd.DataFrame, previous_chapter_urls: set[str]) -> pd.DataFrame:

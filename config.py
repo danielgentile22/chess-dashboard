@@ -22,6 +22,10 @@ class Config:
     # Optional Lichess API token — only needed if a designated Study is private.
     LICHESS_API_TOKEN: str | None = os.environ.get("LICHESS_API_TOKEN", "").strip() or None
 
+    # Where the last successful Sync's PGN is cached for offline fallback.
+    # Disposable, gitignored, never a source of truth (ADR 0001).
+    CACHE_PATH: str = os.environ.get("CACHE_PATH", "games.pgn").strip()
+
     # Player name override. Empty string → auto-detect from the Games.
     PLAYER_NAME: str | None = os.environ.get("PLAYER_NAME", "").strip() or None
 

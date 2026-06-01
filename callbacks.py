@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
+import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -821,15 +822,30 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         return new_store, True, "Sync complete", "success", body
 
     # ------------------------------------------------------------------ #
-    # "Synced X ago" freshness label                                       #
+    # "Synced X ago" freshness label + cached-data notice                 #
     # ------------------------------------------------------------------ #
     @app.callback(
         Output("sync-freshness", "children"),
+        Output("cache-notice", "children"),
         Input("freshness-interval", "n_intervals"),
         Input("sync-store", "data"),
     )
     def update_freshness(_n, _sync):
-        return _freshness_label(data.synced_at())
+        if data.source() == "cache":
+            cached = data.cached_at()
+            when = f"{cached:%Y-%m-%d %H:%M} UTC" if cached else "an earlier run"
+            notice = dbc.Alert(
+                [
+                    html.Strong("Showing cached data "),
+                    f"from {when} — Lichess was unreachable at startup. "
+                    "Click Sync to retry.",
+                ],
+                color="warning", className="mb-0",
+                style={"borderRadius": 0, "textAlign": "center",
+                       "padding": "8px", "fontSize": "13px"},
+            )
+            return "showing cached data", notice
+        return _freshness_label(data.synced_at()), None
 
     # ------------------------------------------------------------------ #
     # Filter options + header stats follow the current data, not the      #

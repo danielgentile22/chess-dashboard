@@ -172,3 +172,87 @@ class TestRefresh:
     def test_refresh_before_initialize_errors_cleanly(self):
         outcome = data.refresh()
         assert outcome.status == "error"
+
+
+# ---------------------------------------------------------------------------
+# Cache fallback / offline resilience (issue #7)
+# ---------------------------------------------------------------------------
+
+class TestCacheFallback:
+    def test_successful_startup_writes_the_cache(self, sample_pgn_text, tmp_path):
+        cache = tmp_path / "games.pgn"
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(
+                ["study1"], player_name="Test Player", cache_path=str(cache)
+            )
+
+        assert cache.exists()
+        assert data.source() == "lichess"
+
+    def test_lichess_down_with_cache_boots_from_cache(self, sample_pgn_text, tmp_path):
+        """The dashboard never goes blank because Lichess is down."""
+        cache = tmp_path / "games.pgn"
+        # A previous successful Sync left a cache behind
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player", cache_path=str(cache))
+        data.reset()
+
+        # Now Lichess is down at startup
+        with stub_studies(study1=LichessUnreachableError("lichess is down")):
+            df, player = data.initialize(
+                ["study1"], player_name="Test Player", cache_path=str(cache)
+            )
+
+        assert len(df) == 7
+        assert data.is_loaded()
+        # The UI can tell the user they're looking at cached data and how old it is
+        assert data.source() == "cache"
+        assert data.cached_at() is not None
+
+    def test_lichess_down_without_cache_raises_clear_error(self, tmp_path):
+        with stub_studies(study1=LichessUnreachableError("lichess is down")):
+            with pytest.raises(sync.SyncError) as exc_info:
+                data.initialize(
+                    ["study1"], player_name="Test Player",
+                    cache_path=str(tmp_path / "no-cache-here.pgn"),
+                )
+
+        assert "study1" in str(exc_info.value)
+        assert not data.is_loaded()
+
+    def test_successful_refresh_after_cache_boot_restores_live_data(
+        self, sample_pgn_text, tmp_path
+    ):
+        """Once Lichess comes back, a button-Sync replaces cached data with live data."""
+        cache = tmp_path / "games.pgn"
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player", cache_path=str(cache))
+        data.reset()
+        with stub_studies(study1=LichessUnreachableError("down")):
+            data.initialize(["study1"], player_name="Test Player", cache_path=str(cache))
+        assert data.source() == "cache"
+
+        # Lichess is back
+        with stub_studies(study1=sample_pgn_text):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert data.source() == "lichess"
+
+    def test_failed_refresh_after_cache_boot_keeps_cached_data(
+        self, sample_pgn_text, tmp_path
+    ):
+        """A failed button-Sync leaves the (cached) data intact — never blank."""
+        cache = tmp_path / "games.pgn"
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player", cache_path=str(cache))
+        data.reset()
+        with stub_studies(study1=LichessUnreachableError("down")):
+            data.initialize(["study1"], player_name="Test Player", cache_path=str(cache))
+
+        with stub_studies(study1=LichessUnreachableError("still down")):
+            outcome = data.refresh()
+
+        assert outcome.status == "error"
+        assert len(data.get_df()) == 7
+        assert data.source() == "cache"

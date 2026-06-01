@@ -104,7 +104,12 @@ python app.py --study abcdWXYZ --player "Last, First"
 | `LICHESS_STUDY_IDS` | Comma-separated Lichess study IDs to Sync from (e.g. `abcdWXYZ,abcd1234`) |
 | `LICHESS_API_TOKEN` | Optional API token, only needed if a Study is private |
 | `PLAYER_NAME` | Override player-name auto-detection |
+| `CACHE_PATH` | PGN cache of the last successful Sync, used as offline fallback (default: `games.pgn`) |
 | `HOST` / `PORT` / `DEBUG` | Server binding and debug mode |
+
+### Offline resilience
+
+Every successful Sync writes a local PGN cache. If Lichess is unreachable when the app starts, it boots from that cache and shows a "cached data" notice; if a Sync from the header button fails, the data you're looking at stays untouched and an error toast appears. The cache is disposable — the designated Studies on Lichess remain the only source of truth.
 
 ---
 
