@@ -11,13 +11,16 @@ import math
 import pandas as pd
 
 from pgn_stats_core import (
+    CANONICAL_TAGS,
     activity_data,
     apply_filters,
     compute_milestones,
+    current_form,
     event_summary,
     game_length_data,
     head_to_head,
     kpi_stats,
+    lessons_table,
     load_games_from_text,
     opening_summary,
     opponent_rating_bucket_summary,
@@ -28,6 +31,7 @@ from pgn_stats_core import (
     player_rating_over_time,
     safe_int,
     streaks,
+    tag_counts,
     termination_counts,
     win_draw_loss_counts,
     win_rate_over_time,
@@ -351,6 +355,160 @@ class TestStreaks:
         s = streaks(d)
         assert s["longest_streak_wins_only"] == 5
         assert s["longest_streak_no_loss"] == 5
+
+
+def _games_with_outcomes(outcomes: list[str]) -> pd.DataFrame:
+    """A minimal date-ordered Games DataFrame with the given outcomes."""
+    return pd.DataFrame({
+        "Outcome": outcomes,
+        "Date_dt": pd.date_range("2024-01-01", periods=len(outcomes)),
+        "Index": range(1, len(outcomes) + 1),
+    })
+
+
+class TestCurrentForm:
+    """Streak fire / form dots computation (issue #10)."""
+
+    def test_empty_data(self):
+        form = current_form(pd.DataFrame())
+        assert form == {"win_streak": 0, "loss_streak": 0, "last_5": []}
+
+    def test_all_wins(self):
+        form = current_form(_games_with_outcomes(["Win"] * 6))
+        assert form["win_streak"] == 6
+        assert form["loss_streak"] == 0
+        assert form["last_5"] == ["Win"] * 5
+
+    def test_alternating_results(self):
+        form = current_form(_games_with_outcomes(["Win", "Loss", "Win", "Loss", "Win"]))
+        assert form["win_streak"] == 1
+        assert form["loss_streak"] == 0
+        assert form["last_5"] == ["Win", "Loss", "Win", "Loss", "Win"]
+
+    def test_loss_streak(self):
+        form = current_form(_games_with_outcomes(["Win", "Win", "Loss", "Loss", "Loss"]))
+        assert form["win_streak"] == 0
+        assert form["loss_streak"] == 3
+
+    def test_draw_breaks_both_streaks(self):
+        form = current_form(_games_with_outcomes(["Win", "Win", "Draw"]))
+        assert form["win_streak"] == 0
+        assert form["loss_streak"] == 0
+
+    def test_last_5_is_oldest_to_newest(self):
+        outcomes = ["Loss", "Loss", "Draw", "Win", "Win", "Win"]
+        form = current_form(_games_with_outcomes(outcomes))
+        assert form["last_5"] == ["Loss", "Draw", "Win", "Win", "Win"]
+        assert form["win_streak"] == 3
+
+    def test_fewer_than_5_games(self):
+        form = current_form(_games_with_outcomes(["Win", "Draw"]))
+        assert form["last_5"] == ["Win", "Draw"]
+
+    def test_fixture_games(self, df):
+        # Fixture order by date: Win, Draw, Loss, Win, Win, Win, Draw
+        form = current_form(df)
+        assert form["last_5"] == ["Loss", "Win", "Win", "Win", "Draw"]
+        assert form["win_streak"] == 0  # the final Draw broke the 3-game run
+        assert form["loss_streak"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Lessons aggregation + Tag counting (issue #12)
+# ---------------------------------------------------------------------------
+
+class TestLessonsTable:
+    def test_one_row_per_lesson_newest_first(self, df):
+        """A Game with two Lessons contributes two rows; ordering is newest first."""
+        lessons = lessons_table(df)
+        # Fixture: game 1 (2024.01.06) has 1 Lesson, game 4 (2024.06.15) has 2
+        assert len(lessons) == 3
+        assert list(lessons["Date"])[:2] == ["2024.06.15", "2024.06.15"]
+        assert list(lessons["Date"])[2] == "2024.01.06"
+
+    def test_each_lesson_carries_its_source_game(self, df):
+        lessons = lessons_table(df)
+        oldest = lessons.iloc[-1]
+        assert oldest["Lesson"].startswith("Keep the tension")
+        assert oldest["Opponent"] == "Opponent A"
+        assert oldest["Outcome"] == "Win"
+        assert oldest["ChapterURL"].endswith("chap0001")
+        assert list(oldest["Tags"]) == ["strategy"]
+
+    def test_games_without_lessons_are_excluded(self, df):
+        lessons = lessons_table(df)
+        urls = set(lessons["ChapterURL"])
+        assert not any(u.endswith("chap0002") for u in urls)  # no comments at all
+        assert not any(u.endswith("chap0003") for u in urls)  # tags but no Lesson
+
+    def test_filter_by_tag(self, df):
+        lessons = lessons_table(df, tags=["opening"])
+        # Only game 4's lessons carry #opening
+        assert len(lessons) == 2
+        assert all(u.endswith("chap0004") for u in lessons["ChapterURL"])
+
+    def test_filter_by_opponent(self, df):
+        lessons = lessons_table(df, opponent="Opponent A")
+        # Game 1 (vs A) and game 4 (vs A) → all 3 lessons
+        assert len(lessons) == 3
+        lessons_d = lessons_table(df, opponent="Opponent D")
+        assert len(lessons_d) == 0
+
+    def test_empty_data(self):
+        lessons = lessons_table(pd.DataFrame())
+        assert lessons.empty
+
+
+class TestTagCounts:
+    def test_counts_reflect_per_game_tags(self, df):
+        counts = {t["tag"]: t["count"] for t in tag_counts(df)}
+        # Fixture: tactics appears in games 3 and 5; the rest once each
+        assert counts["tactics"] == 2
+        assert counts["strategy"] == 1
+        assert counts["blunder"] == 1
+        assert counts["opening"] == 1
+        assert counts["endgame"] == 1
+
+    def test_canonical_taxonomy_tags_come_first(self, df):
+        result = tag_counts(df)
+        # All fixture tags are canonical → ordered by taxonomy position
+        tags_in_order = [t["tag"] for t in result]
+        canonical_positions = [CANONICAL_TAGS.index(t) for t in tags_in_order]
+        assert canonical_positions == sorted(canonical_positions)
+        assert all(t["canonical"] for t in result)
+
+    def test_freeform_tags_come_after_canonical_sorted_by_count(self):
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.01.01"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+[ChapterURL "https://lichess.org/study/x/y1"]
+
+{ Lesson: a. #zugzwang #endgame #zugzwang } 1. e4 1-0
+
+[Event "T"]
+[Site "S"]
+[Date "2024.01.02"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+[ChapterURL "https://lichess.org/study/x/y2"]
+
+{ Lesson: b. #zugzwang #fortress } 1. e4 1-0
+"""
+        df, _ = load_games_from_text(pgn, player_name="Me")
+        result = tag_counts(df)
+        tags = [t["tag"] for t in result]
+        # Canonical (#endgame) first, then freeform by count: zugzwang (2) > fortress (1)
+        assert tags == ["endgame", "zugzwang", "fortress"]
+        assert [t["canonical"] for t in result] == [True, False, False]
+        assert [t["count"] for t in result] == [1, 2, 1]
+
+    def test_empty_data(self):
+        assert tag_counts(pd.DataFrame()) == []
 
 
 # ---------------------------------------------------------------------------
