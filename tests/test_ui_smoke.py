@@ -135,6 +135,9 @@ class TestShell:
         assert "sync-freshness" in shell_ids
         assert "header-games-count" in shell_ids
 
+    def test_header_has_form_indicators(self, shell_ids):
+        assert "header-form" in shell_ids  # streak fire + form dots (issue #10)
+
     def test_filter_drawer_with_all_controls(self, shell_ids):
         assert "filter-drawer" in shell_ids
         for control in ("color-filter", "outcome-filter", "termination-filter",

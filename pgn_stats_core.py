@@ -66,6 +66,7 @@ __all__ = [
     "win_draw_loss_counts",
     "termination_counts",
     "streaks",
+    "current_form",
     "kpi_stats",
     "win_rate_over_time",
     "player_rating_over_time",
@@ -481,6 +482,27 @@ def streaks(df: pd.DataFrame) -> dict:
         "current_streak_same_outcome": current_same,
         "current_streak_outcome": last_outcome,
         "last_20": outcomes[-20:],
+    }
+
+
+def current_form(df: pd.DataFrame) -> dict:
+    """
+    Current form for the header indicators (issue #10): how the most recent
+    Games have gone, ordered by date.
+
+    Returns dict keys:
+      win_streak  : consecutive Wins ending at the most recent Game (0 if the
+                    last Game wasn't a Win)
+      loss_streak : consecutive Losses ending at the most recent Game
+      last_5      : outcomes of the last 5 Games, oldest → newest
+    """
+    s = streaks(df)
+    outcome = s["current_streak_outcome"]
+    count = s["current_streak_same_outcome"]
+    return {
+        "win_streak": count if outcome == "Win" else 0,
+        "loss_streak": count if outcome == "Loss" else 0,
+        "last_5": s["last_20"][-5:],
     }
 
 

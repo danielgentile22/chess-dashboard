@@ -14,6 +14,7 @@ from pgn_stats_core import (
     activity_data,
     apply_filters,
     compute_milestones,
+    current_form,
     event_summary,
     game_length_data,
     head_to_head,
@@ -351,6 +352,62 @@ class TestStreaks:
         s = streaks(d)
         assert s["longest_streak_wins_only"] == 5
         assert s["longest_streak_no_loss"] == 5
+
+
+def _games_with_outcomes(outcomes: list[str]) -> pd.DataFrame:
+    """A minimal date-ordered Games DataFrame with the given outcomes."""
+    return pd.DataFrame({
+        "Outcome": outcomes,
+        "Date_dt": pd.date_range("2024-01-01", periods=len(outcomes)),
+        "Index": range(1, len(outcomes) + 1),
+    })
+
+
+class TestCurrentForm:
+    """Streak fire / form dots computation (issue #10)."""
+
+    def test_empty_data(self):
+        form = current_form(pd.DataFrame())
+        assert form == {"win_streak": 0, "loss_streak": 0, "last_5": []}
+
+    def test_all_wins(self):
+        form = current_form(_games_with_outcomes(["Win"] * 6))
+        assert form["win_streak"] == 6
+        assert form["loss_streak"] == 0
+        assert form["last_5"] == ["Win"] * 5
+
+    def test_alternating_results(self):
+        form = current_form(_games_with_outcomes(["Win", "Loss", "Win", "Loss", "Win"]))
+        assert form["win_streak"] == 1
+        assert form["loss_streak"] == 0
+        assert form["last_5"] == ["Win", "Loss", "Win", "Loss", "Win"]
+
+    def test_loss_streak(self):
+        form = current_form(_games_with_outcomes(["Win", "Win", "Loss", "Loss", "Loss"]))
+        assert form["win_streak"] == 0
+        assert form["loss_streak"] == 3
+
+    def test_draw_breaks_both_streaks(self):
+        form = current_form(_games_with_outcomes(["Win", "Win", "Draw"]))
+        assert form["win_streak"] == 0
+        assert form["loss_streak"] == 0
+
+    def test_last_5_is_oldest_to_newest(self):
+        outcomes = ["Loss", "Loss", "Draw", "Win", "Win", "Win"]
+        form = current_form(_games_with_outcomes(outcomes))
+        assert form["last_5"] == ["Loss", "Draw", "Win", "Win", "Win"]
+        assert form["win_streak"] == 3
+
+    def test_fewer_than_5_games(self):
+        form = current_form(_games_with_outcomes(["Win", "Draw"]))
+        assert form["last_5"] == ["Win", "Draw"]
+
+    def test_fixture_games(self, df):
+        # Fixture order by date: Win, Draw, Loss, Win, Win, Win, Draw
+        form = current_form(df)
+        assert form["last_5"] == ["Loss", "Win", "Win", "Win", "Draw"]
+        assert form["win_streak"] == 0  # the final Draw broke the 3-game run
+        assert form["loss_streak"] == 0
 
 
 # ---------------------------------------------------------------------------

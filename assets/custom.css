@@ -149,6 +149,51 @@ body {
   align-items: center;
   flex-shrink: 0;
 }
+
+/* ── Streak fire + form dots (issue #10) ─────────────────── */
+.header-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 14px;
+}
+.streak-fire, .streak-cold {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
+  cursor: default;
+}
+.streak-fire .streak-count, .streak-cold .streak-count {
+  font-family: var(--cs-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cs-accent);
+}
+.streak-cold .streak-count { color: var(--cs-primary); }
+.streak-fire.blazing {
+  animation: blaze 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(255, 140, 30, .85));
+}
+@keyframes blaze {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(255, 140, 30, .7)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 14px rgba(255, 170, 40, 1)); transform: scale(1.08); }
+}
+.form-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.form-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.form-dot.win     { background: var(--cs-win); box-shadow: 0 0 5px rgba(63,185,80,.6); }
+.form-dot.draw    { background: var(--cs-draw); }
+.form-dot.loss    { background: var(--cs-loss); box-shadow: 0 0 5px rgba(248,81,73,.45); }
+.form-dot.unknown { background: var(--cs-border); }
 .app-header-stat {
   font-family: var(--cs-font-mono);
   font-size: 11.5px;
@@ -718,9 +763,12 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 /* ── Phone (the chess-club view) ─────────────────────────── */
 @media (max-width: 768px) {
   .app-header-top { padding: 0 14px; height: 54px; gap: 10px; }
-  .app-header-icon { font-size: 23px; }
-  .app-header-title { font-size: 16px; }
-  .app-header-player { display: none; }
+  .app-header-icon { font-size: 25px; }
+  /* On the phone the knight alone is the brand — the freed space goes to
+     the streak fire + form dots, which matter more at the chess club. */
+  .app-header-titles { display: none; }
+  .header-form { margin-left: 4px; gap: 8px; }
+  .form-dot { width: 8px; height: 8px; }
   .app-header-stat-wide { display: none; }   /* date range + freshness collapse */
   .app-header-right { gap: 10px; }
   .header-btn { padding: 6px 10px; }
