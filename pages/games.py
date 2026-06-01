@@ -16,6 +16,7 @@ from components import (
     TABLE_DATA_COND,
     TABLE_HEADER,
     content_card,
+    lichess_link,
     page_header,
     row_click_to_game,
 )
@@ -32,11 +33,6 @@ _DISPLAY_COLS = [
     "PlayerRating", "OpponentRating", "Termination",
     "FullMoves", "ECO", "Opening",
 ]
-
-
-def _lichess_link(chapter_url: str) -> str:
-    """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
-    return f"[Open ↗]({chapter_url})" if chapter_url else ""
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +85,7 @@ def update_games_table(colors, outcomes, terminations, start, end, events, moves
             lambda tags: " ".join(f"#{t}" for t in tags)
         )
     if "ChapterURL" in df_f.columns:
-        out["Lichess"] = df_f["ChapterURL"].map(_lichess_link)
+        out["Lichess"] = df_f["ChapterURL"].map(lichess_link)
         # Not a displayed column — carried in the row data so clicking the row
         # knows which Game to open (issue #11)
         out["ChapterURL"] = df_f["ChapterURL"]

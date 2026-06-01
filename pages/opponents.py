@@ -16,9 +16,11 @@ from dash import Input, Output, State, callback, dash_table, dcc, html
 import data
 from components import (
     TABLE_CELL,
+    TABLE_DATA_COND,
     TABLE_HEADER,
     chart_card,
     content_card,
+    lichess_link,
     page_header,
     row_click_to_game,
 )
@@ -34,11 +36,6 @@ from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
 dash.register_page(
     __name__, path="/opponents", name="Opponents", title="Opponents — Chess Stats", order=3,
 )
-
-
-def _lichess_link(chapter_url: str) -> str:
-    """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
-    return f"[Open ↗]({chapter_url})" if chapter_url else ""
 
 
 def _opponent_options() -> list[dict]:
@@ -162,7 +159,7 @@ def update_h2h(opponent, colors, outcomes, terminations, start, end, events, mov
                      "presentation": "markdown"},
                 ],
                 data=[
-                    {**row, "Lichess": _lichess_link(row.get("ChapterURL", ""))}
+                    {**row, "Lichess": lichess_link(row.get("ChapterURL", ""))}
                     for row in h["game_rows"]
                 ],
                 page_size=20, sort_action="native",
@@ -170,13 +167,7 @@ def update_h2h(opponent, colors, outcomes, terminations, start, end, events, mov
                 style_table={"overflowX": "auto"},
                 style_cell={**TABLE_CELL, "fontSize": "11px", "padding": "5px 8px"},
                 style_header=TABLE_HEADER,
-                style_data_conditional=[
-                    {"if": {"filter_query": '{Outcome} = "Win"'},
-                     "backgroundColor": "rgba(63,185,80,.13)"},
-                    {"if": {"filter_query": '{Outcome} = "Loss"'},
-                     "backgroundColor": "rgba(248,81,73,.11)"},
-                    {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]},
-                ],
+                style_data_conditional=TABLE_DATA_COND,
             ),
         ]),
     ])

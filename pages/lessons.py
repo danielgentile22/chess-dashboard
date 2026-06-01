@@ -143,6 +143,16 @@ def _tag_strip(df_filtered, selected_tags: list[str]) -> list:
 # ---------------------------------------------------------------------------
 
 @callback(
+    Output("lesson-opponent-filter", "options"),
+    Input("sync-store", "data"),
+    prevent_initial_call=True,  # the layout holds correct values at page load
+)
+def update_lesson_opponent_options(_sync):
+    """Keep the opponent picker in step with the data after a Sync."""
+    return _opponent_options()
+
+
+@callback(
     Output("lesson-selected-tags", "data"),
     Input({"type": "lesson-tag", "tag": ALL}, "n_clicks"),
     State("lesson-selected-tags", "data"),

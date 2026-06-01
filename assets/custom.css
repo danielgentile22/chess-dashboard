@@ -28,6 +28,7 @@
   --cs-accent:  #d29922;
   --cs-primary: #58a6ff;
   --cs-radius:  8px;
+  --cs-header-h: 58px;   /* top header row; the mobile drawer anchors to it */
 
   --cs-font-body:    'Inter', system-ui, -apple-system, sans-serif;
   --cs-font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
@@ -121,7 +122,7 @@ code {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  height: 58px;
+  height: var(--cs-header-h);
   gap: 16px;
 }
 .app-header-brand {
@@ -1003,7 +1004,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 
 /* ── Phone (the chess-club view) ─────────────────────────── */
 @media (max-width: 768px) {
-  .app-header-top { padding: 0 14px; height: 54px; gap: 10px; }
+  .app-header-top { padding: 0 14px; height: var(--cs-header-h); gap: 10px; }
   .app-header-icon { font-size: 25px; }
   /* On the phone the knight alone is the brand — the freed space goes to
      the streak fire + form dots, which matter more at the chess club. */
@@ -1041,13 +1042,15 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
     width: 100vw !important;
     max-width: 100vw;
     height: auto !important;
-    max-height: calc(100vh - 54px);
-    inset: 54px 0 auto 0 !important;          /* anchored under the header bar */
+    max-height: calc(100vh - var(--cs-header-h));
+    /* anchored under the header bar */
+    inset: var(--cs-header-h) 0 auto 0 !important;
     border-left: none !important;
     border-bottom: 1px solid var(--cs-border);
     border-radius: 0 0 18px 18px;
     box-shadow: 0 32px 64px rgba(1, 4, 9, .65);
-    transform: translateY(calc(-100% - 54px)); /* hidden: tucked above the screen */
+    /* hidden: tucked above the screen */
+    transform: translateY(calc(-100% - var(--cs-header-h)));
   }
   .filter-drawer.offcanvas.offcanvas-end.show:not(.hiding),
   .filter-drawer.offcanvas.offcanvas-end.showing {

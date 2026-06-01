@@ -69,16 +69,13 @@ def chart_card(title: str, graph_id: str, *, height: int = 380) -> html.Div:
     )
 
 
-def content_card(title: str, *children, card_id: str | None = None,
-                 height: int | None = None) -> html.Div:
+def content_card(title: str, *children, height: int | None = None) -> html.Div:
     """A dark card holding arbitrary content (tables, stat grids, …)."""
     style = {"height": f"{height}px"} if height else {}
-    kwargs = {"id": card_id} if card_id else {}
     return html.Div(
         className="chart-card",
         style=style,
         children=[html.Div(title, className="chart-title"), *children],
-        **kwargs,
     )
 
 
@@ -129,6 +126,11 @@ def form_indicator(form: dict) -> list:
         ))
 
     return children
+
+
+def lichess_link(chapter_url: str) -> str:
+    """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
+    return f"[Open ↗]({chapter_url})" if chapter_url else ""
 
 
 def game_detail_path(chapter_url: str) -> str:

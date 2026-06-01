@@ -434,6 +434,12 @@ class TestLessonsPage:
         # The empty state teaches the Lesson:/#tag convention (ADR 0002)
         assert "Lesson:" in rendered
 
+    def test_opponent_options_follow_the_data(self, ui_app, ui_data):
+        from pages.lessons import update_lesson_opponent_options
+        options = update_lesson_opponent_options({"seq": 1, "new_games": 0})
+        # Only opponents from Games that actually carry Lessons are offered
+        assert {"label": "Opponent A", "value": "Opponent A"} in options
+
     def test_clicking_a_tag_chip_toggles_it(self, ui_app, ui_data):
         from unittest import mock
 
