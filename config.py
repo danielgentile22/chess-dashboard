@@ -9,10 +9,15 @@ from __future__ import annotations
 import os
 
 
+def parse_study_ids(raw: str) -> list[str]:
+    """Parse a comma-separated list of Lichess study IDs ('a, b' → ['a', 'b'])."""
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
 class Config:
-    # Lichess Study ID forming the game archive (ADR 0001).
-    # Required for gunicorn deployment; supplied via --study CLI flag locally.
-    STUDY_ID: str = os.environ.get("LICHESS_STUDY_IDS", "").strip()
+    # Lichess Study IDs forming the game archive (ADR 0001), comma-separated.
+    # Required for gunicorn deployment; supplied via --study CLI flag(s) locally.
+    STUDY_IDS: list[str] = parse_study_ids(os.environ.get("LICHESS_STUDY_IDS", ""))
 
     # Optional Lichess API token — only needed if a designated Study is private.
     LICHESS_API_TOKEN: str | None = os.environ.get("LICHESS_API_TOKEN", "").strip() or None

@@ -5,11 +5,12 @@ Entry point for the Chess Stats Dashboard.
 
 Local development
 -----------------
-    python app.py --study abcdWXYZ [--player "Gentile, Daniel"]
+    python app.py --study abcdWXYZ [--study abcd1234] [--player "Gentile, Daniel"]
 
 Gunicorn / Render deployment
 -----------------------------
-Set environment variable LICHESS_STUDY_IDS (and optionally PLAYER_NAME), then:
+Set environment variable LICHESS_STUDY_IDS (comma-separated study IDs, and
+optionally PLAYER_NAME), then:
 
     gunicorn app:server --bind 0.0.0.0:$PORT
 
@@ -25,7 +26,7 @@ import dash_bootstrap_components as dbc
 
 import data
 from config import config
-from lichess_client import LichessError
+from sync import SyncError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,14 +36,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def build_app(study_id: str, player_name=None, token=None):
-    """Sync the Study, build the Dash app, and return (dash_app, server)."""
+def build_app(study_ids: list[str], player_name=None, token=None):
+    """Sync the designated Studies, build the Dash app, and return (dash_app, server)."""
     from dash import Dash
 
     from callbacks import register_callbacks
     from layout import make_layout
 
-    df, detected = data.initialize(study_id, player_name=player_name, token=token)
+    df, detected = data.initialize(study_ids, player_name=player_name, token=token)
 
     dash_app = Dash(
         __name__,
@@ -64,7 +65,7 @@ def _exit_with_sync_error(exc: Exception, study_label: str) -> None:
     """Log a clear, actionable startup error and exit."""
     logger.error("Could not Sync from Lichess: %s", exc)
     logger.error(
-        "Check the study ID (%s) and your network connection.",
+        "Check the study IDs (%s) and your network connection.",
         study_label or "<not set>",
     )
     sys.exit(1)
@@ -76,15 +77,15 @@ def _exit_with_sync_error(exc: Exception, study_label: str) -> None:
 
 server = None
 
-if config.STUDY_ID:
+if config.STUDY_IDS:
     try:
         _app, server = build_app(
-            config.STUDY_ID,
+            config.STUDY_IDS,
             player_name=config.PLAYER_NAME,
             token=config.LICHESS_API_TOKEN,
         )
-    except (LichessError, RuntimeError) as _exc:
-        _exit_with_sync_error(_exc, f"LICHESS_STUDY_IDS={config.STUDY_ID!r}")
+    except (SyncError, RuntimeError) as _exc:
+        _exit_with_sync_error(_exc, f"LICHESS_STUDY_IDS={config.STUDY_IDS!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -95,9 +96,11 @@ def main():
     ap = argparse.ArgumentParser(description="Chess Stats Dashboard")
     ap.add_argument(
         "--study",
-        default=config.STUDY_ID or None,
-        required=not config.STUDY_ID,
-        help="Lichess study ID to Sync games from (e.g. abcdWXYZ)",
+        action="append",
+        dest="studies",
+        default=None,
+        help="Lichess study ID to Sync games from (repeat for multiple studies); "
+             "defaults to LICHESS_STUDY_IDS",
     )
     ap.add_argument("--player", default=config.PLAYER_NAME)
     ap.add_argument("--token",  default=config.LICHESS_API_TOKEN,
@@ -107,10 +110,14 @@ def main():
     ap.add_argument("--debug",  action="store_true", default=config.DEBUG)
     args = ap.parse_args()
 
+    study_ids = args.studies or config.STUDY_IDS
+    if not study_ids:
+        ap.error("at least one --study (or LICHESS_STUDY_IDS) is required")
+
     try:
-        dash_app, _ = build_app(args.study, player_name=args.player, token=args.token)
-    except (LichessError, RuntimeError) as exc:
-        _exit_with_sync_error(exc, f"--study {args.study!r}")
+        dash_app, _ = build_app(study_ids, player_name=args.player, token=args.token)
+    except (SyncError, RuntimeError) as exc:
+        _exit_with_sync_error(exc, f"--study {study_ids!r}")
 
     logger.info("Dashboard ready at http://%s:%d/", args.host, args.port)
     dash_app.run(host=args.host, port=args.port, debug=args.debug)
