@@ -16,19 +16,23 @@ The dashboard is a multi-page app — each page loads only its own charts, so it
 
 | Page | What you get |
 |---|---|
-| **Overview** | 10 KPI cards · last-20 streak badges · W/D/L donut · termination breakdown · milestone timeline |
-| **Trends** | Rating over time with trend overlay · cumulative win rate · games per month · win rate by day of week · game-length distribution |
+| **Overview** | 10 KPI cards · last-20 streak badges · W/D/L donut · termination breakdown · milestone timeline · your top recurring weakness |
+| **Trends** | GitHub-style activity calendar (one cell per day, colored by results) · rating over time with trend overlay · cumulative win rate · games per month · win rate by day of week · game-length distribution |
 | **Openings** | ECO family breakdown (A/B/C/D/E) · full opening detail table |
-| **Opponents** | Stacked W/D/L bar per opponent · head-to-head analyzer · outcome by rating bucket · outcome vs. rating scatter |
+| **Opponents** | **Scouting Report** (search an opponent → score, rating gap, game timeline, their openings by your color, and every Lesson from facing them) · stacked W/D/L bar per opponent · outcome by rating bucket · outcome vs. rating scatter |
 | **Events** | Performance per tournament · selectable event table → per-event game list + performance rating |
 | **Games** | Every game with Open-on-Lichess links, Lesson indicators (💡), and Tags — click any row to open the game |
-| **Lessons** | Every `Lesson:` you've written on Lichess, filterable by Tag and opponent, with a tag taxonomy strip |
+| **Lessons** | Every `Lesson:` you've written on Lichess, filterable by Tag and opponent · recurring-weakness callouts ("#time-trouble appears in 4 of your last 5 losses") · pre-game review mode |
 
 Clicking a Game anywhere opens its **detail view**: an embedded interactive Lichess board (your annotations and variations playable in place) alongside the Game's Lessons, Tags, and metadata.
 
+### Pre-game review mode
+
+`/lessons?review=1` (the "Review before playing" button, or "Review before facing X" inside a Scouting Report) opens a full-screen, card-by-card walk through your most relevant Lessons — recurring weaknesses first, then the selected opponent's games, then everything else newest-first. Built for one hand and the five minutes before a round.
+
 ### Header
 
-The sticky header celebrates current form: a 🔥 that grows with your win streak (extra glow at 5+), a 🧊 on cold streaks, and your last 5 games as colored dots. Plus the Sync button and a "synced X ago" freshness label.
+The sticky header celebrates current form: a 🔥 that grows with your win streak (extra glow at 5+), a 🧊 on cold streaks, and your last 5 games as colored dots. Plus the Sync button and a "synced X ago" freshness label. When a Sync sets a personal best — a new peak rating, a new longest win streak, or a win over the highest-rated opponent yet — a gold celebration banner appears until you dismiss it.
 
 ### Filters
 
