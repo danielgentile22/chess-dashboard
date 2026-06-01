@@ -20,9 +20,10 @@ services:
       # Leave empty to auto-detect (most frequent name across all games).
       - key: PLAYER_NAME
         value: ""
-      # Gunicorn worker count — 2 is fine for a personal dashboard.
+      # Gunicorn worker count — must be 1: Synced games live in worker
+      # memory and the Sync button swaps them in-place.
       - key: WEB_CONCURRENCY
-        value: "2"
+        value: "1"
       # Set to "debug" for verbose gunicorn logs.
       - key: LOG_LEVEL
         value: "info"

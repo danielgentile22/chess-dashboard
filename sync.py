@@ -10,9 +10,10 @@ succeeded; only when *every* Study fails is the Sync itself a failure.
 
 Public API
 ----------
-sync_studies   Fetch + merge all designated Studies → SyncResult.
-SyncResult     The outcome: merged df, player, per-Study failures.
-SyncError      Raised when no designated Study could be fetched.
+sync_studies      Fetch + merge all designated Studies → SyncResult.
+detect_new_games  Which Games of a Sync are new vs. the previous one.
+SyncResult        The outcome: merged df, player, per-Study failures.
+SyncError         Raised when no designated Study could be fetched.
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ from pgn_stats_core import load_games_from_text
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["SyncError", "SyncResult", "sync_studies"]
+__all__ = ["SyncError", "SyncResult", "detect_new_games", "sync_studies"]
 
 
 class SyncError(Exception):
@@ -88,6 +89,19 @@ def sync_studies(
         )
 
     return SyncResult(df=df, player=player, failures=failures)
+
+
+def detect_new_games(df: pd.DataFrame, previous_chapter_urls: set[str]) -> pd.DataFrame:
+    """
+    The Games in *df* that were not present in the previous Sync.
+
+    Identity is the ChapterURL (ADR 0001); Games without one are never
+    reported as new (they have no identity to compare).
+    """
+    if df.empty:
+        return df
+    is_new = (df["ChapterURL"] != "") & ~df["ChapterURL"].isin(previous_chapter_urls)
+    return df[is_new]
 
 
 def _dedupe_and_sort(df: pd.DataFrame) -> pd.DataFrame:
