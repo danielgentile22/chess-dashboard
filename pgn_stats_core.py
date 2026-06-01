@@ -71,6 +71,7 @@ __all__ = [
     "kpi_stats",
     "lessons_table",
     "tag_counts",
+    "recurring_weaknesses",
     "win_rate_over_time",
     "player_rating_over_time",
     "opponent_summary",
@@ -1142,6 +1143,100 @@ def tag_counts(df: pd.DataFrame) -> list[dict]:
     )
     freeform = [{"tag": t, "count": n, "canonical": False} for t, n in freeform_pairs]
     return canonical + freeform
+
+
+# ---------------------------------------------------------------------------
+# Recurring weakness detection (issue #18)
+# ---------------------------------------------------------------------------
+
+def recurring_weaknesses(
+    df: pd.DataFrame,
+    *,
+    loss_window: int = 10,
+    min_occurrences: int = 3,
+) -> list[dict]:
+    """
+    Recurring weaknesses (issue #18): Tags that keep showing up in recent
+    losses — the insight that makes Tags pay off.
+
+    Looks at the last *loss_window* Losses and calls out every Tag that
+
+      (a) appears in at least *min_occurrences* of them, and
+      (b) is genuinely loss-associated: over the same period it shows up in
+          losses more than in wins/draws (otherwise it's just a frequent
+          Tag, not a weakness).
+
+    Below those thresholds nothing is reported — silence over noise.
+
+    Returns callouts ranked by severity (most severe first), each:
+      tag           : the Tag (without '#')
+      loss_count    : how many of the windowed losses carry it
+      window_losses : how many losses the window holds
+      stat          : the headline ("#time-trouble appears in 6 of your last
+                      8 losses")
+      window        : the period those games span ("Mar – Jun 2024")
+      severity      : 0..1 ranking score
+      chapter_urls  : the Games behind the callout, for linking
+    """
+    if df.empty or "Tags" not in df.columns:
+        return []
+
+    d = df.copy()
+    d["_ds"] = d["Date_dt"].fillna(pd.Timestamp.max)
+    d = d.sort_values(["_ds", "Index"]).reset_index(drop=True)
+
+    loss_positions = d.index[d["Outcome"] == "Loss"]
+    if len(loss_positions) == 0:
+        return []
+    windowed_positions = loss_positions[-loss_window:]
+    window_losses = len(windowed_positions)
+
+    # The comparison window: every game from the first windowed loss onward
+    window_games = d.iloc[windowed_positions[0]:]
+    recent_losses = d.loc[windowed_positions]
+    non_losses = window_games[window_games["Outcome"] != "Loss"]
+
+    loss_tag_counts: Counter[str] = Counter()
+    loss_tag_games: dict[str, list[str]] = {}
+    for _, game in recent_losses.iterrows():
+        for tag in game["Tags"]:
+            loss_tag_counts[tag] += 1
+            loss_tag_games.setdefault(tag, []).append(game.get("ChapterURL", ""))
+
+    non_loss_tag_counts: Counter[str] = Counter()
+    for _, game in non_losses.iterrows():
+        for tag in game["Tags"]:
+            non_loss_tag_counts[tag] += 1
+
+    # The period the callout covers, for display
+    dated = window_games[window_games["Date_dt"].notna()]
+    if dated.empty:
+        window_label = ""
+    else:
+        start, end = dated["Date_dt"].min(), dated["Date_dt"].max()
+        window_label = (f"{start:%b %Y}" if f"{start:%b %Y}" == f"{end:%b %Y}"
+                        else f"{start:%b %Y} – {end:%b %Y}")
+
+    callouts: list[dict] = []
+    for tag, loss_count in loss_tag_counts.items():
+        if loss_count < min_occurrences:
+            continue
+        association = loss_count / (loss_count + non_loss_tag_counts[tag])
+        if association <= 0.5:
+            continue  # shows up just as often when you don't lose
+        severity = (loss_count / window_losses) * association
+        callouts.append({
+            "tag": tag,
+            "loss_count": loss_count,
+            "window_losses": window_losses,
+            "stat": f"#{tag} appears in {loss_count} of your last {window_losses} losses",
+            "window": window_label,
+            "severity": round(severity, 3),
+            "chapter_urls": loss_tag_games[tag],
+        })
+
+    callouts.sort(key=lambda c: (-c["severity"], c["tag"]))
+    return callouts
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,8 @@ callback tests here.
 """
 from __future__ import annotations
 
+from unittest import mock
+
 import dash
 import pytest
 
@@ -452,6 +454,69 @@ class TestEventsCallbacks:
         from pages.events import update_event_table, update_tournament_detail
         rows = update_event_table(*_filter_args())
         assert update_tournament_detail([], rows, *_filter_args()) is None
+
+
+# ---------------------------------------------------------------------------
+# Recurring weakness detection (issue #18)
+# ---------------------------------------------------------------------------
+
+def _pgn_with_weakness_pattern() -> str:
+    """An archive with a clear pattern: 4 of 4 losses tagged #time-trouble."""
+    games = []
+    for i in range(1, 7):
+        is_loss = i <= 4
+        result = "0-1" if is_loss else "1-0"           # "Me" always plays White
+        comment = "{ Flagged in a winning position. #time-trouble } " if is_loss else ""
+        games.append(f"""[Event "Club Night"]
+[Site "S"]
+[Date "2024.0{i}.01"]
+[White "Me"]
+[Black "Opp {i}"]
+[Result "{result}"]
+[ChapterURL "https://lichess.org/study/wstudy/wch{i:04d}"]
+
+{comment}1. e4 e5 {result}""")
+    return "\n\n".join(games)
+
+
+@pytest.fixture()
+def weakness_data(ui_app):
+    """A data store whose archive shows a clear recurring weakness."""
+    import data
+    import sync
+
+    data.reset()
+    with mock.patch.object(sync, "fetch_study_pgn",
+                           return_value=_pgn_with_weakness_pattern()):
+        data.initialize(["wstudy"], player_name="Me")
+    yield
+    data.reset()
+
+
+class TestWeaknessCallouts:
+    def test_lessons_page_calls_out_a_clear_pattern(self, ui_app, weakness_data):
+        from pages.lessons import update_weakness_callouts
+        rendered = str(update_weakness_callouts(*_filter_args()))
+        assert "#time-trouble" in rendered
+        assert "4 of your last 4 losses" in rendered
+
+    def test_callout_games_are_clickable(self, ui_app, weakness_data):
+        """Each callout links to the Games behind it."""
+        from pages.lessons import update_weakness_callouts
+        rendered = str(update_weakness_callouts(*_filter_args()))
+        assert "/game/wch0001" in rendered
+
+    def test_overview_shows_only_the_top_callout(self, ui_app, weakness_data):
+        from pages.overview import update_top_weakness
+        rendered = str(update_top_weakness(*_filter_args()))
+        assert "#time-trouble" in rendered
+
+    def test_silence_when_below_threshold(self, ui_app, ui_data):
+        """The 7-game fixture (one Loss) is below threshold → both pages stay quiet."""
+        from pages.lessons import update_weakness_callouts
+        from pages.overview import update_top_weakness
+        assert update_weakness_callouts(*_filter_args()) is None
+        assert update_top_weakness(*_filter_args()) is None
 
 
 # ---------------------------------------------------------------------------

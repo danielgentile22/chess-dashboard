@@ -31,6 +31,7 @@ from pgn_stats_core import (
     outcome_vs_rating_data,
     performance_rating_stats,
     player_rating_over_time,
+    recurring_weaknesses,
     safe_int,
     scouting_report,
     streaks,
@@ -460,6 +461,93 @@ class TestLessonsTable:
     def test_empty_data(self):
         lessons = lessons_table(pd.DataFrame())
         assert lessons.empty
+
+
+def _tagged_games(games: list[tuple[str, list[str]]]) -> pd.DataFrame:
+    """A minimal Games DataFrame from (outcome, tags) pairs, date-ordered."""
+    dates = pd.date_range("2024-01-01", periods=len(games), freq="W")
+    return pd.DataFrame({
+        "Outcome": [outcome for outcome, _ in games],
+        "Tags": [tags for _, tags in games],
+        "Lessons": [[] for _ in games],
+        "Date_dt": dates,
+        "Date": [d.strftime("%Y.%m.%d") for d in dates],
+        "Index": range(1, len(games) + 1),
+        "ChapterURL": [f"https://lichess.org/study/x/ch{i:04d}"
+                       for i in range(1, len(games) + 1)],
+        "Opponent": ["Someone"] * len(games),
+    })
+
+
+class TestRecurringWeaknesses:
+    """Tag ↔ loss correlation (issue #18): the insight that makes Tags pay off."""
+
+    def test_clear_recurring_pattern_is_called_out(self):
+        """#time-trouble on most recent losses → a callout naming the stat."""
+        games = [("Win", [])] * 4 + [
+            ("Loss", ["time-trouble"]),
+            ("Loss", ["time-trouble", "endgame"]),
+            ("Win", ["tactics"]),
+            ("Loss", ["time-trouble"]),
+            ("Loss", []),
+            ("Loss", ["time-trouble"]),
+        ]
+        callouts = recurring_weaknesses(_tagged_games(games))
+        assert len(callouts) >= 1
+        top = callouts[0]
+        assert top["tag"] == "time-trouble"
+        assert top["loss_count"] == 4
+        assert top["window_losses"] == 5
+        assert "4 of your last 5 losses" in top["stat"]
+        assert "#time-trouble" in top["stat"]
+
+    def test_callout_links_to_the_games_behind_it(self):
+        """Each callout carries the Games it's based on (clickable in the UI)."""
+        games = [("Loss", ["blunder"]), ("Loss", ["blunder"]), ("Win", []),
+                 ("Loss", ["blunder"])]
+        callouts = recurring_weaknesses(_tagged_games(games))
+        urls = callouts[0]["chapter_urls"]
+        assert len(urls) == 3
+        assert all("lichess.org" in u for u in urls)
+        assert callouts[0]["window"]   # the period is named
+
+    def test_no_pattern_when_tag_is_not_loss_associated(self):
+        """A Tag on every game (wins included) is a habit, not a weakness."""
+        games = [("Win", ["tactics"]), ("Loss", ["tactics"]), ("Win", ["tactics"]),
+                 ("Loss", ["tactics"]), ("Win", ["tactics"]), ("Loss", ["tactics"]),
+                 ("Win", ["tactics"])]
+        assert recurring_weaknesses(_tagged_games(games)) == []
+
+    def test_sparse_tags_stay_silent(self):
+        """One or two occurrences are an anecdote, not a pattern."""
+        games = [("Loss", ["endgame"]), ("Loss", ["time-trouble"]),
+                 ("Loss", ["endgame"]), ("Loss", []), ("Loss", ["opening"])]
+        assert recurring_weaknesses(_tagged_games(games)) == []
+
+    def test_all_wins_means_no_weaknesses(self):
+        games = [("Win", ["tactics"]), ("Win", ["tactics"]), ("Win", ["tactics"]),
+                 ("Win", ["tactics"])]
+        assert recurring_weaknesses(_tagged_games(games)) == []
+
+    def test_callouts_ranked_by_severity(self):
+        """The tag in more losses outranks the tag in fewer."""
+        games = [
+            ("Loss", ["time-trouble", "blunder"]),
+            ("Loss", ["time-trouble", "blunder"]),
+            ("Loss", ["time-trouble", "blunder"]),
+            ("Loss", ["time-trouble"]),
+            ("Loss", ["time-trouble"]),
+        ]
+        callouts = recurring_weaknesses(_tagged_games(games))
+        assert [c["tag"] for c in callouts] == ["time-trouble", "blunder"]
+        assert callouts[0]["severity"] >= callouts[1]["severity"]
+
+    def test_fixture_data_is_below_threshold(self, df):
+        """The 7-game fixture has one Loss → silence, not noise."""
+        assert recurring_weaknesses(df) == []
+
+    def test_empty_data(self):
+        assert recurring_weaknesses(pd.DataFrame()) == []
 
 
 class TestTagCounts:

@@ -17,9 +17,14 @@ import dash
 from dash import ALL, Input, Output, State, callback, ctx, dcc, html, no_update
 
 import data
-from components import content_card, lesson_card, page_header
+from components import content_card, lesson_card, page_header, weakness_callout
 from filters import FILTER_INPUTS, get_filtered
-from pgn_stats_core import CANONICAL_TAGS, lessons_table, tag_counts
+from pgn_stats_core import (
+    CANONICAL_TAGS,
+    lessons_table,
+    recurring_weaknesses,
+    tag_counts,
+)
 
 dash.register_page(
     __name__, path="/lessons", name="Lessons", title="Lessons — Chess Stats", order=6,
@@ -42,6 +47,9 @@ def _opponent_options() -> list[dict]:
 def layout(**kwargs) -> html.Div:
     return html.Div(className="page", children=[
         page_header("Lessons", "What your games have taught you"),
+
+        # Recurring weaknesses (issue #18) — what's actually costing you games
+        html.Div(id="weakness-callouts"),
 
         # Selected-tag filter state (toggled by clicking chips in the strip)
         dcc.Store(id="lesson-selected-tags", data=[]),
@@ -111,6 +119,19 @@ def _tag_strip(df_filtered, selected_tags: list[str]) -> list:
 # ---------------------------------------------------------------------------
 # Callbacks
 # ---------------------------------------------------------------------------
+
+@callback(Output("weakness-callouts", "children"), FILTER_INPUTS)
+def update_weakness_callouts(colors, outcomes, terminations, start, end,
+                             events, moves, _sync=None):
+    """Recurring weaknesses (issue #18). Silent below threshold."""
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    callouts = recurring_weaknesses(df_f)
+    if not callouts:
+        return None
+    return html.Div(className="weakness-callouts", children=[
+        weakness_callout(c) for c in callouts
+    ])
+
 
 @callback(
     Output("lesson-opponent-filter", "options"),
