@@ -1,43 +1,42 @@
 """
 callbacks.py
 ============
-All Dash callbacks for the Chess Stats Dashboard.
+LEGACY — callbacks for the retired single-page accordion layout (layout.py).
 
-Call ``register_callbacks(app)`` after the layout is set.
+No longer registered by app.py: the multi-page shell (shell.py + pages/)
+replaced the accordion in issue #8.  What remains here is exactly the chart
+logic that issue #9 still needs to migrate into its destination pages:
 
-Each callback group reads the module-level DataFrame via ``data.get_df()``,
-applies the current filter selections, and builds Plotly figures or HTML
-components.  No global mutable state is written here.
+  Trends    ← update_winrate, update_rating, update_monthly, update_dow,
+              update_length_hist, update_length_stats
+  Openings  ← update_opening_family, update_opening_table
+  Opponents ← update_opponents, update_h2h, update_bucket, update_scatter
+  Events    ← update_event_bar, update_event_table, update_tournament_detail
+  Games     ← update_games_table
+
+This file (and layout.py) is deleted by issue #9.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-
-import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Input, Output, State, callback_context, dash_table, html, no_update
+from dash import Input, Output, dash_table, html
 
 import data
 from pgn_stats_core import (
     activity_data,
     apply_filters,
-    compute_milestones,
     event_summary,
     game_length_data,
     head_to_head,
-    kpi_stats,
     opening_summary,
     opponent_rating_bucket_summary,
     opponent_summary,
     outcome_vs_rating_data,
     performance_rating_stats,
     player_rating_over_time,
-    streaks,
-    termination_counts,
-    win_draw_loss_counts,
     win_rate_over_time,
 )
 from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
@@ -70,29 +69,6 @@ _TABLE_HEADER = dict(
 def _lichess_link(chapter_url: str) -> str:
     """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
     return f"[Open ↗]({chapter_url})" if chapter_url else ""
-
-
-def _freshness_label(synced_at: datetime | None) -> str:
-    """'synced X ago' label for the header ('' if never synced)."""
-    if synced_at is None:
-        return ""
-    age = (datetime.now(timezone.utc) - synced_at).total_seconds()
-    if age < 60:
-        return "synced just now"
-    if age < 3600:
-        return f"synced {int(age // 60)} min ago"
-    if age < 86400:
-        return f"synced {int(age // 3600)} h ago"
-    return f"synced {int(age // 86400)} d ago"
-
-
-def _describe_new_games(new_games: list[dict]) -> str:
-    """Toast body for a successful Sync, e.g. '2 new games: vs Edwards (Win), vs Lopez (Loss)'."""
-    if not new_games:
-        return "No new games — everything is already up to date."
-    parts = [f"vs {g['Opponent']} ({g['Outcome']})" for g in new_games]
-    n = len(new_games)
-    return f"{n} new game{'s' if n > 1 else ''}: " + ", ".join(parts)
 
 
 def _get_filtered(colors, outcomes, terminations, start_date, end_date, events, moves) -> pd.DataFrame:
@@ -131,197 +107,6 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         # Bumped after every successful Sync so all charts re-render on fresh data
         Input("sync-store",         "data"),
     ]
-
-    # ------------------------------------------------------------------ #
-    # Preset buttons → update filter controls                             #
-    # ------------------------------------------------------------------ #
-    @app.callback(
-        Output("color-filter",   "value"),
-        Output("outcome-filter", "value"),
-        Output("date-filter",    "start_date"),
-        Output("date-filter",    "end_date"),
-        [Input("preset-all",    "n_clicks"),
-         Input("preset-last20", "n_clicks"),
-         Input("preset-year",   "n_clicks"),
-         Input("preset-white",  "n_clicks"),
-         Input("preset-black",  "n_clicks"),
-         Input("preset-wins",   "n_clicks")],
-        prevent_initial_call=True,
-    )
-    def apply_preset(n_all, n20, n_year, n_white, n_black, n_wins):
-        ctx = callback_context
-        if not ctx.triggered:
-            return no_update, no_update, no_update, no_update
-        btn = ctx.triggered[0]["prop_id"].split(".")[0]
-
-        df = data.get_df()
-        dated = df[df["Date_dt"].notna()]
-        global_min = dated["Date_dt"].min().date().isoformat() if not dated.empty else None
-        global_max = dated["Date_dt"].max().date().isoformat() if not dated.empty else None
-
-        colors = ["White", "Black"]
-        outcomes = ["Win", "Draw", "Loss"]
-        start, end = global_min, global_max
-
-        if btn == "preset-last20":
-            if not dated.empty:
-                last20 = df.sort_values("Date_dt").tail(20)
-                start = last20["Date_dt"].min().date().isoformat()
-        elif btn == "preset-year":
-            start = f"{date.today().year}-01-01"
-        elif btn == "preset-white":
-            colors = ["White"]
-        elif btn == "preset-black":
-            colors = ["Black"]
-        elif btn == "preset-wins":
-            outcomes = ["Win"]
-
-        return colors, outcomes, start, end
-
-    # ------------------------------------------------------------------ #
-    # Filter badge                                                         #
-    # ------------------------------------------------------------------ #
-    @app.callback(Output("filter-badge", "children"), FILTER_INPUTS)
-    def update_badge(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-        df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
-        total = len(data.get_df())
-        filtered = len(df_f)
-        if filtered == total:
-            return f"Showing all {total} games"
-        return f"Showing {filtered} of {total} games"
-
-    # ------------------------------------------------------------------ #
-    # KPI bar                                                              #
-    # ------------------------------------------------------------------ #
-    @app.callback(
-        Output("kpi-total",    "children"),
-        Output("kpi-win-pct",  "children"),
-        Output("kpi-draw-pct", "children"),
-        Output("kpi-loss-pct", "children"),
-        Output("kpi-rating",   "children"),
-        Output("kpi-peak",     "children"),
-        Output("kpi-perf",     "children"),
-        Output("kpi-streak",   "children"),
-        Output("kpi-opps",     "children"),
-        Output("kpi-fav-opn",  "children"),
-        FILTER_INPUTS,
-    )
-    def update_kpi(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-        df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
-        k = kpi_stats(df_f)
-        def _r(x): return str(int(x)) if x is not None else "—"
-        def _p(x): return f"{x}%" if x is not None else "—"
-        fav = k["favorite_opening"]
-        fav_short = (fav[:22] + "…") if len(fav) > 24 else fav
-        return (
-            str(k["total_games"]),
-            _p(k["win_pct"]),
-            _p(k["draw_pct"]),
-            _p(k["loss_pct"]),
-            _r(k["current_rating"]),
-            _r(k["peak_rating"]),
-            _r(k["performance_rating"]),
-            str(k["longest_win_streak"]),
-            str(k["unique_opponents"]),
-            fav_short,
-        )
-
-    # ------------------------------------------------------------------ #
-    # Streak badges + stats                                                #
-    # ------------------------------------------------------------------ #
-    @app.callback(
-        Output("streak-badges", "children"),
-        Output("streak-stats",  "children"),
-        FILTER_INPUTS,
-    )
-    def update_streak(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-        df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
-        s = streaks(df_f)
-
-        badges = [
-            html.Span(
-                className=f"sbadge {o.lower()}",
-                title=o,
-            )
-            for o in s["last_20"]
-        ]
-        if not badges:
-            badges = [html.Span("No games", style={"color": COLORS["dim"], "fontSize": "12px"})]
-
-        cur_class = s["current_streak_outcome"].lower() if s["current_streak_outcome"] != "N/A" else ""
-        stats = [
-            html.Div(className="streak-stat", children=[
-                html.Div("Unbeaten streak", className="streak-stat-label"),
-                html.Div(str(s["longest_streak_no_loss"]), className="streak-stat-value win"),
-            ]),
-            html.Div(className="streak-stat", children=[
-                html.Div("Win streak",      className="streak-stat-label"),
-                html.Div(str(s["longest_streak_wins_only"]), className="streak-stat-value win"),
-            ]),
-            html.Div(className="streak-stat", children=[
-                html.Div(f"Current ({s['current_streak_outcome']})", className="streak-stat-label"),
-                html.Div(str(s["current_streak_same_outcome"]), className=f"streak-stat-value {cur_class}"),
-            ]),
-        ]
-        return badges, stats
-
-    # ------------------------------------------------------------------ #
-    # W/D/L donut                                                          #
-    # ------------------------------------------------------------------ #
-    @app.callback(Output("wdl-pie", "figure"), FILTER_INPUTS)
-    def update_wdl(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-        df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
-        counts = win_draw_loss_counts(df_f)
-        pie_df = counts[counts > 0].reset_index()
-        pie_df.columns = ["Outcome", "Games"]
-        if pie_df.empty:
-            return empty_fig("No data")
-
-        fig = go.Figure(go.Pie(
-            labels=pie_df["Outcome"],
-            values=pie_df["Games"],
-            hole=0.54,
-            marker=dict(
-                colors=[WDL_COLOR_MAP.get(o, COLORS["dim"]) for o in pie_df["Outcome"]],
-                line=dict(color=COLORS["card"], width=2),
-            ),
-            textinfo="percent+label",
-            textfont=dict(size=12, color=COLORS["text"]),
-            hovertemplate="%{label}: %{value} games (%{percent})<extra></extra>",
-        ))
-        total = int(pie_df["Games"].sum())
-        fig.add_annotation(
-            text=f"<b>{total}</b><br><span style='font-size:11px'>games</span>",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color=COLORS["text"]),
-        )
-        apply_dark_theme(fig, show_legend=False)
-        return fig
-
-    # ------------------------------------------------------------------ #
-    # Termination bar                                                       #
-    # ------------------------------------------------------------------ #
-    @app.callback(Output("termination-bar", "figure"), FILTER_INPUTS)
-    def update_termination(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-        df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
-        tc = termination_counts(df_f)
-        if tc.empty:
-            return empty_fig("No data")
-        # Shorten long labels
-        tc["Label"] = tc["Termination"].apply(
-            lambda x: (x[:28] + "…") if len(str(x)) > 30 else x
-        )
-        fig = px.bar(
-            tc, x="Games", y="Label", orientation="h",
-            color_discrete_sequence=[COLORS["primary"]],
-            hover_data={"Termination": True, "Games": True, "Label": False},
-        )
-        fig.update_traces(
-            hovertemplate="%{customdata[0]}: %{x} games<extra></extra>",
-        )
-        apply_dark_theme(fig, xaxis_title="Games")
-        fig.update_yaxes(categoryorder="total ascending")
-        return fig
 
     # ------------------------------------------------------------------ #
     # Win rate over time                                                    #
@@ -751,26 +536,6 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         })
 
     # ------------------------------------------------------------------ #
-    # Milestones                                                            #
-    # ------------------------------------------------------------------ #
-    @app.callback(Output("milestones-content", "children"), FILTER_INPUTS)
-    def update_milestones(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-        df_f = _get_filtered(colors, outcomes, terminations, start, end, events, moves)
-        ms = compute_milestones(df_f)
-        if not ms:
-            return html.Div("No milestone data", style={"color": COLORS["dim"]})
-        rows = [
-            html.Div(className="milestone-row", children=[
-                html.Div(className=f"milestone-dot {m['kind']}"),
-                html.Div(m["date"],                 className="milestone-date"),
-                html.Div(f"#{m['game_num']}",       className="milestone-num"),
-                html.Div(m["description"],           className="milestone-desc"),
-            ])
-            for m in ms
-        ]
-        return html.Div(rows, className="milestone-list")
-
-    # ------------------------------------------------------------------ #
     # All games table                                                       #
     # ------------------------------------------------------------------ #
     @app.callback(Output("games-table", "data"), FILTER_INPUTS)
@@ -787,125 +552,3 @@ def register_callbacks(app) -> None:  # noqa: C901 (intentionally long)
         if "ChapterURL" in df_f.columns:
             out["Lichess"] = df_f["ChapterURL"].map(_lichess_link)
         return out.to_dict("records")
-
-    # ------------------------------------------------------------------ #
-    # Sync button → re-Sync all designated Studies, show outcome toast    #
-    # ------------------------------------------------------------------ #
-    @app.callback(
-        Output("sync-store", "data"),
-        Output("sync-toast", "is_open"),
-        Output("sync-toast", "header"),
-        Output("sync-toast", "icon"),
-        Output("sync-toast", "children"),
-        Input("sync-button", "n_clicks"),
-        State("sync-store", "data"),
-        prevent_initial_call=True,
-    )
-    def run_sync(n_clicks, store):
-        outcome = data.refresh()
-
-        if outcome.status == "already_running":
-            return (no_update, True, "Sync already running", "warning",
-                    "A Sync is already in progress — hang tight.")
-
-        if outcome.status == "error":
-            return (no_update, True, "Sync failed", "danger",
-                    f"{outcome.error} — still showing your current games.")
-
-        # Success: bump the store so every chart re-renders on the new data
-        seq = (store or {}).get("seq", 0) + 1
-        body = _describe_new_games(outcome.new_games)
-        if outcome.failures:
-            failed = ", ".join(study_id for study_id, _ in outcome.failures)
-            body += f" (couldn't fetch: {failed})"
-        new_store = {"seq": seq, "new_games": len(outcome.new_games)}
-        return new_store, True, "Sync complete", "success", body
-
-    # ------------------------------------------------------------------ #
-    # "Synced X ago" freshness label + cached-data notice                 #
-    # ------------------------------------------------------------------ #
-    @app.callback(
-        Output("sync-freshness", "children"),
-        Output("cache-notice", "children"),
-        Input("freshness-interval", "n_intervals"),
-        Input("sync-store", "data"),
-    )
-    def update_freshness(_n, _sync):
-        if data.source() == "cache":
-            cached = data.cached_at()
-            when = f"{cached:%Y-%m-%d %H:%M} UTC" if cached else "an earlier run"
-            notice = dbc.Alert(
-                [
-                    html.Strong("Showing cached data "),
-                    f"from {when} — Lichess was unreachable at startup. "
-                    "Click Sync to retry.",
-                ],
-                color="warning", className="mb-0",
-                style={"borderRadius": 0, "textAlign": "center",
-                       "padding": "8px", "fontSize": "13px"},
-            )
-            return "showing cached data", notice
-        return _freshness_label(data.synced_at()), None
-
-    # ------------------------------------------------------------------ #
-    # Filter options + header stats follow the current data, not the      #
-    # data the app started with                                            #
-    # ------------------------------------------------------------------ #
-    @app.callback(
-        Output("termination-filter", "options"),
-        Output("event-filter", "options"),
-        Output("h2h-opponent", "options"),
-        Output("date-filter", "min_date_allowed"),
-        Output("date-filter", "max_date_allowed"),
-        Output("date-filter", "start_date", allow_duplicate=True),
-        Output("date-filter", "end_date", allow_duplicate=True),
-        Output("moves-filter", "min"),
-        Output("moves-filter", "max"),
-        Output("moves-filter", "value"),
-        Output("header-games-count", "children"),
-        Output("header-date-range", "children"),
-        Input("sync-store", "data"),
-        prevent_initial_call=True,  # the layout holds correct startup values
-    )
-    def update_filter_options(sync_store):
-        df = data.get_df()
-        if df.empty:
-            return (no_update,) * 12
-
-        termination_options = sorted(
-            [t for t in df["Termination"].dropna().unique() if str(t).strip()]
-        )
-        event_options = sorted(
-            [e for e in df["Event"].dropna().unique() if str(e).strip()]
-        )
-        opponent_options = sorted(df["Opponent"].dropna().unique().tolist())
-
-        dated = df[df["Date_dt"].notna()]
-        min_date = dated["Date_dt"].min().date().isoformat() if not dated.empty else None
-        max_date = dated["Date_dt"].max().date().isoformat() if not dated.empty else None
-
-        full_moves = df["FullMoves"].dropna()
-        min_mv = int(full_moves.min()) if not full_moves.empty else 1
-        max_mv = int(full_moves.max()) if not full_moves.empty else 100
-
-        # Only push the *selected* ranges back to "everything" when new Games
-        # arrived (so they're immediately visible); otherwise leave the user's
-        # selection alone.
-        has_new_games = (sync_store or {}).get("new_games", 0) > 0
-        start_value = min_date if has_new_games else no_update
-        end_value = max_date if has_new_games else no_update
-        moves_value = [min_mv, max_mv] if has_new_games else no_update
-
-        date_range = f"{dated['Date_dt'].min():%b %Y} – {dated['Date_dt'].max():%b %Y}" \
-            if not dated.empty else ""
-
-        return (
-            [{"label": t, "value": t} for t in termination_options],
-            [{"label": e, "value": e} for e in event_options],
-            [{"label": o, "value": o} for o in opponent_options],
-            min_date, max_date,
-            start_value, end_value,
-            min_mv, max_mv, moves_value,
-            [html.Strong(f"{len(df)}"), " games"],
-            date_range,
-        )

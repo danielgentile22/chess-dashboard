@@ -1,10 +1,12 @@
 """
 layout.py
 =========
-Dash layout for the Chess Stats Dashboard.
-Call ``make_layout(df, player_name)`` to get the app's root component.
-All heavy computation (stats, figures) is done in callbacks.py; the layout
-only sets up the skeleton and initial empty state.
+LEGACY — the retired single-page accordion layout.
+
+No longer used by app.py: the multi-page shell (shell.py + pages/) replaced
+it in issue #8.  Kept only as the migration reference for the sections that
+issue #9 moves into pages (Trends, Openings, Opponents, Events, Games);
+deleted by issue #9 together with callbacks.py.
 """
 from __future__ import annotations
 

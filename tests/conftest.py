@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import socket
 from pathlib import Path
+from unittest import mock
 
 import pandas as pd
 import pytest
@@ -254,6 +255,42 @@ def sample_pgn_path(tmp_path_factory) -> Path:
     p = tmp_path_factory.mktemp("pgn") / "test_games.pgn"
     p.write_text(SAMPLE_PGN, encoding="utf-8")
     return p
+
+
+# ---------------------------------------------------------------------------
+# UI fixtures (multi-page shell — Phase 2)
+#
+# Page modules call dash.register_page() at import, which Dash only allows
+# after a Dash app exists.  ``ui_app`` therefore builds the real app once per
+# session (with the Lichess client stubbed); ``ui_data`` re-initializes the
+# module-level data store before each UI test so tests stay isolated from
+# whatever other test files did to it.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="session")
+def ui_app():
+    """The real Dash app built once with fixture data (Lichess stubbed)."""
+    import data
+    import sync
+
+    data.reset()
+    with mock.patch.object(sync, "fetch_study_pgn", return_value=SAMPLE_PGN):
+        from app import build_app
+        dash_app, _server = build_app(["teststudy"], player_name="Test Player")
+    return dash_app
+
+
+@pytest.fixture()
+def ui_data(sample_pgn_text):
+    """A freshly initialized data store for each UI test."""
+    import data
+    import sync
+
+    data.reset()
+    with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text):
+        data.initialize(["teststudy"], player_name="Test Player")
+    yield
+    data.reset()
 
 
 @pytest.fixture(scope="session")
