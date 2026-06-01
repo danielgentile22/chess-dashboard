@@ -43,3 +43,7 @@ games.pgn
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Test coverage data
+.coverage
+htmlcov/
