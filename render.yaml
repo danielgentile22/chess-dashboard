@@ -8,7 +8,9 @@ services:
     # gunicorn targets the module-level Flask WSGI object in app.py
     startCommand: gunicorn app:server --config gunicorn.conf.py
     envVars:
-      # Lichess Study ID(s) forming your game archive (ADR 0001).
+      # Comma-separated Lichess Study IDs forming your game archive (ADR 0001).
+      # Add the next Study's ID here when the current one hits the
+      # 64-chapter limit, e.g. "6jYtXHGp,abcd1234".
       - key: LICHESS_STUDY_IDS
         value: "6jYtXHGp"
       # Optional Lichess API token — only needed for private studies.

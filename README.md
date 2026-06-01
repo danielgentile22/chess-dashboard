@@ -76,12 +76,20 @@ python app.py --study 6jYtXHGp
 
 | Flag | Default | Description |
 |---|---|---|
-| `--study` | `$LICHESS_STUDY_IDS` | Lichess study ID to Sync games from |
+| `--study` | `$LICHESS_STUDY_IDS` | Lichess study ID to Sync games from (repeat for multiple Studies) |
 | `--player` | auto-detected | Your name as it appears in Game headers |
 | `--token` | `$LICHESS_API_TOKEN` | Lichess API token (only for private studies) |
 | `--host` | `127.0.0.1` | Host to bind to |
 | `--port` | `8050` | Port to listen on |
 | `--debug` | off | Enable Dash hot-reload mode |
+
+When your archive grows past Lichess's 64-chapter Study limit, designate the next Study too:
+
+```bash
+python app.py --study 6jYtXHGp --study abcd1234
+```
+
+Games from all designated Studies are merged, deduplicated by chapter, and sorted by date.
 
 If your name isn't auto-detected, pass it explicitly:
 
@@ -93,8 +101,8 @@ python app.py --study 6jYtXHGp --player "Last, First"
 
 | Variable | Description |
 |---|---|
-| `LICHESS_STUDY_IDS` | Lichess study ID to Sync from (used by gunicorn deployments) |
-| `LICHESS_API_TOKEN` | Optional API token, only needed if the Study is private |
+| `LICHESS_STUDY_IDS` | Comma-separated Lichess study IDs to Sync from (e.g. `6jYtXHGp,abcd1234`) |
+| `LICHESS_API_TOKEN` | Optional API token, only needed if a Study is private |
 | `PLAYER_NAME` | Override player-name auto-detection |
 | `HOST` / `PORT` / `DEBUG` | Server binding and debug mode |
 
@@ -177,6 +185,7 @@ chess-stats-dashboard/
 ├── app.py                   # Entry point — Dash factory, CLI, gunicorn server
 ├── config.py                # Environment variable config (LICHESS_STUDY_IDS, PORT, …)
 ├── data.py                  # Module-level data store (Synced from Lichess)
+├── sync.py                  # Sync orchestrator: Studies → merged Games
 ├── lichess_client.py        # Lichess API client (the only module that talks HTTP)
 ├── layout.py                # Full Dash layout (skeleton, KPI bar, all sections)
 ├── callbacks.py             # All Dash callbacks (20+ focused functions)
@@ -186,9 +195,11 @@ chess-stats-dashboard/
 │   └── custom.css           # Dark theme overrides, component styles
 ├── docs/adr/                # Architecture decision records
 ├── tests/
-│   ├── conftest.py          # Shared fixtures (sample PGN, dataframe)
+│   ├── conftest.py          # Shared fixtures (sample Studies, dataframe)
 │   ├── test_pgn_stats_core.py  # Parser + stats function tests
 │   ├── test_lichess_client.py  # Lichess client tests (mocked HTTP)
+│   ├── test_sync.py         # Sync orchestrator tests (stubbed client)
+│   ├── test_config.py       # Config parsing tests
 │   └── test_data.py         # Data store tests (stubbed client)
 ├── requirements.txt         # Runtime dependencies
 ├── requirements-dev.txt     # Dev dependencies (pytest, ruff, mypy)

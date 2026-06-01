@@ -5,10 +5,26 @@ Shared fixtures for the chess stats test suite.
 """
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 
 import pandas as pd
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """
+    The suite must never touch the network (PRD testing decision).
+    Any unstubbed HTTP call fails loudly instead of silently hitting Lichess.
+    """
+    def guard(*args, **kwargs):
+        raise RuntimeError(
+            "Network access attempted during tests — stub the Lichess client."
+        )
+
+    monkeypatch.setattr(socket, "create_connection", guard)
+    monkeypatch.setattr(socket.socket, "connect", guard)
 
 # ---------------------------------------------------------------------------
 # Sample PGN with 7 games covering many scenarios.
@@ -155,10 +171,81 @@ SAMPLE_PGN = """\
 """
 
 
+# ---------------------------------------------------------------------------
+# A second Study (the archive spans multiple Studies once the 64-chapter
+# limit is hit — ADR 0001). Dates interleave with the first Study's games,
+# and the last game is an exact duplicate of SAMPLE_PGN's chap0007 to cover
+# ChapterURL dedup.
+# ---------------------------------------------------------------------------
+
+SAMPLE_PGN_STUDY2 = """\
+[Event "Spring Rapid"]
+[Site "Springfield"]
+[Date "2024.03.10"]
+[Round "1"]
+[White "Test Player"]
+[Black "Opponent E"]
+[WhiteElo "1805"]
+[BlackElo "1700"]
+[ECO "B01"]
+[Opening "Scandinavian Defense"]
+[Result "1-0"]
+[Termination "win by resignation"]
+[StudyName "Test Study 2"]
+[ChapterName "Test Player - Opponent E"]
+[ChapterURL "https://lichess.org/study/teststud2/chap0021"]
+
+{ Lesson: Punish early queen development. #opening }
+1. e4 d5 2. exd5 Qxd5 3. Nc3 Qa5 4. d4 c6 1-0
+
+[Event "Autumn Open"]
+[Site "Shelbyville"]
+[Date "2024.09.01"]
+[Round "1"]
+[White "Opponent A"]
+[Black "Test Player"]
+[WhiteElo "1940"]
+[BlackElo "1815"]
+[ECO "D02"]
+[Opening "London System"]
+[Result "1/2-1/2"]
+[Termination "Normal"]
+[StudyName "Test Study 2"]
+[ChapterName "Opponent A - Test Player"]
+[ChapterURL "https://lichess.org/study/teststud2/chap0022"]
+
+1. d4 d5 2. Nf3 Nf6 3. Bf4 c5 1/2-1/2
+
+[Event "Summer Cup"]
+[Site "Shelbyville"]
+[Date "2024.06.16"]
+[Round "4"]
+[White "Test Player"]
+[Black "Opponent A"]
+[WhiteElo "1810"]
+[BlackElo "1925"]
+[ECO "E04"]
+[Opening "Catalan Opening"]
+[Result "1/2-1/2"]
+[Termination "Normal"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - Opponent A"]
+[ChapterURL "https://lichess.org/study/teststudy/chap0007"]
+
+1. d4 Nf6 2. c4 e6 3. g3 d5 1/2-1/2
+"""
+
+
 @pytest.fixture(scope="session")
 def sample_pgn_text() -> str:
     """The sample PGN as raw text (what the Lichess client returns)."""
     return SAMPLE_PGN
+
+
+@pytest.fixture(scope="session")
+def sample_pgn_study2_text() -> str:
+    """A second Study's PGN: 2 new games + 1 duplicate of SAMPLE_PGN's chap0007."""
+    return SAMPLE_PGN_STUDY2
 
 
 @pytest.fixture(scope="session")
