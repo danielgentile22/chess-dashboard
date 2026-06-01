@@ -203,7 +203,11 @@ class TestCallbackIntegrity:
             deps = list(cb.get("inputs", [])) + list(cb.get("state", []))
             for dep in deps:
                 dep_id = dep["id"] if isinstance(dep, dict) else dep.component_id
-                if isinstance(dep_id, str) and "_pages" not in dep_id and dep_id not in known:
+                if not isinstance(dep_id, str):
+                    continue
+                if dep_id.startswith("{"):
+                    continue  # pattern-matching ID — matches dynamic components
+                if "_pages" not in dep_id and dep_id not in known:
                     missing.append((key, dep_id))
         assert not missing, f"callbacks reference unknown component IDs: {missing}"
 
@@ -368,6 +372,86 @@ class TestEventsCallbacks:
         from pages.events import update_event_table, update_tournament_detail
         rows = update_event_table(*_filter_args())
         assert update_tournament_detail([], rows, *_filter_args()) is None
+
+
+# ---------------------------------------------------------------------------
+# Lessons page (issue #12)
+# ---------------------------------------------------------------------------
+
+class TestLessonsPage:
+    def test_all_lessons_listed_newest_first(self, ui_app, ui_data):
+        from pages.lessons import update_lessons_page
+        lessons_list, _strip = update_lessons_page([], None, *_filter_args())
+        rendered = str(lessons_list)
+        # All 3 fixture Lessons present
+        assert "Don't grab pawns" in rendered
+        assert "Castle before starting an attack" in rendered
+        assert "Keep the tension" in rendered
+        # Newest first: game 4's lessons (June) appear before game 1's (January)
+        assert rendered.index("Don't grab pawns") < rendered.index("Keep the tension")
+
+    def test_each_lesson_links_to_its_source_game(self, ui_app, ui_data):
+        from pages.lessons import update_lessons_page
+        lessons_list, _strip = update_lessons_page([], None, *_filter_args())
+        rendered = str(lessons_list)
+        assert "/game/chap0001" in rendered
+        assert "/game/chap0004" in rendered
+
+    def test_tag_strip_shows_counts_canonical_first(self, ui_app, ui_data):
+        from pages.lessons import update_lessons_page
+        _list, strip = update_lessons_page([], None, *_filter_args())
+        rendered = str(strip)
+        # tactics appears in 2 games; canonical ordering puts opening/tactics early
+        assert "tactics" in rendered
+        assert rendered.index("opening") < rendered.index("strategy")
+
+    def test_filtering_by_tag(self, ui_app, ui_data):
+        from pages.lessons import update_lessons_page
+        lessons_list, _strip = update_lessons_page(["opening"], None, *_filter_args())
+        rendered = str(lessons_list)
+        assert "Castle before starting an attack" in rendered
+        assert "Keep the tension" not in rendered  # game 1 has no #opening
+
+    def test_filtering_by_opponent(self, ui_app, ui_data):
+        from pages.lessons import update_lessons_page
+        lessons_list, _strip = update_lessons_page([], "Opponent D", *_filter_args())
+        assert "Keep the tension" not in str(lessons_list)
+
+    def test_combined_with_global_filters(self, ui_app, ui_data):
+        from pages.lessons import update_lessons_page
+        # Global date filter restricted to January → only game 1's Lesson remains
+        january = _filter_args(start="2024-01-01", end="2024-01-31")
+        lessons_list, _strip = update_lessons_page([], None, *january)
+        rendered = str(lessons_list)
+        assert "Keep the tension" in rendered
+        assert "Don't grab pawns" not in rendered
+
+    def test_empty_archive_explains_the_convention(self, ui_app, ui_data):
+        from pages.lessons import update_lessons_page
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        lessons_list, _strip = update_lessons_page([], None, *impossible)
+        rendered = str(lessons_list)
+        # The empty state teaches the Lesson:/#tag convention (ADR 0002)
+        assert "Lesson:" in rendered
+
+    def test_clicking_a_tag_chip_toggles_it(self, ui_app, ui_data):
+        from unittest import mock
+
+        from pages.lessons import toggle_lesson_tag
+
+        with mock.patch("pages.lessons.ctx") as fake_ctx:
+            fake_ctx.triggered_id = {"type": "lesson-tag", "tag": "endgame"}
+            # selecting
+            assert toggle_lesson_tag([1], []) == ["endgame"]
+            # deselecting
+            assert toggle_lesson_tag([1], ["endgame"]) == []
+
+    def test_spurious_chip_rerender_does_not_toggle(self, ui_app, ui_data):
+        from dash import no_update
+
+        from pages.lessons import toggle_lesson_tag
+        # When the strip re-renders, all n_clicks are None — must not toggle
+        assert toggle_lesson_tag([None, None], ["endgame"]) is no_update
 
 
 # ---------------------------------------------------------------------------
