@@ -413,6 +413,22 @@ class TestRatingTrendSeries:
         assert [p.rating for p in trend_official] == [1440, 1470, 1545]
         assert [p.event_name for p in trend_live] == ["ACC Aprril 2026", "ACC MAY 2026"]
 
+    def test_datetime_range_bounds_work_like_dates(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """A datetime is-a date in Python, so it must be accepted — and not
+        blow up when compared against the series' plain dates."""
+        from datetime import datetime
+
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        trend_official, _trend_live = uscf_core.rating_trend_series(
+            official, live, date_start=datetime(2026, 4, 1, 10, 30),
+        )
+
+        assert [p.rating for p in trend_official] == [1440, 1470, 1545]
+
     def test_the_divergence_the_chart_exists_to_show(
         self, uscf_supplements_json, uscf_sections_json
     ):
