@@ -319,12 +319,12 @@ def study_snapshot_df():
 
 
 # ---------------------------------------------------------------------------
-# USCF Game Records that pair with SAMPLE_PGN (issue #28).
+# USCF Game Records that pair with SAMPLE_PGN (issues #28 / #29).
 #
 # Records 1–5 match SAMPLE_PGN games 1–5 by opponent member ID + result
 # (games 1 and 4 are both wins against Opponent A — color disambiguates).
 # Game 6 has an ID but no record (a Game USCF hasn't rated).
-# Game 7 has no FideId typed (unmatched until the name-fallback pass).
+# Game 7 has no FideId typed → matches record 6 by name (the fallback pass).
 # The last record matches no Game at all (USCF-only → Reconciliation).
 # ---------------------------------------------------------------------------
 
@@ -360,6 +360,9 @@ SAMPLE_USCF_GAMES = [
                       "SUMMER CUP 2024", "202406160002", "2024-06-15", "2024-06-16"),
     # → game 5: beat Opponent D with White
     _sample_uscf_game("10000004", "OPPONENT", "D", "White", "Win",
+                      "SUMMER CUP 2024", "202406160002", "2024-06-15", "2024-06-16"),
+    # → game 7 (no FideId typed): drew Opponent A — matches by name (issue #29)
+    _sample_uscf_game("10000001", "OPPONENT", "A", "White", "Draw",
                       "SUMMER CUP 2024", "202406160002", "2024-06-15", "2024-06-16"),
     # → no Game: a rated game whose Chapter was never added (USCF-only)
     _sample_uscf_game("10000005", "EXTRA", "OPPONENT", "White", "Win",

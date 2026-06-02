@@ -1654,3 +1654,160 @@ class TestKpiStats:
     def test_empty_df(self):
         k = kpi_stats(pd.DataFrame())
         assert k["total_games"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Forfeit exclusion (issue #29)
+#
+# A forfeit win is not chess: Games whose Forfeit column is True are excluded
+# from win rate, Streak math, and opening/repertoire stats — but they stay in
+# the Games list and count toward event scores.  The Forfeit column is set by
+# uscf_core.enrich_games; these tests exercise the contract that pgn stats
+# honor it (and keep working for dataframes that don't have it).
+# ---------------------------------------------------------------------------
+
+FORFEIT_PGN = """\
+[Event "Club Ladder"]
+[Site "Springfield"]
+[Date "2024.03.01"]
+[Round "1"]
+[White "Test Player"]
+[Black "Opp One"]
+[WhiteElo "1500"]
+[BlackElo "1480"]
+[ECO "C50"]
+[Opening "Italian Game"]
+[Result "1-0"]
+[Termination "win by resignation"]
+[ChapterURL "https://lichess.org/study/forfstudy/real0001"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 1-0
+
+[Event "Club Ladder"]
+[Site "Springfield"]
+[Date "2024.03.08"]
+[Round "2"]
+[White "Opp Two"]
+[Black "Test Player"]
+[WhiteElo "1520"]
+[BlackElo "1500"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense"]
+[Result "1-0"]
+[Termination "loss by resignation"]
+[ChapterURL "https://lichess.org/study/forfstudy/real0002"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 1-0
+
+[Event "Club Ladder"]
+[Site "Springfield"]
+[Date "2024.03.15"]
+[Round "3"]
+[White "Test Player"]
+[Black "Opp Three"]
+[WhiteElo "1500"]
+[BlackElo "1510"]
+[ECO "B00"]
+[Opening "King's Pawn Game"]
+[Result "1-0"]
+[Termination "win by forfeit"]
+[ChapterURL "https://lichess.org/study/forfstudy/forf0003"]
+
+1. e4 1-0
+"""
+
+
+def _df_with_forfeit() -> pd.DataFrame:
+    """A real Win, a real Loss, and a 1-move forfeit Win — with the Forfeit
+    column set the way uscf_core.enrich_games sets it."""
+    frame, _ = load_games_from_text(FORFEIT_PGN, player_name="Test Player")
+    frame["Forfeit"] = frame["FullMoves"] <= 1
+    return frame
+
+
+class TestForfeitExclusion:
+    def test_win_rate_excludes_forfeits(self):
+        """The forfeit 'Win' is not a win: 1 real win, 1 real loss → 50%."""
+        counts = win_draw_loss_counts(_df_with_forfeit())
+
+        assert counts["Win"] == 1
+        assert counts["Loss"] == 1
+
+    def test_streaks_exclude_forfeits(self):
+        """The games run Win, Loss, forfeit-Win: without the forfeit the most
+        recent real game is the Loss — there is no current 'win streak'."""
+        s = streaks(_df_with_forfeit())
+
+        assert s["current_streak_outcome"] == "Loss"
+        assert s["longest_streak_wins_only"] == 1
+        assert s["last_20"] == ["Win", "Loss"]
+
+    def test_current_form_excludes_forfeits(self):
+        """The header form dots show real games only — a no-show win never
+        lights the streak fire."""
+        form = current_form(_df_with_forfeit())
+
+        assert form["win_streak"] == 0
+        assert form["last_5"] == ["Win", "Loss"]
+
+    def test_kpi_win_pct_excludes_forfeits_but_total_games_keeps_them(self):
+        """Win % is about chess played (1 win / 2 real games = 50%), while the
+        game count reflects the archive (3 Games — Forfeits stay visible)."""
+        k = kpi_stats(_df_with_forfeit())
+
+        assert k["total_games"] == 3
+        assert k["win_pct"] == 50.0
+        assert k["longest_win_streak"] == 1
+
+    def test_kpi_favorite_opening_ignores_forfeits(self):
+        """Even when forfeits outnumber real games of an opening, that opening
+        never becomes the 'favourite' — one forced move is not repertoire."""
+        frame = _df_with_forfeit()
+        # A second forfeit with the same opening: now 'King's Pawn Game' has
+        # the most rows but zero real games
+        frame = pd.concat([frame, frame[frame["Forfeit"]]], ignore_index=True)
+
+        k = kpi_stats(frame)
+
+        assert k["favorite_opening"] != "King's Pawn Game"
+
+    def test_win_rate_over_time_excludes_forfeits(self):
+        """The cumulative win-rate line is about real games: 2 points, ending
+        at 50%, not 3 points ending at 66.7%."""
+        timeline = win_rate_over_time(_df_with_forfeit())
+
+        assert int(timeline["CumGames"].iloc[-1]) == 2
+        assert float(timeline["WinRate"].iloc[-1]) == 50.0
+
+    def test_opening_stats_exclude_forfeits(self):
+        """The forfeit's opening (one forced move) is not repertoire data."""
+        _families, openings = opening_summary(_df_with_forfeit())
+
+        assert "King's Pawn Game" not in set(openings["Opening"])
+        assert int(openings["Games"].sum()) == 2
+
+    def test_repertoire_tree_excludes_forfeits(self):
+        """As White, only the real Italian Game appears in the tree — the
+        forfeit's lone 1. e4 is not a repertoire branch."""
+        tree = repertoire_tree(_df_with_forfeit(), "White", min_games=1)
+
+        assert tree["games"] == 1
+        assert len(tree["moves"]) == 1
+
+    def test_event_scores_keep_forfeits(self):
+        """A forfeit win is a real tournament point: the Club Ladder score is
+        2/3, exactly as the wallchart says."""
+        events = event_summary(_df_with_forfeit())
+        ladder = events[events["Event"] == "Club Ladder"].iloc[0]
+
+        assert ladder["Games"] == 3
+        assert ladder["Score"] == "2/3"
+
+    def test_a_df_without_the_forfeit_column_is_unchanged(self):
+        """Raw parser output (no enrichment) behaves exactly as before —
+        nothing is excluded when there is nothing marking Forfeits."""
+        frame, _ = load_games_from_text(FORFEIT_PGN, player_name="Test Player")
+
+        counts = win_draw_loss_counts(frame)
+
+        assert counts["Win"] == 2  # the forfeit counts: nothing says it's one

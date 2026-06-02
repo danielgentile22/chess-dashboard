@@ -191,6 +191,17 @@ USCF_RATING_SYSTEM_LABELS = {
 }
 
 
+def uscf_status_label(matched_by: str, forfeit: bool) -> str:
+    """
+    A Game's USCF status, one glanceable token (issues #28/#29):
+    ✓ matched by opponent ID · ≈ matched by name (eyeball these) ·
+    "Forfeit" for no-shows · blank for no USCF Game Record.
+    """
+    if forfeit:
+        return "Forfeit"
+    return {"id": "✓", "name": "≈"}.get(matched_by, "")
+
+
 def game_detail_path(chapter_url: str) -> str:
     """The in-app detail route for a Game ('' if it has no ChapterURL)."""
     if not chapter_url:
