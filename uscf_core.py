@@ -17,6 +17,7 @@ parse_member_profile    raw /members/{id} response → UscfProfile
 membership_alert        Warning text when the membership has lapsed / expires soon.
 build_official_series   raw supplement items → the Official Rating series.
 build_live_series       raw section items → the Live Rating series (continuous chain).
+rating_trend_series     both series trimmed to a date range (the Trends chart's data).
 build_game_records      raw game items → typed USCF Game Records.
 match_games             USCF Game Records ↔ Games (the matching engine).
 enrich_games            Games df + MatchResult → df with USCF enrichment columns.
@@ -53,6 +54,7 @@ __all__ = [
     "match_games",
     "membership_alert",
     "parse_member_profile",
+    "rating_trend_series",
     "reconcile",
 ]
 
@@ -264,6 +266,45 @@ def _chain_group(
         chained.append(next_point)
         current = next_point.post
     return chained
+
+
+# ---------------------------------------------------------------------------
+# The dual-line rating trend (issue #31)
+# ---------------------------------------------------------------------------
+
+def rating_trend_series(
+    official_series: list[OfficialRatingPoint],
+    live_series: list[LiveRatingPoint],
+    *,
+    date_start: str | date | None = None,
+    date_end: str | date | None = None,
+) -> tuple[list[OfficialRatingPoint], list[LiveRatingPoint]]:
+    """
+    The Trends chart's data: both rating series, trimmed to the global
+    date-range filter (the only global filter that applies to rating series —
+    they are Rated-Event facts, not Games).
+
+    The chart is the one place the lens hides nothing — both series always
+    render; the active lens only controls which is emphasized.  Dash sends
+    the range as ISO strings; date objects work too.
+    """
+    start, end = _coerce_date(date_start), _coerce_date(date_end)
+
+    def in_range(day: date) -> bool:
+        return (start is None or day >= start) and (end is None or day <= end)
+
+    return (
+        [p for p in official_series if in_range(p.month)],
+        [p for p in live_series if in_range(p.end_date)],
+    )
+
+
+def _coerce_date(value: str | date | None) -> date | None:
+    """An ISO string / date / None from the UI as a date (None when absent)."""
+    if value is None or isinstance(value, date):
+        return value
+    # The Dash date picker can send 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM:SS'
+    return _parse_date(str(value)[:10])
 
 
 # ---------------------------------------------------------------------------

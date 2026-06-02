@@ -21,6 +21,7 @@ callback tests here.
 """
 from __future__ import annotations
 
+from datetime import date
 from unittest import mock
 
 import dash
@@ -39,7 +40,8 @@ PAGES = [
 ]
 
 # Default filter-callback arguments: everything selected / no restriction,
-# matching what the UI sends when no filter has been touched.
+# matching what the UI sends when no filter has been touched.  The rating
+# lens (issue #31) defaults to Official, exactly like the real toggle.
 ALL_FILTERS = dict(
     colors=["White", "Black"],
     outcomes=["Win", "Draw", "Loss"],
@@ -49,6 +51,7 @@ ALL_FILTERS = dict(
     events=[],
     moves=None,
     sync=None,
+    lens="official",
 )
 
 
@@ -56,7 +59,7 @@ def _filter_args(**overrides):
     """Positional args for a standard filter-driven callback."""
     a = {**ALL_FILTERS, **overrides}
     return (a["colors"], a["outcomes"], a["terminations"], a["start"],
-            a["end"], a["events"], a["moves"], a["sync"])
+            a["end"], a["events"], a["moves"], a["sync"], a["lens"])
 
 
 def _axis_vals(values) -> list:
@@ -193,6 +196,27 @@ class TestShell:
 # ---------------------------------------------------------------------------
 
 class TestCallbackIntegrity:
+    def test_every_callback_accepts_all_its_declared_inputs(self, ui_app, ui_data):
+        """Dash invokes a callback with one positional argument per declared
+        Input + State.  A callback that declares them all but can't accept
+        them all (e.g. one missed when a new global input was added to
+        FILTER_INPUTS) would crash at runtime on every filter change."""
+        import inspect
+
+        ui_app.server.test_client().get("/")
+        mismatched = []
+        for key, cb in ui_app.callback_map.items():
+            if "_pages" in key:  # Dash Pages internal routing callbacks
+                continue
+            n_args = len(cb.get("inputs", [])) + len(cb.get("state", []))
+            try:
+                inspect.signature(cb["callback"]).bind(*[None] * n_args)
+            except TypeError:
+                mismatched.append((key, n_args))
+        assert not mismatched, (
+            f"callbacks can't accept the arguments their inputs declare: {mismatched}"
+        )
+
     def test_every_callback_id_exists_in_some_layout(self, ui_app, ui_data):
         # All IDs available across the shell and every page
         layout = ui_app.layout
@@ -1419,6 +1443,166 @@ class TestForfeitUI:
 
         assert "Forfeit" in rendered
         assert "never rated" in rendered or "no-show" in rendered.lower()
+
+
+# ---------------------------------------------------------------------------
+# The Official/Live rating lens (issue #31)
+#
+# A lens, not a filter: it selects which rating series powers rating-derived
+# numbers and never hides Games.  It lives in the sticky header (so it's on
+# every page and survives navigation) and its value rides FILTER_INPUTS (so
+# every page follows it exactly like the global filters).
+# ---------------------------------------------------------------------------
+
+def _shell_component(ui_app, component_id: str):
+    """Find a component by ID in the shell layout (None if absent)."""
+    layout = ui_app.layout
+    tree = layout() if callable(layout) else layout
+    return next((c for c in _walk_components(tree)
+                 if getattr(c, "id", None) == component_id), None)
+
+
+class TestRatingLensToggle:
+    def test_the_toggle_lives_in_the_shell_not_in_pages(self, ui_app, ui_data):
+        """The lens is on every page and survives navigation because it
+        belongs to the shell — the same rule as the global filters."""
+        assert _shell_component(ui_app, "rating-lens") is not None
+        for path, _ in PAGES:
+            assert "rating-lens" not in _collect_ids(_render(_page(path)))
+
+    def test_the_lens_defaults_to_official(self, ui_app, ui_data):
+        """Official is Daniel's long-standing convention (PRD #24)."""
+        toggle = _shell_component(ui_app, "rating-lens")
+        assert toggle.value == "official"
+
+    def test_the_lens_offers_exactly_official_and_live(self, ui_app, ui_data):
+        """The two world views of CONTEXT.md: Official Rating and Live Rating."""
+        toggle = _shell_component(ui_app, "rating-lens")
+        values = [opt["value"] for opt in toggle.options]
+        assert values == ["official", "live"]
+
+    def test_the_lens_rides_the_global_filter_inputs(self, ui_app, ui_data):
+        """'Exposed to all pages the same way the global filters are' (#31):
+        the lens value is part of FILTER_INPUTS, so every filter-driven
+        callback re-fires when it changes — no page opts in separately."""
+        from filters import FILTER_INPUTS
+        dependencies = [(i.component_id, i.component_property) for i in FILTER_INPUTS]
+        assert ("rating-lens", "value") in dependencies
+
+    def test_the_lens_triggers_no_data_callbacks(self, ui_app, ui_data):
+        """Toggling the lens changes no data — the freshness label, the cache
+        notice, and the Reconciliation badge must not re-fire on it."""
+        ui_app.server.test_client().get("/")
+        data_outputs = ("sync-freshness", "reconciliation-badge", "cache-notice")
+        for key, cb in ui_app.callback_map.items():
+            if not any(output in key for output in data_outputs):
+                continue
+            input_ids = {dep["id"] for dep in cb.get("inputs", [])
+                         if isinstance(dep["id"], str)}
+            assert "rating-lens" not in input_ids, (
+                f"{key} re-fires on the lens, but the lens changes no data"
+            )
+
+
+# ---------------------------------------------------------------------------
+# The dual-line rating trend (issue #31)
+#
+# The Trends rating chart is the one place the lens hides nothing: the
+# Official step line and the Live per-event line always both render; the
+# active lens only controls which is visually emphasized.
+# ---------------------------------------------------------------------------
+
+def _trace(fig, name: str):
+    return next(t for t in fig.data if t.name == name)
+
+
+class TestDualLineRatingTrend:
+    def test_the_chart_draws_both_series(self, ui_app, ui_data):
+        """The Official step line (published integers) and the Live line
+        (per-Rated-Event decimals) — Daniel's whole real career."""
+        from pages.trends import update_rating
+        fig = update_rating(*_filter_args())
+
+        official, live = _trace(fig, "Official"), _trace(fig, "Live")
+        # Official: a step function that changes only at supplement dates,
+        # starting at the first supplement — months before it are not invented
+        assert official.line.shape == "hv"
+        assert official.x[0] == date(2025, 9, 1)
+        assert list(official.y) == [1038, 1005, 1133, 1230, 1386,
+                                    1419, 1506, 1440, 1470, 1545]
+        # Live: the continuous chain from the first Rated Event, decimals
+        # preserved, never rounded
+        assert len(live.y) == 23
+        assert live.x[0] == date(2025, 6, 28)
+        assert live.y[0] == 695.23
+        assert live.y[-1] == 1570.72
+
+    def test_the_active_lens_is_emphasized_without_hiding_the_other(
+        self, ui_app, ui_data
+    ):
+        """Toggling the lens changes emphasis only — both lines render under
+        either lens; the active one is full strength, the other recedes."""
+        from pages.trends import update_rating
+        official_fig = update_rating(*_filter_args(lens="official"))
+        live_fig = update_rating(*_filter_args(lens="live"))
+
+        for fig in (official_fig, live_fig):
+            assert {t.name for t in fig.data} == {"Official", "Live"}
+
+        assert (_trace(official_fig, "Official").opacity
+                > _trace(official_fig, "Live").opacity)
+        assert (_trace(live_fig, "Live").opacity
+                > _trace(live_fig, "Official").opacity)
+
+    def test_the_date_filter_trims_both_lines(self, ui_app, ui_data):
+        """The chart respects the global date filter: Q1 2026 keeps three
+        supplements and seven Rated-Event points."""
+        from pages.trends import update_rating
+        fig = update_rating(*_filter_args(start="2026-01-01", end="2026-03-31"))
+
+        assert list(_trace(fig, "Official").y) == [1386, 1419, 1506]
+        assert len(_trace(fig, "Live").y) == 7
+
+    def test_event_names_render_verbatim_typos_included(self, ui_app, ui_data):
+        """USCF's own typo'd event name ('ACC Aprril 2026') displays as-is —
+        the dashboard never 'fixes' official records."""
+        from pages.trends import update_rating
+        fig = update_rating(*_filter_args())
+        hover_names = {row[0] for row in _trace(fig, "Live").customdata}
+        assert "ACC Aprril 2026" in hover_names
+
+    def test_without_uscf_the_chart_falls_back_to_typed_ratings(
+        self, ui_app, sample_pgn_text
+    ):
+        """ADR 0003: USCF unreachable and never cached → the chart degrades to
+        the typed header values, exactly as before the integration."""
+        import data
+        from pages.trends import update_rating
+        from tests.conftest import stub_ui_sources
+        from uscf_client import UscfUnreachableError
+
+        data.reset()
+        boom = UscfUnreachableError("Could not reach USCF")
+        with stub_ui_sources(sample_pgn_text, uscf_profile=boom):
+            data.initialize(
+                ["teststudy"], player_name="Test Player", uscf_member_id="32487228"
+            )
+        try:
+            fig = update_rating(*_filter_args())
+            names = {t.name for t in fig.data}
+            assert "Official" not in names      # nothing official to draw
+            assert "Rating" in names            # the typed-values line instead
+            # SAMPLE_PGN's typed ratings are what's plotted
+            typed_line = next(t for t in fig.data if t.name == "Rating")
+            assert 1800 in typed_line.y
+        finally:
+            data.reset()
+
+    def test_an_empty_date_range_says_so(self, ui_app, ui_data):
+        """A range with no rating points yields an honest empty chart, not a crash."""
+        from pages.trends import update_rating
+        fig = update_rating(*_filter_args(start="2030-01-01", end="2030-12-31"))
+        assert not fig.data
 
 
 # ---------------------------------------------------------------------------

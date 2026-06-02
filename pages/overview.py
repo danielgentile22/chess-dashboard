@@ -105,7 +105,7 @@ def layout(**kwargs) -> html.Div:
     Output("kpi-fav-opn",  "children"),
     FILTER_INPUTS,
 )
-def update_kpis(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_kpis(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     k = kpi_stats(df_f)
 
@@ -163,7 +163,7 @@ def update_uscf_card(_sync):
 
 
 @callback(Output("top-weakness", "children"), FILTER_INPUTS)
-def update_top_weakness(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_top_weakness(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     """The single most severe recurring weakness (issue #18). Silent below threshold."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     callouts = recurring_weaknesses(df_f)
@@ -177,7 +177,7 @@ def update_top_weakness(colors, outcomes, terminations, start, end, events, move
     Output("streak-stats",  "children"),
     FILTER_INPUTS,
 )
-def update_streak(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_streak(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     s = streaks(df_f)
 
@@ -210,7 +210,7 @@ def update_streak(colors, outcomes, terminations, start, end, events, moves, _sy
 
 
 @callback(Output("wdl-pie", "figure"), FILTER_INPUTS)
-def update_wdl(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_wdl(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     counts = win_draw_loss_counts(df_f)
     pie_df = counts[counts > 0].reset_index()
@@ -241,7 +241,7 @@ def update_wdl(colors, outcomes, terminations, start, end, events, moves, _sync=
 
 
 @callback(Output("termination-bar", "figure"), FILTER_INPUTS)
-def update_terminations(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_terminations(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     tc = termination_counts(df_f)
     if tc.empty:
@@ -263,7 +263,7 @@ def update_terminations(colors, outcomes, terminations, start, end, events, move
 
 
 @callback(Output("milestones-content", "children"), FILTER_INPUTS)
-def update_milestones(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_milestones(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     ms = compute_milestones(df_f)
     if not ms:

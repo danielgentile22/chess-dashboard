@@ -223,7 +223,7 @@ def update_scout_options(_sync):
     FILTER_INPUTS,
 )
 def update_scouting_report(opponent, colors, outcomes, terminations, start, end,
-                           events, moves, _sync=None):
+                           events, moves, _sync=None, _lens=None):
     """Opponent picked → their full dossier. Nothing picked → a hint."""
     if not opponent:
         return html.Div(
@@ -245,7 +245,7 @@ navigate_to_game_from_scout = register_game_navigation(
 
 
 @callback(Output("opponent-bar", "figure"), FILTER_INPUTS)
-def update_opponents(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_opponents(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     opp = opponent_summary(df_f)
     if opp.empty:
@@ -266,7 +266,7 @@ def update_opponents(colors, outcomes, terminations, start, end, events, moves, 
 
 
 @callback(Output("rating-bucket-bar", "figure"), FILTER_INPUTS)
-def update_bucket(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_bucket(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     buckets = opponent_rating_bucket_summary(df_f)
     if buckets.empty:
@@ -286,7 +286,7 @@ def update_bucket(colors, outcomes, terminations, start, end, events, moves, _sy
 
 
 @callback(Output("outcome-scatter", "figure"), FILTER_INPUTS)
-def update_scatter(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_scatter(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     sc = outcome_vs_rating_data(df_f)
     if sc.empty:

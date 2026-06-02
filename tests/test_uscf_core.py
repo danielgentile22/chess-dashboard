@@ -354,6 +354,104 @@ class TestBuildLiveSeries:
 
 
 # ---------------------------------------------------------------------------
+# The dual-line rating trend (issue #31)
+#
+# rating_trend_series feeds the Trends chart: both rating series, trimmed to
+# the global date-range filter.  The chart is the one place the lens hides
+# nothing — both lines always render.
+# ---------------------------------------------------------------------------
+
+class TestRatingTrendSeries:
+    def test_without_a_date_range_both_series_pass_through_whole(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """The tracer bullet: no date filter → the chart gets Daniel's whole
+        career, both series untouched."""
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        trend_official, trend_live = uscf_core.rating_trend_series(official, live)
+
+        assert trend_official == official    # all 10 supplement points
+        assert trend_live == live            # all 23 chain points
+
+    def test_the_date_filter_trims_both_series(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """The chart respects the global date filter (issue #31).  Dash sends
+        the range as ISO strings; Q1 2026 keeps 3 supplements and 7 Sections."""
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        trend_official, trend_live = uscf_core.rating_trend_series(
+            official, live, date_start="2026-01-01", date_end="2026-03-31",
+        )
+
+        assert [p.month for p in trend_official] == [
+            date(2026, 1, 1), date(2026, 2, 1), date(2026, 3, 1),
+        ]
+        # Newcomb, ACC Jan, ACC Feb, Army-Navy, ACC March, both DMV Sections
+        assert len(trend_live) == 7
+        assert all(date(2026, 1, 1) <= p.end_date <= date(2026, 3, 31)
+                   for p in trend_live)
+
+    def test_a_one_sided_range_trims_only_that_side(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """The date picker often has only one side set — the other side stays open."""
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        trend_official, trend_live = uscf_core.rating_trend_series(
+            official, live, date_start="2026-04-01",
+        )
+
+        # April, May, June supplements; ACC Aprril + ACC MAY Sections
+        assert [p.rating for p in trend_official] == [1440, 1470, 1545]
+        assert [p.event_name for p in trend_live] == ["ACC Aprril 2026", "ACC MAY 2026"]
+
+    def test_the_divergence_the_chart_exists_to_show(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """The payoff (PRD #24): the June supplement (1545) reflects ACC April;
+        ACC May missed its cutoff — so Official and Live visibly diverge today."""
+        trend_official, trend_live = uscf_core.rating_trend_series(
+            uscf_core.build_official_series(uscf_supplements_json["items"]),
+            uscf_core.build_live_series(uscf_sections_json["items"]),
+        )
+
+        assert trend_official[-1].rating == 1545
+        assert trend_live[-1].post == 1570.72
+
+
+# ---------------------------------------------------------------------------
+# The supplement ↔ chain property (issue #31)
+#
+# The two series describe one career, so they must agree: every published
+# supplement value is (within USCF's own rounding) the post-rating of the
+# last Section rated before that supplement's cutoff.  A free cross-series
+# regression guard — it breaks loudly if either builder picks wrong fields
+# or orders the chain wrong.
+# ---------------------------------------------------------------------------
+
+class TestSupplementChainProperty:
+    def test_every_supplement_matches_an_earlier_live_post_rating(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        for supplement in official:
+            earlier_posts = [p.post for p in live if p.end_date < supplement.month]
+            assert earlier_posts, f"no Sections rated before {supplement.month}"
+            closest = min(abs(supplement.rating - post) for post in earlier_posts)
+            assert closest <= 1.0, (
+                f"the {supplement.month} supplement ({supplement.rating}) matches "
+                f"no earlier Section's post-rating (closest is {closest} away)"
+            )
+
+
+# ---------------------------------------------------------------------------
 # The matching engine — primary pass: opponent ID + result (issue #28)
 # ---------------------------------------------------------------------------
 

@@ -21,6 +21,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dash import Output, callback, dash_table, dcc, html
 
+import data
 from components import (
     TABLE_CELL,
     TABLE_HEADER,
@@ -42,6 +43,7 @@ from pgn_stats_core import (
     win_rate_over_time,
 )
 from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
+from uscf_core import rating_trend_series
 
 dash.register_page(
     __name__, path="/trends", name="Trends", title="Trends — Chess Stats", order=1,
@@ -211,7 +213,7 @@ def _year_calendar_fig(year_daily: pd.DataFrame, year: int) -> go.Figure:
 
 
 @callback(Output("activity-calendar", "children"), FILTER_INPUTS)
-def update_activity_calendar(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_activity_calendar(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     """One calendar block per year with Games, newest year first."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     daily = daily_activity(df_f)
@@ -245,12 +247,18 @@ def update_activity_calendar(colors, outcomes, terminations, start, end, events,
 # Callbacks
 # ---------------------------------------------------------------------------
 
-@callback(Output("rating-line", "figure"), FILTER_INPUTS)
-def update_rating(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
-    pr = player_rating_over_time(df_f)
-    if pr.empty:
-        return empty_fig("No rating data")
+# The two rating series, distinguishable at a glance in dark mode (issue #31):
+# the Official Rating is the solid, neutral published number; the Live Rating
+# wears the same blue as the profile card's Live value (.uscf-live-value).
+_OFFICIAL_COLOR = COLORS["text"]
+_LIVE_COLOR = COLORS["primary"]
+
+
+def _typed_rating_fig(pr: pd.DataFrame) -> go.Figure:
+    """The pre-USCF rating chart: typed header values plus a linear trend.
+
+    Kept as the fallback when USCF was never reached (ADR 0003) — the chart
+    degrades to what the Studies alone can say."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=pr["Date_dt"], y=pr["PlayerRating"],
@@ -276,8 +284,77 @@ def update_rating(colors, outcomes, terminations, start, end, events, moves, _sy
     return fig
 
 
+def _dual_line_rating_fig(official, live, lens: str) -> go.Figure:
+    """
+    The dual-line rating trend (issue #31): the Official step line and the
+    Live per-Rated-Event line, both always drawn.  The active lens is full
+    strength; the other stays readable but recedes.
+    """
+    official_active = lens != "live"
+
+    fig = go.Figure()
+    # The Official Rating: a step function changing only at supplement dates
+    fig.add_trace(go.Scatter(
+        x=[p.month for p in official],
+        y=[p.rating for p in official],
+        name="Official",
+        mode="lines+markers",
+        line=dict(color=_OFFICIAL_COLOR, shape="hv",
+                  width=2.5 if official_active else 1.5),
+        marker=dict(size=7 if official_active else 5, symbol="square"),
+        opacity=1.0 if official_active else 0.4,
+        hovertemplate="<b>%{x|%B %Y} supplement</b><br>"
+                      "Official Rating: %{y}<extra></extra>",
+    ))
+    # The Live Rating: one point per Rated Event, decimals preserved.
+    # Names render verbatim — including USCF's own typos.
+    fig.add_trace(go.Scatter(
+        x=[p.end_date for p in live],
+        y=[p.post for p in live],
+        name="Live",
+        mode="lines+markers",
+        line=dict(color=_LIVE_COLOR, width=2.5 if not official_active else 1.5),
+        marker=dict(size=7 if not official_active else 5),
+        opacity=1.0 if not official_active else 0.4,
+        customdata=[
+            [p.event_name, p.section_name,
+             "unrated" if p.pre is None else f"{p.pre:.2f}"]
+            for p in live
+        ],
+        hovertemplate="<b>%{customdata[0]}</b> · %{customdata[1]}<br>"
+                      "Live Rating: %{customdata[2]} → %{y:.2f}<br>"
+                      "%{x|%Y-%m-%d}<extra></extra>",
+    ))
+    apply_dark_theme(fig, yaxis_title="Rating", legend_title="")
+    return fig
+
+
+@callback(Output("rating-line", "figure"), FILTER_INPUTS)
+def update_rating(colors, outcomes, terminations, start, end, events, moves,
+                  _sync=None, lens="official"):
+    """The rating trend: dual-line (Official + Live) when USCF data exists,
+    typed header values otherwise (ADR 0003 — enrichment, never a dependency)."""
+    full_official = data.get_official_series()
+    full_live = data.get_live_series()
+
+    if not full_official and not full_live:
+        # USCF never reached or not configured → the Studies' own numbers
+        df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+        pr = player_rating_over_time(df_f)
+        if pr.empty:
+            return empty_fig("No rating data")
+        return _typed_rating_fig(pr)
+
+    official, live = rating_trend_series(
+        full_official, full_live, date_start=start, date_end=end,
+    )
+    if not official and not live:
+        return empty_fig("No rating data in this date range")
+    return _dual_line_rating_fig(official, live, lens or "official")
+
+
 @callback(Output("winrate-line", "figure"), FILTER_INPUTS)
-def update_winrate(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_winrate(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     wr = win_rate_over_time(df_f)
     if wr.empty:
@@ -306,7 +383,7 @@ def update_winrate(colors, outcomes, terminations, start, end, events, moves, _s
 
 
 @callback(Output("monthly-bar", "figure"), FILTER_INPUTS)
-def update_monthly(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_monthly(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     m, _ = activity_data(df_f)
     if m.empty:
@@ -325,7 +402,7 @@ def update_monthly(colors, outcomes, terminations, start, end, events, moves, _s
 
 
 @callback(Output("dow-bar", "figure"), FILTER_INPUTS)
-def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     _, dw = activity_data(df_f)
     if dw.empty:
@@ -347,7 +424,7 @@ def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=
 
 
 @callback(Output("length-hist", "figure"), FILTER_INPUTS)
-def update_length_hist(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_length_hist(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     hist_df, _ = game_length_data(df_f)
     if hist_df.empty:
@@ -371,7 +448,7 @@ _NO_TC_LABEL = "(not recorded)"
 
 
 @callback(Output("tc-bar", "figure"), FILTER_INPUTS)
-def update_time_control(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_time_control(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     """Stacked W/D/L per time control, slowest first, speed class in the hover."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     tc = time_control_summary(df_f)
@@ -453,7 +530,7 @@ def _round_fig(rounds: pd.DataFrame) -> go.Figure:
 
 
 @callback(Output("round-bar", "figure"), FILTER_INPUTS)
-def update_round_performance(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_round_performance(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     """Score by round number — late-round fatigue shows up as a downhill slope."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     rounds = round_performance(df_f)
@@ -477,7 +554,7 @@ def _upset_rows(upsets: list[dict], sign: str) -> list[dict]:
     Output("upset-losses-status", "children"),
     FILTER_INPUTS,
 )
-def update_upsets(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_upsets(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     """Both upset tables + the lines that explain them when they're empty."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     upsets = upset_tracker(df_f)
@@ -512,7 +589,7 @@ navigate_to_game_from_upset_loss = register_game_navigation(
 
 
 @callback(Output("length-stats", "children"), FILTER_INPUTS)
-def update_length_stats(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_length_stats(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     _, avgs = game_length_data(df_f)
     if not avgs:
