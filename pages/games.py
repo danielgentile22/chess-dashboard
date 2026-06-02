@@ -9,7 +9,7 @@ Clicking any row opens that Game's detail view (issue #11).
 from __future__ import annotations
 
 import dash
-from dash import Input, Output, State, callback, dash_table, html
+from dash import Output, callback, dash_table, html
 
 from components import (
     TABLE_CELL,
@@ -18,7 +18,7 @@ from components import (
     content_card,
     lichess_link,
     page_header,
-    row_click_to_game,
+    register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
 
@@ -26,13 +26,17 @@ dash.register_page(
     __name__, path="/games", name="Games", title="Games — Chess Stats", order=5,
 )
 
-# Columns shown in the games table, in display order
+# Columns shown in the games table, in display order.  Round is the numeric
+# RoundNum so the browser's native sort puts round 10 after round 9, not
+# after round 1.
 _DISPLAY_COLS = [
-    "Index", "Date", "Event", "Round", "White", "WhiteRating",
+    "Index", "Date", "Event", "RoundNum", "White", "WhiteRating",
     "Black", "BlackRating", "Result", "Outcome", "Color",
     "PlayerRating", "OpponentRating", "Termination",
     "FullMoves", "ECO", "Opening",
 ]
+_COL_LABELS = {"RoundNum": "Round"}
+_NUMERIC_COLS = {"Index", "RoundNum", "FullMoves"}
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +44,11 @@ _DISPLAY_COLS = [
 # ---------------------------------------------------------------------------
 
 def layout(**kwargs) -> html.Div:
-    cols = [{"name": c, "id": c} for c in _DISPLAY_COLS]
+    cols = [
+        {"name": _COL_LABELS.get(c, c), "id": c,
+         **({"type": "numeric"} if c in _NUMERIC_COLS else {})}
+        for c in _DISPLAY_COLS
+    ]
     # Lesson indicator (💡) and Tags from chapter comments (ADR 0002)
     cols.append({"name": "💡", "id": "LessonIndicator"})
     cols.append({"name": "Tags", "id": "TagsDisplay"})
@@ -92,15 +100,5 @@ def update_games_table(colors, outcomes, terminations, start, end, events, moves
     return out.to_dict("records")
 
 
-@callback(
-    Output("url", "href", allow_duplicate=True),
-    Output("games-table", "active_cell"),
-    Input("games-table", "active_cell"),
-    State("games-table", "derived_viewport_data"),
-    prevent_initial_call=True,
-)
-def navigate_to_game(active_cell, viewport_rows):
-    """Clicking a Game row opens its detail view."""
-    href = row_click_to_game(active_cell, viewport_rows)
-    # Reset the selection so clicking the same row again still navigates
-    return href, None
+navigate_to_game = register_game_navigation(
+    "games-table", "Clicking a Game row opens its detail view.")

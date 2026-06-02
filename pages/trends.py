@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Input, Output, State, callback, dash_table, dcc, html
+from dash import Output, callback, dash_table, dcc, html
 
 from components import (
     TABLE_CELL,
@@ -28,7 +28,7 @@ from components import (
     content_card,
     empty_state,
     page_header,
-    row_click_to_game,
+    register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import (
@@ -379,8 +379,9 @@ def update_time_control(colors, outcomes, terminations, start, end, events, move
         return empty_fig("No finished games in this filter")
 
     tc = tc.copy()
+    # Games without a TimeControl header still need an axis label; their
+    # Speed stays the "Unknown" the summary already gave them
     tc["TimeControl"] = tc["TimeControl"].replace("", _NO_TC_LABEL)
-    tc["Speed"] = tc["Speed"].where(tc["TimeControl"] != _NO_TC_LABEL, "—")
 
     fig = go.Figure()
     for outcome in ("Win", "Draw", "Loss"):
@@ -443,6 +444,9 @@ def _round_fig(rounds: pd.DataFrame) -> go.Figure:
         annotation_font=dict(color=COLORS["muted"], size=10),
     )
     apply_dark_theme(fig, xaxis_title="Round", yaxis_title="Score %", show_legend=False)
+    # overlay, not the default group: the two traces never share a round, so
+    # grouping would shrink every bar and shift it off its integer tick
+    fig.update_layout(barmode="overlay")
     fig.update_xaxes(dtick=1)
     fig.update_yaxes(range=[0, 105])
     return fig
@@ -501,28 +505,10 @@ def update_upsets(colors, outcomes, terminations, start, end, events, moves, _sy
     )
 
 
-@callback(
-    Output("url", "href", allow_duplicate=True),
-    Output("upset-wins-table", "active_cell"),
-    Input("upset-wins-table", "active_cell"),
-    State("upset-wins-table", "derived_viewport_data"),
-    prevent_initial_call=True,
-)
-def navigate_to_game_from_upset_win(active_cell, viewport_rows):
-    """Clicking a giant kill opens that Game's detail view."""
-    return row_click_to_game(active_cell, viewport_rows), None
-
-
-@callback(
-    Output("url", "href", allow_duplicate=True),
-    Output("upset-losses-table", "active_cell"),
-    Input("upset-losses-table", "active_cell"),
-    State("upset-losses-table", "derived_viewport_data"),
-    prevent_initial_call=True,
-)
-def navigate_to_game_from_upset_loss(active_cell, viewport_rows):
-    """Clicking an upset loss opens that Game's detail view."""
-    return row_click_to_game(active_cell, viewport_rows), None
+navigate_to_game_from_upset_win = register_game_navigation(
+    "upset-wins-table", "Clicking a giant kill opens that Game's detail view.")
+navigate_to_game_from_upset_loss = register_game_navigation(
+    "upset-losses-table", "Clicking an upset loss opens that Game's detail view.")
 
 
 @callback(Output("length-stats", "children"), FILTER_INPUTS)
