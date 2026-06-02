@@ -12,6 +12,7 @@ Parsing
   load_games_df            Parse a PGN file → tidy DataFrame + player name.
   load_games_from_text     Parse PGN text (Lichess Study export) → same output.
   extract_lessons_and_tags Extract Lessons / Tags from a game's comments (ADR 0002).
+  extract_mainline_san     A game's mainline moves as SAN strings (issue #16).
   apply_filters            Apply UI filter selections to the DataFrame.
 
 Overview
@@ -63,6 +64,7 @@ __all__ = [
     "load_games_df",
     "load_games_from_text",
     "extract_lessons_and_tags",
+    "extract_mainline_san",
     "apply_filters",
     "win_draw_loss_counts",
     "termination_counts",
@@ -72,7 +74,11 @@ __all__ = [
     "lessons_table",
     "tag_counts",
     "recurring_weaknesses",
+    "repertoire_tree",
     "review_queue",
+    "round_performance",
+    "time_control_summary",
+    "upset_tracker",
     "win_rate_over_time",
     "player_rating_over_time",
     "opponent_summary",
@@ -146,6 +152,21 @@ def compute_move_counts(game) -> tuple[int, int]:
     """Return (plies, full_moves) for a parsed PGN game node."""
     plies = sum(1 for _ in game.mainline_moves())
     return plies, (plies + 1) // 2
+
+
+def extract_mainline_san(game) -> list[str]:
+    """
+    The game's mainline moves as SAN strings (issue #16).
+
+    Variations are excluded — the repertoire tree reflects what was actually
+    played, not what was analysed afterwards.
+    """
+    board = game.board()
+    sans: list[str] = []
+    for move in game.mainline_moves():
+        sans.append(board.san(move))
+        board.push(move)
+    return sans
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +319,9 @@ def load_games_from_text(
             eco = _first_present(h, ["eco"])
             opening = _first_present(h, ["opening"])
             timecontrol = _first_present(h, ["timecontrol"])
-            plies, fullmoves = compute_move_counts(game)
+            # One mainline walk gives both the move list and the counts
+            moves_san = extract_mainline_san(game)
+            plies, fullmoves = len(moves_san), (len(moves_san) + 1) // 2
 
             # Lichess Study identity (ADR 0001): ChapterURL is the permanent
             # identity of a Game; empty for PGNs that aren't Study exports.
@@ -311,7 +334,9 @@ def load_games_from_text(
 
             rows.append({
                 "Index": idx, "Date": date, "Time": time_tag,
-                "Event": event, "Site": site, "Round": round_tag, "Board": board_tag,
+                "Event": event, "Site": site, "Round": round_tag,
+                # Numeric round so round 10 sorts after round 2, not after round 1
+                "RoundNum": safe_int(round_tag), "Board": board_tag,
                 "ECO": eco, "Opening": opening, "TimeControl": timecontrol,
                 "White": white, "WhiteRating": white_rating,
                 "WhiteRatingNum": safe_int(white_rating), "WhiteID": white_id,
@@ -319,6 +344,7 @@ def load_games_from_text(
                 "BlackRatingNum": safe_int(black_rating), "BlackID": black_id,
                 "Result": result, "Winner": winner_from_result(result),
                 "Termination": termination, "Plies": plies, "FullMoves": fullmoves,
+                "Moves": moves_san,
                 "StudyName": study_name, "ChapterName": chapter_name,
                 "ChapterURL": chapter_url,
                 "Lessons": lessons, "Tags": tags,
@@ -1062,6 +1088,297 @@ def performance_rating_stats(df: pd.DataFrame) -> dict:
         "score": score,
         "score_pct": round(score_pct * 100, 1),
         "rated_games": total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Repertoire tree (issue #16)
+# ---------------------------------------------------------------------------
+
+def _score_pct(win: int, draw: int, total: int) -> float:
+    """Chess score percentage: wins count 1, draws count ½."""
+    return round((win + 0.5 * draw) / total * 100, 1) if total else 0.0
+
+
+def _move_nodes(game_list: list[tuple], ply: int, *,
+                baseline: float, min_games: int) -> list[dict]:
+    """
+    Group games by their move at *ply* (1-based) into scored tree nodes,
+    recursing into each group for the next ply.
+
+    *game_list* items are (moves, ref) tuples — plain Python so the recursion
+    never re-filters a DataFrame.  A branch stops splitting once it holds a
+    single game: drilling further would just replay that game move by move,
+    which is what its detail view is for.
+
+    A node is ``underperforming`` when it scores below *baseline* (Daniel's
+    overall score% as this color) across at least *min_games* games — a thin
+    branch proves nothing, so it never gets flagged.
+    """
+    groups: dict[str, list[tuple]] = {}
+    for moves, ref in game_list:
+        if len(moves) >= ply:
+            groups.setdefault(moves[ply - 1], []).append((moves, ref))
+
+    nodes = []
+    for san, group in groups.items():
+        counts = Counter(ref["Outcome"] for _, ref in group)
+        win, draw, loss = counts["Win"], counts["Draw"], counts["Loss"]
+        score = _score_pct(win, draw, len(group))
+        children = (_move_nodes(group, ply + 1, baseline=baseline, min_games=min_games)
+                    if len(group) > 1 else [])
+        nodes.append({
+            "san": san,
+            "ply": ply,
+            "games": len(group),
+            "win": win, "draw": draw, "loss": loss,
+            "score_pct": score,
+            "underperforming": len(group) >= min_games and score < baseline,
+            "game_refs": [ref for _, ref in group],
+            # The games whose move sequence stops at this exact position —
+            # decided here, where each game's move list is at hand, so no
+            # consumer ever has to reconstruct it (or mis-key it by URL)
+            "ended_here": [ref for moves, ref in group if len(moves) == ply],
+            "moves": children,
+        })
+    # Most-played lines first; ties break alphabetically so output is stable
+    return sorted(nodes, key=lambda node: (-node["games"], node["san"]))
+
+
+def repertoire_tree(df: pd.DataFrame, color: str, *, min_games: int = 3) -> dict:
+    """
+    Daniel's personal opening explorer (issue #16): every Game as *color*,
+    arranged move by move into a tree.
+
+    Returns ``{"color", "games", "score_pct", "moves"}`` where ``moves`` is
+    the list of first-move nodes.  Each node:
+      san             : the move
+      ply             : 1-based half-move number
+      games           : how many Games continued this way
+      win/draw/loss, score_pct : how those Games went (Daniel's perspective)
+      underperforming : True when the branch scores below Daniel's overall
+                        average as this color across >= *min_games* games —
+                        "your anti-Sicilian is leaking points"
+      game_refs       : the Games that reached this position (ChapterURL,
+                        Opponent, Outcome, Date), for linking
+      ended_here      : the subset of game_refs whose move sequence stops at
+                        this exact position
+      moves           : the next moves, most-played first
+
+    The top level also carries ``min_games`` so UIs can explain the
+    flagging rule they're showing.
+    """
+    empty = {"color": color, "games": 0, "score_pct": 0.0,
+             "min_games": min_games, "moves": []}
+    if df.empty or "Moves" not in df.columns:
+        return empty
+
+    # NaN-proof: a merged/hand-built frame can hold NaN where the parser
+    # would put a list — that's "no moves", not a crash
+    has_moves = df["Moves"].map(lambda m: isinstance(m, list) and len(m) > 0)
+    games = df[
+        (df["Color"] == color)
+        & df["Outcome"].isin(["Win", "Draw", "Loss"])
+        & has_moves
+    ]
+    if games.empty:
+        return empty
+
+    game_list = [
+        (
+            moves,
+            # What a node needs to render a meaningful link to this Game
+            {"ChapterURL": url, "Opponent": opponent, "Outcome": outcome, "Date": date},
+        )
+        for moves, outcome, url, opponent, date in zip(
+            games["Moves"], games["Outcome"],
+            games.get("ChapterURL", pd.Series("", index=games.index)),
+            games.get("Opponent", pd.Series("", index=games.index)),
+            games.get("Date", pd.Series("", index=games.index)),
+        )
+    ]
+
+    total = len(games)
+    wins = int((games["Outcome"] == "Win").sum())
+    draws = int((games["Outcome"] == "Draw").sum())
+    baseline = _score_pct(wins, draws, total)
+    return {
+        "color": color,
+        "games": total,
+        "score_pct": baseline,
+        "min_games": min_games,
+        "moves": _move_nodes(game_list, ply=1, baseline=baseline, min_games=min_games),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Time control / fatigue / upset analytics (issue #17)
+# ---------------------------------------------------------------------------
+
+_TC_COLS = ["TimeControl", "Speed", "Minutes", "Games", "Win", "Draw", "Loss", "WinRate"]
+
+# TimeControl header parsing.  OTB headers are written by hand, so the formats
+# vary: "110+10" (minutes + increment seconds), "40/80, SD30; +30" (multi-stage
+# USCF), "60+5d" (delay), "G/30;d5" (game-in-N).
+_TC_STAGE_RE = re.compile(r"(\d+)\s*/\s*(\d+)")          # "40/80" → 80 min stage
+_TC_SD_RE = re.compile(r"SD\s*/?\s*(\d+)", re.IGNORECASE)  # "SD30" / "SD 30" / "SD/30"
+_TC_GAME_RE = re.compile(r"G\s*/\s*(\d+)", re.IGNORECASE)  # "G/30" → 30 min game
+_TC_BASE_RE = re.compile(r"^(\d+)")                       # "110+10" → 110 min base
+_TC_EXTRA_RE = re.compile(r"[+;d]\s*(\d+)\s*d?", re.IGNORECASE)  # "+30" / "d5" / "+5d" seconds
+
+
+def _time_control_minutes(tc: str) -> float | None:
+    """
+    Estimated total thinking time per player in minutes (None if unparseable).
+
+    Uses the standard convention that an increment/delay adds one minute of
+    total time per second (a game lasting ~60 moves).
+
+    Assumes hand-written OTB headers (minutes), not the PGN-standard
+    seconds format: this dashboard's Games are over-the-board (CONTEXT.md),
+    where "30+5" means 30 minutes.  An online blitz export ("180+2" meaning
+    seconds) would be misread as 182 minutes — out of scope by design.
+    """
+    s = str(tc or "").strip()
+    if not s:
+        return None
+
+    # Stage minutes ("40/80", "SD30", "G/30") are summed, then removed so the
+    # SD's "D" can't be mistaken for a delay marker below.
+    base = 0.0
+    base += sum(int(minutes) for _, minutes in _TC_STAGE_RE.findall(s))
+    base += sum(int(m) for m in _TC_SD_RE.findall(s))
+    base += sum(int(m) for m in _TC_GAME_RE.findall(s))
+    remainder = _TC_GAME_RE.sub("", _TC_SD_RE.sub("", _TC_STAGE_RE.sub("", s)))
+
+    if base == 0:
+        head = _TC_BASE_RE.match(remainder)
+        if not head:
+            return None
+        base = float(head.group(1))
+        # The PGN standard writes seconds ("5400+30"); hand-written OTB headers
+        # write minutes ("110+10").  No real game has a 300+ minute base.
+        if base > 300:
+            base /= 60.0
+        remainder = remainder[head.end():]
+
+    extras = _TC_EXTRA_RE.findall(remainder)
+    increment = float(extras[0]) if extras else 0.0
+    return base + increment
+
+
+def _speed_class(minutes: float | None) -> str:
+    """Classical / Rapid / Blitz / Unknown from estimated total minutes."""
+    # NaN-aware: pandas turns None into NaN inside the numeric Minutes column
+    if minutes is None or pd.isna(minutes):
+        return "Unknown"
+    if minutes >= 60:
+        return "Classical"
+    if minutes >= 10:
+        return "Rapid"
+    return "Blitz"
+
+
+def _wdl_pivot(d: pd.DataFrame, key) -> pd.DataFrame:
+    """
+    Group *d* by *key* (column name or Series) and pivot Outcome into
+    Win / Draw / Loss / Games / WinRate columns — the shape every
+    per-category summary in this module shares.
+    """
+    pivot = (
+        d.groupby(key)["Outcome"].value_counts()
+        .unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+    )
+    pivot["Games"] = pivot.sum(axis=1)
+    pivot["WinRate"] = (pivot["Win"] / pivot["Games"] * 100).round(1)
+    return pivot.reset_index()
+
+
+_ROUND_COLS = ["Round", "Games", "Win", "Draw", "Loss", "WinRate", "ScorePct", "Reliable"]
+
+
+def round_performance(df: pd.DataFrame, *, min_games: int = 3) -> pd.DataFrame:
+    """
+    W/D/L per round number (issue #17): does Daniel fade in late rounds?
+
+    One row per round number that has finished Games, sorted numerically
+    (round 10 after round 9, not after round 1).
+    Columns: Round, Games, Win, Draw, Loss, WinRate,
+    ScorePct ((W + D/2) / Games — fatigue shows up as draws too),
+    Reliable (Games >= *min_games* — rounds below the threshold can't support
+    a fatigue conclusion and should render dimmed).
+    """
+    if df.empty or "RoundNum" not in df.columns:
+        return pd.DataFrame(columns=_ROUND_COLS)
+
+    d = df[df["RoundNum"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
+    if d.empty:
+        return pd.DataFrame(columns=_ROUND_COLS)
+
+    out = _wdl_pivot(d, d["RoundNum"].astype(int)).rename(columns={"RoundNum": "Round"})
+    out["ScorePct"] = ((out["Win"] + 0.5 * out["Draw"]) / out["Games"] * 100).round(1)
+    out["Reliable"] = out["Games"] >= min_games
+    return out.sort_values("Round").reset_index(drop=True)[_ROUND_COLS]
+
+
+def time_control_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    W/D/L per time control (issue #17): does Daniel play better slow or fast?
+
+    One row per distinct TimeControl header value, slowest first.
+    Columns: TimeControl, Speed (Classical/Rapid/Blitz/Unknown),
+    Minutes (estimated total thinking time), Games, Win, Draw, Loss, WinRate.
+    """
+    if df.empty or "TimeControl" not in df.columns:
+        return pd.DataFrame(columns=_TC_COLS)
+
+    d = df[df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
+    if d.empty:
+        return pd.DataFrame(columns=_TC_COLS)
+
+    out = _wdl_pivot(d, "TimeControl")
+    out["Minutes"] = out["TimeControl"].map(_time_control_minutes)
+    out["Speed"] = out["Minutes"].map(_speed_class)
+    # Slowest first; unparseable time controls go last
+    out["_o"] = out["Minutes"].fillna(-1.0)
+    return out.sort_values("_o", ascending=False).drop(columns="_o").reset_index(drop=True)[_TC_COLS]
+
+
+# Columns each upset row carries (for tables that click through to the Game)
+_UPSET_ROW_COLS = ["Date", "Opponent", "OpponentRating", "PlayerRating",
+                   "Event", "Round", "ChapterURL"]
+
+
+def upset_tracker(df: pd.DataFrame) -> dict:
+    """
+    Giant kills and upset losses (issue #17).
+
+    Returns ``{"wins": [...], "losses": [...]}``:
+      wins   : Wins against higher-rated opponents, biggest rating margin first.
+      losses : Losses to lower-rated opponents, biggest rating margin first.
+
+    Each row carries Date, Opponent, both ratings, Margin (rating points),
+    Event, Round, and ChapterURL so tables can click through to the Game.
+    Games where either rating is unknown can't be ranked and are skipped.
+    """
+    empty: dict = {"wins": [], "losses": []}
+    if df.empty or "RatingDiff" not in df.columns:
+        return empty
+
+    rated = df[df["RatingDiff"].notna()]
+
+    def _rows(games: pd.DataFrame) -> list[dict]:
+        out = games[_UPSET_ROW_COLS].copy()
+        out["Margin"] = games["RatingDiff"].abs().astype(int)
+        return out.to_dict("records")
+
+    wins = rated[(rated["Outcome"] == "Win") & (rated["RatingDiff"] > 0)]
+    losses = rated[(rated["Outcome"] == "Loss") & (rated["RatingDiff"] < 0)]
+
+    return {
+        "wins": _rows(wins.sort_values("RatingDiff", ascending=False)),
+        "losses": _rows(losses.sort_values("RatingDiff", ascending=True)),
     }
 
 

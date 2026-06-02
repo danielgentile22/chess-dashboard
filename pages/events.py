@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import dash
 import plotly.express as px
-from dash import Input, Output, State, callback, dash_table, html
+from dash import Input, Output, callback, dash_table, html
 
 from components import (
     TABLE_CELL,
@@ -16,7 +16,7 @@ from components import (
     chart_card,
     content_card,
     page_header,
-    row_click_to_game,
+    register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import event_summary, performance_rating_stats
@@ -117,8 +117,9 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
     row = table_data[selected_rows[0]]
     event_name = row.get("Event", "")
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    # RoundNum, not Round: round 10 sorts after round 9, not after round 1
     ev_games = df_f[df_f["Event"] == event_name].sort_values(
-        ["Date", "Round"], na_position="last"
+        ["Date", "RoundNum"], na_position="last"
     )
     if ev_games.empty:
         return None
@@ -127,7 +128,9 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
     pr_str = f"  |  Performance rating: {pr['performance_rating']}" if pr["performance_rating"] else ""
 
     cols = [
-        {"name": "Round",       "id": "Round"},
+        # RoundNum (numeric), not the raw string: a user clicking the header
+        # to re-sort must get 1, 2, …, 10 — not the lexical 1, 10, 2
+        {"name": "Round",       "id": "RoundNum", "type": "numeric"},
         {"name": "Color",       "id": "Color"},
         {"name": "Opponent",    "id": "Opponent"},
         {"name": "Opp Rating",  "id": "OpponentRating"},
@@ -147,7 +150,7 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
             dash_table.DataTable(
                 id="event-games-table",
                 columns=cols,
-                data=ev_games[["Round", "Color", "Opponent", "OpponentRating",
+                data=ev_games[["RoundNum", "Color", "Opponent", "OpponentRating",
                                "Result", "Outcome", "Termination", "FullMoves",
                                "ChapterURL"]].to_dict("records"),
                 page_size=20, sort_action="native",
@@ -160,13 +163,6 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
     )
 
 
-@callback(
-    Output("url", "href", allow_duplicate=True),
-    Output("event-games-table", "active_cell"),
-    Input("event-games-table", "active_cell"),
-    State("event-games-table", "derived_viewport_data"),
-    prevent_initial_call=True,
-)
-def navigate_to_game_from_event(active_cell, viewport_rows):
-    """Clicking a Game in an event's detail panel opens its detail view."""
-    return row_click_to_game(active_cell, viewport_rows), None
+navigate_to_game_from_event = register_game_navigation(
+    "event-games-table",
+    "Clicking a Game in an event's detail panel opens its detail view.")

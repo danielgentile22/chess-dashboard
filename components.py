@@ -10,7 +10,7 @@ form indicators, celebration banners, and the dark DataTable styles.
 from __future__ import annotations
 
 import dash_bootstrap_components as dbc
-from dash import dcc, html, no_update
+from dash import Input, Output, State, callback, dcc, html, no_update
 
 from styles import COLORS
 
@@ -196,6 +196,29 @@ def row_click_to_game(active_cell, viewport_rows, ignore_columns=("Lichess",)):
         return no_update
     path = game_detail_path(viewport_rows[row].get("ChapterURL", ""))
     return path or no_update
+
+
+def register_game_navigation(table_id: str, doc: str = ""):
+    """
+    Register the click-a-row-to-open-the-game callback for one DataTable
+    (issue #11) and return the callback function.
+
+    Every table whose rows carry a ChapterURL gets the exact same behavior —
+    navigate to the Game's detail view and clear the selection so the same
+    row can be clicked again — so the wiring lives in exactly one place.
+    """
+    @callback(
+        Output("url", "href", allow_duplicate=True),
+        Output(table_id, "active_cell"),
+        Input(table_id, "active_cell"),
+        State(table_id, "derived_viewport_data"),
+        prevent_initial_call=True,
+    )
+    def navigate(active_cell, viewport_rows):
+        return row_click_to_game(active_cell, viewport_rows), None
+
+    navigate.__doc__ = doc or f"Clicking a row in {table_id} opens that Game's detail view."
+    return navigate
 
 
 def empty_state(glyph: str, title: str, *lines) -> html.Div:

@@ -32,12 +32,16 @@ from pgn_stats_core import (
     performance_rating_stats,
     player_rating_over_time,
     recurring_weaknesses,
+    repertoire_tree,
     review_queue,
+    round_performance,
     safe_int,
     scouting_report,
     streaks,
     tag_counts,
     termination_counts,
+    time_control_summary,
+    upset_tracker,
     win_draw_loss_counts,
     win_rate_over_time,
     winner_from_result,
@@ -141,6 +145,52 @@ class TestLoadGamesDf:
 
     def test_eco_present(self, df):
         assert df["ECO"].str.strip().ne("").all()
+
+    def test_round_num_is_numeric(self, df):
+        """RoundNum parses the Round header as a number, so round 10 sorts
+        after round 2 instead of between 1 and 2 (lexical-sort bug)."""
+        assert sorted(df["RoundNum"].dropna().unique()) == [1, 2, 3, 4]
+
+    def test_mainline_moves_extracted_as_san(self, df):
+        """Each Game stores its mainline move sequence (issue #16)."""
+        game1 = df[df["ChapterURL"].str.endswith("chap0001")].iloc[0]
+        assert game1["Moves"][:6] == ["d4", "Nf6", "c4", "e6", "g3", "d5"]
+        assert len(game1["Moves"]) == game1["Plies"]
+
+    def test_variations_are_excluded_from_moves(self, df):
+        """Game 4 has a (3... d5) variation — only the mainline is stored."""
+        game4 = df[df["ChapterURL"].str.endswith("chap0004")].iloc[0]
+        assert game4["Moves"] == ["d4", "Nf6", "c4", "g6", "Nc3", "Bg7", "e4", "d6"]
+
+    def test_game_with_no_moves_gets_empty_list(self):
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Other"]
+[Result "*"]
+
+*
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        assert games.iloc[0]["Moves"] == []
+        assert games.iloc[0]["Plies"] == 0
+
+    def test_unparseable_round_gives_no_round_num(self):
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[Round "?"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+
+1. e4 1-0
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        assert games["RoundNum"].isna().all()
 
 
 # ---------------------------------------------------------------------------
@@ -1067,8 +1117,398 @@ class TestPerformanceRatingStats:
 
 
 # ---------------------------------------------------------------------------
-# Milestones
+# Repertoire tree (issue #16)
 # ---------------------------------------------------------------------------
+
+class TestRepertoireTree:
+    """Daniel's personal opening explorer: what he plays, and what it scores."""
+
+    def test_first_moves_group_games_as_white(self, df):
+        # As White the fixture opens 1.d4 three times (W/D/L) and 1.e4 once (W)
+        tree = repertoire_tree(df, "White")
+        moves = {node["san"]: node for node in tree["moves"]}
+        assert moves["d4"]["games"] == 3
+        assert moves["e4"]["games"] == 1
+
+    def test_each_node_scores_from_daniels_perspective(self, df):
+        tree = repertoire_tree(df, "White")
+        moves = {node["san"]: node for node in tree["moves"]}
+        d4 = moves["d4"]   # games 1 (Win), 3 (Loss), 7 (Draw)
+        assert (d4["win"], d4["draw"], d4["loss"]) == (1, 1, 1)
+        assert d4["score_pct"] == 50.0
+        e4 = moves["e4"]   # game 5 (Win)
+        assert e4["score_pct"] == 100.0
+        # The baseline these are judged against: 2.5/4 as White
+        assert tree["score_pct"] == 62.5
+
+    def test_expanding_a_branch_drills_one_move_deeper(self, df):
+        tree = repertoire_tree(df, "White")
+        d4 = next(node for node in tree["moves"] if node["san"] == "d4")
+        # All three 1.d4 games continued 1...Nf6
+        assert [child["san"] for child in d4["moves"]] == ["Nf6"]
+        nf6 = d4["moves"][0]
+        assert nf6["games"] == 3
+        assert nf6["ply"] == 2
+        # Daniel then chose 2.c4 twice, 2.e4 once — most-played line first
+        assert [child["san"] for child in nf6["moves"]] == ["c4", "e4"]
+        c4 = nf6["moves"][0]
+        assert (c4["games"], c4["win"], c4["draw"], c4["loss"]) == (2, 1, 1, 0)
+
+    def test_underperforming_branches_are_flagged(self, df):
+        """1.d4 scores 50% against Daniel's 62.5% White average over 3 games →
+        that's the leak.  Thin branches stay unflagged no matter how bad:
+        one game proves nothing."""
+        tree = repertoire_tree(df, "White", min_games=3)
+        moves = {node["san"]: node for node in tree["moves"]}
+        assert moves["d4"]["underperforming"] is True
+        assert moves["e4"]["underperforming"] is False   # 100% — above average
+
+        # 2.e4 (game 3) was a loss — 0% — but it's a single game, so no flag
+        nf6 = moves["d4"]["moves"][0]
+        thin_loss = next(child for child in nf6["moves"] if child["san"] == "e4")
+        assert thin_loss["score_pct"] == 0.0
+        assert thin_loss["underperforming"] is False
+
+    def test_nodes_link_to_the_games_that_reached_them(self, df):
+        tree = repertoire_tree(df, "White")
+        d4 = next(node for node in tree["moves"] if node["san"] == "d4")
+        refs = d4["game_refs"]
+        assert len(refs) == 3
+        assert all(r["ChapterURL"].startswith("https://lichess.org/study/") for r in refs)
+        # Each ref says who/when/how, so the UI link means something
+        assert sorted(r["Outcome"] for r in refs) == ["Draw", "Loss", "Win"]
+        assert all(r["Opponent"] for r in refs)
+
+        # Deeper down, the single-game 2.e4 node points at exactly game 3
+        nf6 = d4["moves"][0]
+        thin_loss = next(child for child in nf6["moves"] if child["san"] == "e4")
+        assert [r["ChapterURL"][-8:] for r in thin_loss["game_refs"]] == ["chap0003"]
+
+    def test_black_tree_starts_with_the_opponents_move(self, df):
+        """As Black the tree branches on what opponents throw at Daniel:
+        1.e4 twice (he answers with the Caro-Kann), 1.d4 once."""
+        tree = repertoire_tree(df, "Black")
+        assert tree["games"] == 3
+        assert tree["score_pct"] == 83.3   # 2.5/3 as Black
+        moves = {node["san"]: node for node in tree["moves"]}
+        assert moves["e4"]["games"] == 2
+        assert moves["d4"]["games"] == 1
+        # Both 1.e4 games answered 1...c6
+        assert [child["san"] for child in moves["e4"]["moves"]] == ["c6"]
+
+    def test_a_game_can_end_mid_branch(self, df):
+        """Game 6 stops at move 3 while game 2 continues — the parent node
+        keeps both games, the deeper node only the one that kept going."""
+        tree = repertoire_tree(df, "Black")
+        e4 = next(node for node in tree["moves"] if node["san"] == "e4")
+        # Walk down the shared Caro-Kann line: c6, d4, d5, e5, Bf5
+        node = e4
+        for expected_san in ("c6", "d4", "d5", "e5", "Bf5"):
+            node = node["moves"][0]
+            assert node["san"] == expected_san
+            assert node["games"] == 2
+        # Past 3...Bf5 only game 2 continues (game 6 ended there)
+        assert len(node["moves"]) == 1
+        assert node["moves"][0]["san"] == "c3"
+        assert node["moves"][0]["games"] == 1
+
+    def test_nodes_separate_games_that_ended_from_games_that_continued(self, df):
+        """Each node says which of its games stopped right there (ended_here)
+        vs continued deeper — even when games have no ChapterURL to tell
+        them apart."""
+        tree = repertoire_tree(df, "Black")
+        # Walk to 3...Bf5: game 6 ended there, game 2 continued with 4.c3
+        node = next(n for n in tree["moves"] if n["san"] == "e4")
+        for san in ("c6", "d4", "d5", "e5", "Bf5"):
+            node = next(child for child in node["moves"] if child["san"] == san)
+        assert [r["ChapterURL"][-8:] for r in node["ended_here"]] == ["chap0006"]
+        assert [child["san"] for child in node["moves"]] == ["c3"]
+
+    def test_games_without_chapter_urls_are_never_conflated(self):
+        """Two URL-less games sharing a prefix: the one that ended mid-line
+        must still appear at its final position, not vanish."""
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Opponent X"]
+[Result "1-0"]
+
+1. d4 d5 2. c4 1-0
+
+[Event "T"]
+[Site "S"]
+[Date "2024.03.08"]
+[White "Me"]
+[Black "Opponent Y"]
+[Result "0-1"]
+
+1. d4 d5 0-1
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        tree = repertoire_tree(games, "White")
+        d5 = tree["moves"][0]["moves"][0]   # the shared 1...d5 node
+        assert d5["games"] == 2
+        # Game Y ended at 1...d5; game X continued with 2.c4
+        assert [r["Opponent"] for r in d5["ended_here"]] == ["Opponent Y"]
+        assert [child["san"] for child in d5["moves"]] == ["c4"]
+
+    def test_above_average_branch_with_enough_games_is_not_flagged(self):
+        """The flag needs BOTH conditions: enough games AND a below-average
+        score.  A 3-game branch scoring above the baseline stays unflagged."""
+        pgn = "\n".join(
+            f'[Event "T"]\n[Site "S"]\n[Date "2024.0{i}.01"]\n[White "Me"]\n'
+            f'[Black "Opp {i}"]\n[Result "{result}"]\n\n1. {move} e6 {result}\n'
+            for i, (move, result) in enumerate([
+                ("e4", "1-0"), ("e4", "1-0"), ("e4", "1-0"),   # 3 wins with e4
+                ("d4", "0-1"), ("d4", "0-1"), ("d4", "0-1"),   # 3 losses with d4
+            ], start=1)
+        )
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        tree = repertoire_tree(games, "White", min_games=3)
+        moves = {node["san"]: node for node in tree["moves"]}
+        assert tree["score_pct"] == 50.0
+        assert moves["e4"]["underperforming"] is False   # 100% over 3 games
+        assert moves["d4"]["underperforming"] is True    # 0% over 3 games
+
+    def test_color_without_games_gives_an_empty_tree(self, df):
+        tree = repertoire_tree(df[df["Color"] == "White"], "Black")
+        assert tree["games"] == 0
+        assert tree["moves"] == []
+
+    def test_a_nan_moves_cell_is_treated_as_no_moves(self, df):
+        """A hand-built or merged DataFrame can hold NaN where the parser
+        would put a list — that's 'no moves', not a crash."""
+        broken = df.copy()
+        broken.loc[broken.index[0], "Moves"] = float("nan")
+        tree = repertoire_tree(broken, "White")
+        assert tree["games"] == 3   # the NaN game is simply excluded
+
+    def test_min_games_threshold_is_part_of_the_tree(self, df):
+        """The UI explains the flagging rule, so the tree must say what
+        threshold it actually used."""
+        assert repertoire_tree(df, "White")["min_games"] == 3
+        assert repertoire_tree(df, "White", min_games=5)["min_games"] == 5
+
+    def test_empty_data(self):
+        tree = repertoire_tree(pd.DataFrame(), "White")
+        assert tree["games"] == 0
+        assert tree["moves"] == []
+
+def _pgn_with_headers(games: list[dict]) -> str:
+    """
+    Inline PGN built from per-game header dicts (player always 'Me', White
+    unless headers say otherwise).  Keys: result, timecontrol, round, event,
+    date, my_elo, opp_elo, opponent.
+    """
+    chunks = []
+    for i, g in enumerate(games, start=1):
+        result = g.get("result", "1-0")
+        chunks.append("\n".join(filter(None, [
+            f'[Event "{g.get("event", "Test Event")}"]',
+            '[Site "S"]',
+            f'[Date "{g.get("date", "2024.03.01")}"]',
+            f'[Round "{g.get("round", str(i))}"]',
+            '[White "Me"]',
+            f'[Black "{g.get("opponent", f"Opp {i}")}"]',
+            f'[WhiteElo "{g.get("my_elo", 1500)}"]',
+            f'[BlackElo "{g.get("opp_elo", 1500)}"]',
+            f'[Result "{result}"]',
+            f'[TimeControl "{g["timecontrol"]}"]' if g.get("timecontrol") else None,
+            f'[ChapterURL "https://lichess.org/study/x/ch{i:04d}"]',
+            "",
+            f"1. e4 e5 {result}",
+        ])))
+    return "\n\n".join(chunks) + "\n"
+
+
+class TestTimeControlSummary:
+    """Performance by time control (issue #17): does Daniel play better slow or fast?"""
+
+    def test_groups_results_by_time_control(self):
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"timecontrol": "110+10", "result": "1-0"},
+            {"timecontrol": "110+10", "result": "0-1"},
+            {"timecontrol": "110+10", "result": "1/2-1/2"},
+            {"timecontrol": "30+5", "result": "1-0"},
+        ]), player_name="Me")
+        tc = time_control_summary(games).set_index("TimeControl")
+        slow = tc.loc["110+10"]
+        assert (slow["Games"], slow["Win"], slow["Draw"], slow["Loss"]) == (3, 1, 1, 1)
+        fast = tc.loc["30+5"]
+        assert (fast["Games"], fast["Win"]) == (1, 1)
+
+    def test_time_controls_classified_by_speed(self):
+        """Real USCF header formats are read into a speed class: the multi-stage
+        '40/80, SD30; +30' is Classical, 'G/30;d5'-style action chess is Rapid."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"timecontrol": "40/80, SD30; +30"},   # 80+30 min + 30s inc
+            {"timecontrol": "110+10"},             # 110 min + 10s inc
+            {"timecontrol": "60+5d"},              # 60 min + 5s delay
+            {"timecontrol": "30+5"},               # 30 min + 5s inc
+            {"timecontrol": "G/5;d0"},             # 5 min blitz
+        ]), player_name="Me")
+        tc = time_control_summary(games).set_index("TimeControl")
+        assert tc.loc["40/80, SD30; +30", "Speed"] == "Classical"
+        assert tc.loc["110+10", "Speed"] == "Classical"
+        assert tc.loc["60+5d", "Speed"] == "Classical"
+        assert tc.loc["30+5", "Speed"] == "Rapid"
+        assert tc.loc["G/5;d0", "Speed"] == "Blitz"
+
+    def test_sorted_slowest_first(self):
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"timecontrol": "30+5"},
+            {"timecontrol": "40/80, SD30; +30"},
+            {"timecontrol": "110+10"},
+        ]), player_name="Me")
+        tc = time_control_summary(games)
+        assert list(tc["TimeControl"]) == ["40/80, SD30; +30", "110+10", "30+5"]
+
+    def test_sudden_death_written_with_a_slash_still_parses(self):
+        """USCF TLAs write sudden death both ways: 'SD30' and 'SD/30'."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"timecontrol": "40/100, SD/30"},   # slash form
+            {"timecontrol": "SD/90"},           # sudden death only
+        ]), player_name="Me")
+        tc = time_control_summary(games).set_index("TimeControl")
+        assert tc.loc["40/100, SD/30", "Speed"] == "Classical"   # 130 min
+        assert tc.loc["SD/90", "Speed"] == "Classical"           # 90 min
+
+    def test_games_without_a_time_control_header_sort_last_as_unknown(self):
+        """The fixture games (no TimeControl header) still count — grouped under
+        an empty label, classified Unknown, after every real time control."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"timecontrol": "30+5"},
+            {},                         # no TimeControl header at all
+        ]), player_name="Me")
+        tc = time_control_summary(games)
+        assert len(tc) == 2
+        assert list(tc["Speed"]) == ["Rapid", "Unknown"]
+        assert tc["Games"].sum() == 2
+
+    def test_empty_data(self):
+        tc = time_control_summary(pd.DataFrame())
+        assert tc.empty
+        assert "Speed" in tc.columns  # chart code can rely on the shape
+
+
+class TestRoundPerformance:
+    """Performance by round number (issue #17): late-round fatigue detection."""
+
+    def test_results_grouped_by_round_number(self, df):
+        # Fixture rounds: R1 = W+W, R2 = D+W, R3 = L+W, R4 = D
+        rounds = round_performance(df).set_index("Round")
+        r1 = rounds.loc[1]
+        assert (r1["Games"], r1["Win"], r1["Draw"], r1["Loss"]) == (2, 2, 0, 0)
+        r3 = rounds.loc[3]
+        assert (r3["Games"], r3["Win"], r3["Loss"]) == (2, 1, 1)
+        r4 = rounds.loc[4]
+        assert (r4["Games"], r4["Draw"]) == (1, 1)
+
+    def test_rounds_sort_numerically_not_lexically(self):
+        """Round 10 comes after round 2 — the pre-existing lexical-sort bug."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"round": "10"}, {"round": "1"}, {"round": "2"},
+        ]), player_name="Me")
+        rounds = round_performance(games)
+        assert list(rounds["Round"]) == [1, 2, 10]
+
+    def test_thin_rounds_are_marked_unreliable(self, df):
+        """One game in round 4 proves nothing — the chart needs to know which
+        rounds have enough data to support a conclusion."""
+        rounds = round_performance(df, min_games=2).set_index("Round")
+        assert bool(rounds.loc[1, "Reliable"]) is True   # 2 games
+        assert bool(rounds.loc[4, "Reliable"]) is False  # 1 game
+
+    def test_score_pct_counts_draws_as_half(self, df):
+        """Fatigue shows up as draws too, so the metric is score%, not just wins."""
+        rounds = round_performance(df).set_index("Round")
+        assert rounds.loc[1, "ScorePct"] == 100.0  # W + W
+        assert rounds.loc[2, "ScorePct"] == 75.0   # D + W
+        assert rounds.loc[3, "ScorePct"] == 50.0   # L + W
+        assert rounds.loc[4, "ScorePct"] == 50.0   # D
+
+    def test_games_without_a_round_are_excluded(self):
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"round": "?"}, {"round": "1"},
+        ]), player_name="Me")
+        rounds = round_performance(games)
+        assert list(rounds["Round"]) == [1]
+
+    def test_empty_data(self):
+        rounds = round_performance(pd.DataFrame())
+        assert rounds.empty
+        assert "Reliable" in rounds.columns
+
+
+class TestUpsetTracker:
+    """Giant kills and upset losses (issue #17), ranked by rating margin."""
+
+    def test_wins_against_higher_rated_opponents_are_upsets(self, df):
+        # Fixture upset wins: game 1 (1800 beats 1920) and game 4 (1810 beats 1930)
+        upsets = upset_tracker(df)
+        assert len(upsets["wins"]) == 2
+        for win in upsets["wins"]:
+            assert win["Opponent"] == "Opponent A"
+            assert win["Margin"] == 120
+
+    def test_losses_to_lower_rated_opponents_are_upsets(self):
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"result": "0-1", "my_elo": 1800, "opp_elo": 1650, "opponent": "Lucky"},
+            {"result": "0-1", "my_elo": 1800, "opp_elo": 1900, "opponent": "Stronger"},
+        ]), player_name="Me")
+        upsets = upset_tracker(games)
+        # Losing to a 1900 as an 1800 is expected — only the 1650 loss stings
+        assert [loss["Opponent"] for loss in upsets["losses"]] == ["Lucky"]
+        assert upsets["losses"][0]["Margin"] == 150
+
+    def test_expected_results_are_not_upsets(self, df):
+        """Beating lower-rated players and losing to higher-rated ones is normal;
+        draws never count."""
+        upsets = upset_tracker(df)
+        all_rows = upsets["wins"] + upsets["losses"]
+        # Fixture games 3 (loss to 2050), 5 (win vs 1600), 6 (win vs 1760),
+        # and both draws must be absent
+        opponents = {row["Opponent"] for row in all_rows}
+        assert opponents == {"Opponent A"}
+        assert len(all_rows) == 2
+
+    def test_ranked_by_rating_margin(self):
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"result": "1-0", "my_elo": 1500, "opp_elo": 1600, "opponent": "Small"},
+            {"result": "1-0", "my_elo": 1500, "opp_elo": 1900, "opponent": "Giant"},
+            {"result": "1-0", "my_elo": 1500, "opp_elo": 1700, "opponent": "Medium"},
+            {"result": "0-1", "my_elo": 1500, "opp_elo": 1400, "opponent": "Ouch"},
+            {"result": "0-1", "my_elo": 1500, "opp_elo": 1200, "opponent": "Disaster"},
+        ]), player_name="Me")
+        upsets = upset_tracker(games)
+        assert [w["Opponent"] for w in upsets["wins"]] == ["Giant", "Medium", "Small"]
+        assert [w["Margin"] for w in upsets["wins"]] == [400, 200, 100]
+        assert [loss["Opponent"] for loss in upsets["losses"]] == ["Disaster", "Ouch"]
+
+    def test_rows_link_to_their_games(self, df):
+        upsets = upset_tracker(df)
+        for row in upsets["wins"]:
+            assert row["ChapterURL"].startswith("https://lichess.org/study/")
+
+    def test_unrated_games_are_ignored(self):
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+
+1. e4 1-0
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        upsets = upset_tracker(games)
+        assert upsets == {"wins": [], "losses": []}
+
+    def test_empty_data(self):
+        assert upset_tracker(pd.DataFrame()) == {"wins": [], "losses": []}
 
 class TestComputeMilestones:
     def test_returns_list(self, df):
