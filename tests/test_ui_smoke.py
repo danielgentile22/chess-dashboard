@@ -282,6 +282,179 @@ class TestOverviewCallbacks:
 
 
 # ---------------------------------------------------------------------------
+# USCF profile card (issue #25) — the first USCF surface
+# ---------------------------------------------------------------------------
+
+class TestUscfProfileCard:
+    def test_overview_has_the_uscf_card_slot(self, ui_app, ui_data):
+        ids = _collect_ids(_render(_page("/")))
+        assert "uscf-profile-card" in ids
+
+    def test_card_shows_ratings_with_provisional_labels(self, ui_app, ui_data):
+        """All three ratings appear; provisional ones say so, with game counts."""
+        from pages.overview import update_uscf_card
+        rendered = str(update_uscf_card({"seq": 0}))
+
+        assert "1545" in rendered    # Regular (established)
+        assert "1092" in rendered    # Quick (provisional, 17 games)
+        assert "1336" in rendered    # Online-Regular (provisional, 11 games)
+        assert "17 games" in rendered
+        assert "11 games" in rendered
+
+    def test_card_shows_ranks_floor_and_membership(self, ui_app, ui_data):
+        from pages.overview import update_uscf_card
+        rendered = str(update_uscf_card({"seq": 0}))
+
+        assert "11,719" in rendered      # national rank
+        assert "356" in rendered         # VA state rank
+        assert "1300" in rendered        # Regular rating floor
+        assert "2028-07-31" in rendered  # membership expiration
+
+    def test_healthy_membership_shows_no_warning(self, ui_app, ui_data):
+        """Daniel renewed: 2028-07-31 is far away, so no warning on live-shaped data."""
+        from pages.overview import update_uscf_card
+        rendered = str(update_uscf_card({"seq": 0}))
+        assert "uscf-alert" not in rendered
+
+    def test_card_warns_when_membership_expires_soon(self, ui_app, sample_pgn_text):
+        """The 90-day warning, exercised with a fixture (issue #25 note)."""
+        import data
+        from pages.overview import update_uscf_card
+        from tests.conftest import _UI_USCF_PROFILE, stub_ui_sources
+
+        expiring = dict(_UI_USCF_PROFILE, expirationDate="2026-06-30")
+        data.reset()
+        with stub_ui_sources(sample_pgn_text, uscf_profile=expiring):
+            data.initialize(
+                ["teststudy"], player_name="Test Player", uscf_member_id="32487228"
+            )
+        try:
+            rendered = str(update_uscf_card({"seq": 0}))
+            assert "uscf-alert" in rendered
+            assert "2026-06-30" in rendered
+        finally:
+            data.reset()
+
+    def test_card_warns_when_membership_has_lapsed(self, ui_app, sample_pgn_text):
+        import data
+        from pages.overview import update_uscf_card
+        from tests.conftest import _UI_USCF_PROFILE, stub_ui_sources
+
+        lapsed = dict(_UI_USCF_PROFILE, expirationDate="2026-01-31")
+        data.reset()
+        with stub_ui_sources(sample_pgn_text, uscf_profile=lapsed):
+            data.initialize(
+                ["teststudy"], player_name="Test Player", uscf_member_id="32487228"
+            )
+        try:
+            rendered = str(update_uscf_card({"seq": 0}))
+            assert "uscf-alert" in rendered
+            assert "lapsed" in rendered.lower()
+        finally:
+            data.reset()
+
+    def test_card_shows_unavailable_state_when_uscf_is_down(
+        self, ui_app, sample_pgn_text
+    ):
+        """ADR 0003: USCF down → the card degrades visibly, everything else works."""
+        import data
+        from pages.overview import update_uscf_card
+        from tests.conftest import stub_ui_sources
+        from uscf_client import UscfUnreachableError
+
+        data.reset()
+        boom = UscfUnreachableError("Could not reach USCF")
+        with stub_ui_sources(sample_pgn_text, uscf_profile=boom):
+            data.initialize(
+                ["teststudy"], player_name="Test Player", uscf_member_id="32487228"
+            )
+        try:
+            rendered = str(update_uscf_card({"seq": 0}))
+            assert "unavailable" in rendered.lower()
+            # No stale numbers pretend to be current data
+            assert "1545" not in rendered
+        finally:
+            data.reset()
+
+    def test_card_shows_official_and_live_side_by_side(self, ui_app, ui_data):
+        """Issue #27's payoff: the ~26-point gap between the published Official
+        Rating and the Live Rating is visible at a glance, clearly labeled."""
+        from pages.overview import update_uscf_card
+        rendered = str(update_uscf_card({"seq": 0}))
+
+        assert "Official" in rendered
+        assert "1545" in rendered      # the June supplement's published integer
+        assert "Live" in rendered
+        assert "1570.7" in rendered    # the per-Section chain, decimals preserved
+
+    def test_card_without_live_series_shows_official_only(
+        self, ui_app, sample_pgn_text
+    ):
+        """A member with no rated Sections yet: the card still works, no Live value."""
+        import data
+        import sync
+        from pages.overview import update_uscf_card
+        from tests.conftest import _UI_USCF_PROFILE
+
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text), \
+             mock.patch.object(sync, "fetch_member_profile",
+                               return_value=_UI_USCF_PROFILE), \
+             mock.patch.object(sync, "fetch_rating_supplements", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_sections", return_value=[]):
+            data.initialize(
+                ["teststudy"], player_name="Test Player", uscf_member_id="32487228"
+            )
+        try:
+            rendered = str(update_uscf_card({"seq": 0}))
+            assert "1545" in rendered          # the Official value is still there
+            assert "Live" not in rendered      # no Live value to invent
+        finally:
+            data.reset()
+
+    def test_card_keeps_cached_data_with_staleness_warning(
+        self, ui_app, sample_pgn_text, tmp_path
+    ):
+        """USCF down but cached: the numbers stay, clearly marked stale (issue #26)."""
+        import data
+        from pages.overview import update_uscf_card
+        from tests.conftest import stub_ui_sources
+        from uscf_client import UscfUnreachableError
+
+        cache = str(tmp_path / "uscf_cache.json")
+        data.reset()
+        # A successful Sync populates the cache...
+        with stub_ui_sources(sample_pgn_text):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="32487228", uscf_cache_path=cache)
+        data.reset()
+        # ...then the app restarts while USCF is down
+        with stub_ui_sources(sample_pgn_text, uscf_profile=UscfUnreachableError("down")):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="32487228", uscf_cache_path=cache)
+        try:
+            rendered = str(update_uscf_card({"seq": 0}))
+            assert "1545" in rendered                       # cached ratings still shown
+            assert "unavailable since" in rendered.lower()  # but clearly marked stale
+        finally:
+            data.reset()
+
+    def test_no_card_when_uscf_is_not_configured(self, ui_app, sample_pgn_text):
+        """Without a member ID the Overview stays exactly as it was pre-USCF."""
+        import data
+        import sync
+        from pages.overview import update_uscf_card
+
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text):
+            data.initialize(["teststudy"], player_name="Test Player")
+        try:
+            assert update_uscf_card({"seq": 0}) is None
+        finally:
+            data.reset()
+
+
+# ---------------------------------------------------------------------------
 # Trends page callbacks (issue #9)
 # ---------------------------------------------------------------------------
 

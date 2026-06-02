@@ -14,6 +14,11 @@ def parse_study_ids(raw: str) -> list[str]:
     return [s.strip() for s in raw.split(",") if s.strip()]
 
 
+def parse_member_id(raw: str) -> str | None:
+    """Parse the USCF member ID setting ('' / whitespace → None: USCF disabled)."""
+    return raw.strip() or None
+
+
 class Config:
     # Lichess Study IDs forming the game archive (ADR 0001), comma-separated.
     # Required for gunicorn deployment; supplied via --study CLI flag(s) locally.
@@ -22,9 +27,17 @@ class Config:
     # Optional Lichess API token — only needed if a designated Study is private.
     LICHESS_API_TOKEN: str | None = os.environ.get("LICHESS_API_TOKEN", "").strip() or None
 
+    # USCF member ID whose record enriches the Games (ADR 0003).
+    # Optional: without it the dashboard runs Lichess-only, exactly as before.
+    USCF_MEMBER_ID: str | None = parse_member_id(os.environ.get("USCF_MEMBER_ID", ""))
+
     # Where the last successful Sync's PGN is cached for offline fallback.
     # Disposable, gitignored, never a source of truth (ADR 0001).
     CACHE_PATH: str = os.environ.get("CACHE_PATH", "games.pgn").strip()
+
+    # Where USCF responses are cached so USCF surfaces survive the API being
+    # down (ADR 0003). Disposable, gitignored, never a source of truth.
+    USCF_CACHE_PATH: str = os.environ.get("USCF_CACHE_PATH", "uscf_cache.json").strip()
 
     # Player name override. Empty string → auto-detect from the Games.
     PLAYER_NAME: str | None = os.environ.get("PLAYER_NAME", "").strip() or None
