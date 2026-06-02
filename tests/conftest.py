@@ -39,6 +39,11 @@ def no_network(monkeypatch):
 #   game 4: two Lessons (mixed-case prefixes), one inside a variation
 #   game 5: tags spread across comments, duplicated tag, [%clk] noise
 #   games 6-7: no comments
+#
+# Time control coverage (issue #17):
+#   games 1-3: classical USCF multi-stage control ("40/80, SD30; +30")
+#   games 4-6: rapid ("30+5")
+#   game 7:    no TimeControl header at all
 # ---------------------------------------------------------------------------
 
 SAMPLE_PGN = """\
@@ -50,6 +55,7 @@ SAMPLE_PGN = """\
 [Black "Opponent A"]
 [WhiteElo "1800"]
 [BlackElo "1920"]
+[TimeControl "40/80, SD30; +30"]
 [ECO "E04"]
 [Opening "Catalan Opening: Open Defense"]
 [Result "1-0"]
@@ -69,6 +75,7 @@ SAMPLE_PGN = """\
 [Black "Test Player"]
 [WhiteElo "1750"]
 [BlackElo "1800"]
+[TimeControl "40/80, SD30; +30"]
 [ECO "B12"]
 [Opening "Caro-Kann Defense"]
 [Result "1/2-1/2"]
@@ -87,6 +94,7 @@ SAMPLE_PGN = """\
 [Black "Opponent C"]
 [WhiteElo "1800"]
 [BlackElo "2050"]
+[TimeControl "40/80, SD30; +30"]
 [ECO "A45"]
 [Opening "Indian Game"]
 [Result "0-1"]
@@ -105,6 +113,7 @@ SAMPLE_PGN = """\
 [Black "Test Player"]
 [WhiteElo "1930"]
 [BlackElo "1810"]
+[TimeControl "30+5"]
 [ECO "E60"]
 [Opening "King's Indian Defense"]
 [Result "0-1"]
@@ -124,6 +133,7 @@ SAMPLE_PGN = """\
 [Black "Opponent D"]
 [WhiteElo "1810"]
 [BlackElo "1600"]
+[TimeControl "30+5"]
 [ECO "C50"]
 [Opening "Italian Game"]
 [Result "1-0"]
@@ -142,6 +152,7 @@ SAMPLE_PGN = """\
 [Black "Test Player"]
 [WhiteElo "1760"]
 [BlackElo "1810"]
+[TimeControl "30+5"]
 [ECO "B12"]
 [Opening "Caro-Kann Defense"]
 [Result "0-1"]

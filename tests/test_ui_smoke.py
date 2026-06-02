@@ -58,6 +58,11 @@ def _filter_args(**overrides):
             a["end"], a["events"], a["moves"], a["sync"])
 
 
+def _axis_vals(values) -> list:
+    """A Plotly trace axis (numpy array, tuple, or None) as a plain list."""
+    return [] if values is None else list(values)
+
+
 def _walk_components(component):
     """Yield every Dash component in a layout tree (depth-first)."""
     if component is None or isinstance(component, (str, int, float, bool)):
@@ -362,6 +367,97 @@ class TestTrendsCallbacks:
 
 
 # ---------------------------------------------------------------------------
+# Time control, fatigue, and upset analytics (issue #17)
+# ---------------------------------------------------------------------------
+
+class TestTimeControlFatigueUpsets:
+    """The Trends page's #17 sections: TC breakdown, round fatigue, upsets."""
+
+    def test_time_control_chart_shows_fixture_controls(self, ui_app, ui_data):
+        from pages.trends import update_time_control
+        fig = update_time_control(*_filter_args())
+        labels = {label for trace in fig.data for label in _axis_vals(trace.y)}
+        assert "40/80, SD30; +30" in labels   # classical: games 1-3
+        assert "30+5" in labels               # rapid: games 4-6
+
+    def test_game_without_a_header_gets_a_readable_label(self, ui_app, ui_data):
+        """Fixture game 7 has no TimeControl header — it can't show as ''."""
+        from pages.trends import update_time_control
+        fig = update_time_control(*_filter_args())
+        labels = {label for trace in fig.data for label in _axis_vals(trace.y)}
+        assert "" not in labels
+        assert len(labels) == 3   # classical, rapid, and the not-recorded bucket
+
+    def test_time_control_chart_respects_filters(self, ui_app, ui_data):
+        from pages.trends import update_time_control
+        january = _filter_args(start="2024-01-01", end="2024-02-01")
+        fig = update_time_control(*january)
+        labels = {label for trace in fig.data for label in _axis_vals(trace.y)}
+        assert any("40/80" in label for label in labels)
+        assert "30+5" not in labels
+
+    def test_round_chart_has_a_bar_per_round(self, ui_app, ui_data):
+        from pages.trends import update_round_performance
+        fig = update_round_performance(*_filter_args())
+        rounds = sorted(x for trace in fig.data for x in _axis_vals(trace.x))
+        assert rounds == [1, 2, 3, 4]
+
+    def test_round_chart_dims_thin_rounds(self, ui_app, ui_data):
+        """Rounds without enough games render dimmed, with hover text saying
+        the sample is too small to support a conclusion."""
+        import data
+        from pages.trends import _round_fig
+        from pgn_stats_core import round_performance
+        rounds = round_performance(data.get_df(), min_games=2)
+        fig = _round_fig(rounds)
+        reliable_trace, thin_trace = fig.data
+        assert sorted(reliable_trace.x) == [1, 2, 3]   # 2 games each
+        assert list(thin_trace.x) == [4]               # 1 game
+        assert "too few" in thin_trace.hovertemplate.lower()
+
+    def test_charts_survive_an_empty_filter(self, ui_app, ui_data):
+        from pages.trends import update_round_performance, update_time_control
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        update_time_control(*impossible)
+        update_round_performance(*impossible)
+
+    # -- Upset tracker -------------------------------------------------------
+
+    def test_giant_kills_table_lists_fixture_upsets(self, ui_app, ui_data):
+        from pages.trends import update_upsets
+        wins_data, _, losses_data, _ = update_upsets(*_filter_args())
+        # Fixture: beat Opponent A twice (1920 and 1930) while rated 1800/1810
+        assert len(wins_data) == 2
+        assert all(row["Opponent"] == "Opponent A" for row in wins_data)
+        assert all(row["Margin"] == "+120" for row in wins_data)
+        # Rows carry their Game's identity for click-through navigation
+        assert all(row["ChapterURL"] for row in wins_data)
+
+    def test_no_upset_losses_is_a_clean_sheet_not_a_blank(self, ui_app, ui_data):
+        """The fixture has no losses to lower-rated players — that's worth
+        saying, not hiding."""
+        from pages.trends import update_upsets
+        _, _, losses_data, losses_status = update_upsets(*_filter_args())
+        assert losses_data == []
+        assert "no upset losses" in str(losses_status).lower()
+
+    def test_upset_rows_click_through_to_games(self, ui_app, ui_data):
+        from pages.trends import navigate_to_game_from_upset_win
+        rows = [{"Opponent": "Opponent A",
+                 "ChapterURL": "https://lichess.org/study/teststudy/chap0001"}]
+        href, cleared = navigate_to_game_from_upset_win(
+            {"row": 0, "column_id": "Opponent"}, rows)
+        assert href == "/game/chap0001"
+        assert cleared is None
+
+    def test_upsets_respond_to_filters(self, ui_app, ui_data):
+        from pages.trends import update_upsets
+        wins_data, *_ = update_upsets(*_filter_args(colors=["Black"]))
+        # Only the game-4 upset (as Black) survives a Black-only filter
+        assert len(wins_data) == 1
+
+
+# ---------------------------------------------------------------------------
 # Openings page callbacks (issue #9)
 # ---------------------------------------------------------------------------
 
@@ -456,6 +552,31 @@ class TestEventsCallbacks:
         from pages.events import update_event_table, update_tournament_detail
         rows = update_event_table(*_filter_args())
         assert update_tournament_detail([], rows, *_filter_args()) is None
+
+    def test_event_games_sort_by_round_numerically(self, ui_app):
+        """Round 10 belongs after round 2, not between rounds 1 and 2 —
+        the lexical-sort bug fixed in issue #17."""
+        import data
+        import sync
+
+        pgn = "\n".join(
+            f'[Event "Blitz Championship"]\n[Site "S"]\n[Date "2024.05.01"]\n'
+            f'[Round "{rnd}"]\n[White "Me"]\n[Black "Opp {rnd}"]\n[Result "1-0"]\n'
+            f"\n1. e4 1-0\n"
+            for rnd in ("2", "10", "1")
+        )
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn):
+            data.initialize(["teststudy"], player_name="Me")
+        try:
+            from pages.events import update_event_table, update_tournament_detail
+            rows = update_event_table(*_filter_args())
+            detail = update_tournament_detail([0], rows, *_filter_args())
+            table = next(c for c in _walk_components(detail)
+                         if getattr(c, "id", "") == "event-games-table")
+            assert [r["Round"] for r in table.data] == ["1", "2", "10"]
+        finally:
+            data.reset()
 
 
 # ---------------------------------------------------------------------------
