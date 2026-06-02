@@ -158,10 +158,9 @@ def _uscf_freshness_label() -> str:
     """
     if not data.uscf_enabled():
         return ""
-    if data.uscf_from_cache():
-        synced = data.uscf_synced_at()
-        when = f"{synced:%Y-%m-%d %H:%M} UTC" if synced else "an earlier run"
-        return f"USCF unavailable since {when}"
+    stale = data.uscf_unavailable_since()
+    if stale:
+        return stale
     if data.get_uscf_profile() is None:
         return "USCF unavailable"
     return f"USCF {_freshness_label(data.uscf_synced_at())}"

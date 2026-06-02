@@ -320,18 +320,20 @@ _UI_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text()
 def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None):
     """
     Patch both clients at sync's module boundary for UI fixtures/tests:
-    Lichess returns *pgn_text*; USCF returns the real captured responses,
-    or raises *uscf_profile* if it's an Exception.
+    Lichess returns *pgn_text*; USCF returns the real captured responses.
+    Pass an Exception as *uscf_profile* to simulate USCF being down
+    (every endpoint raises it).
     """
     import sync
 
     if uscf_profile is None:
         uscf_profile = _UI_USCF_PROFILE
+    uscf_down = uscf_profile if isinstance(uscf_profile, Exception) else None
 
     def fake(value):
         def fetch(member_id, **kwargs):
-            if isinstance(uscf_profile, Exception):
-                raise uscf_profile  # USCF down: every endpoint is unreachable
+            if uscf_down is not None:
+                raise uscf_down
             return value
         return fetch
 

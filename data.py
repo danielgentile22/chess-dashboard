@@ -252,6 +252,20 @@ def uscf_from_cache() -> bool:
     return _uscf.from_cache
 
 
+def uscf_unavailable_since() -> str | None:
+    """
+    'USCF unavailable since <time>' when showing cached USCF data, else None.
+
+    The one place this wording lives — the header freshness label and the
+    profile card staleness notice both use it.
+    """
+    if not _uscf.from_cache:
+        return None
+    when = (f"{_uscf.synced_at:%Y-%m-%d %H:%M} UTC" if _uscf.synced_at
+            else "an earlier run")
+    return f"USCF unavailable since {when}"
+
+
 def uscf_enabled() -> bool:
     """True when a USCF member ID is configured for this run."""
     return _uscf_member_id is not None
