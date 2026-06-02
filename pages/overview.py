@@ -146,12 +146,9 @@ def update_uscf_card(_sync):
     if profile is None:
         return uscf_unavailable_card(data.uscf_failure())
 
-    stale = None
-    if data.uscf_from_cache():
-        synced = data.uscf_synced_at()
-        when = f"{synced:%Y-%m-%d %H:%M} UTC" if synced else "an earlier run"
-        stale = (f"USCF unavailable since {when} — showing the last successful "
-                 "Sync's data.")
+    stale = data.uscf_unavailable_since()
+    if stale:
+        stale += " — showing the last successful Sync's data."
 
     # The current Live Rating: where the per-Section chain stands today (issue #27)
     live_series = data.get_live_series()

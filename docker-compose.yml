@@ -6,6 +6,7 @@ services:
     environment:
       - LICHESS_STUDY_IDS=6jYtXHGp
       - PLAYER_NAME=
+      - USCF_MEMBER_ID=32487228
       - DEBUG=false
     restart: unless-stopped
     healthcheck:
