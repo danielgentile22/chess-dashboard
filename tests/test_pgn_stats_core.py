@@ -32,6 +32,7 @@ from pgn_stats_core import (
     performance_rating_stats,
     player_rating_over_time,
     recurring_weaknesses,
+    repertoire_tree,
     review_queue,
     round_performance,
     safe_int,
@@ -149,6 +150,32 @@ class TestLoadGamesDf:
         """RoundNum parses the Round header as a number, so round 10 sorts
         after round 2 instead of between 1 and 2 (lexical-sort bug)."""
         assert sorted(df["RoundNum"].dropna().unique()) == [1, 2, 3, 4]
+
+    def test_mainline_moves_extracted_as_san(self, df):
+        """Each Game stores its mainline move sequence (issue #16)."""
+        game1 = df[df["ChapterURL"].str.endswith("chap0001")].iloc[0]
+        assert game1["Moves"][:6] == ["d4", "Nf6", "c4", "e6", "g3", "d5"]
+        assert len(game1["Moves"]) == game1["Plies"]
+
+    def test_variations_are_excluded_from_moves(self, df):
+        """Game 4 has a (3... d5) variation — only the mainline is stored."""
+        game4 = df[df["ChapterURL"].str.endswith("chap0004")].iloc[0]
+        assert game4["Moves"] == ["d4", "Nf6", "c4", "g6", "Nc3", "Bg7", "e4", "d6"]
+
+    def test_game_with_no_moves_gets_empty_list(self):
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Other"]
+[Result "*"]
+
+*
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        assert games.iloc[0]["Moves"] == []
+        assert games.iloc[0]["Plies"] == 0
 
     def test_unparseable_round_gives_no_round_num(self):
         pgn = """\
@@ -1090,8 +1117,109 @@ class TestPerformanceRatingStats:
 
 
 # ---------------------------------------------------------------------------
-# Time control / fatigue / upset analytics (issue #17)
+# Repertoire tree (issue #16)
 # ---------------------------------------------------------------------------
+
+class TestRepertoireTree:
+    """Daniel's personal opening explorer: what he plays, and what it scores."""
+
+    def test_first_moves_group_games_as_white(self, df):
+        # As White the fixture opens 1.d4 three times (W/D/L) and 1.e4 once (W)
+        tree = repertoire_tree(df, "White")
+        moves = {node["san"]: node for node in tree["moves"]}
+        assert moves["d4"]["games"] == 3
+        assert moves["e4"]["games"] == 1
+
+    def test_each_node_scores_from_daniels_perspective(self, df):
+        tree = repertoire_tree(df, "White")
+        moves = {node["san"]: node for node in tree["moves"]}
+        d4 = moves["d4"]   # games 1 (Win), 3 (Loss), 7 (Draw)
+        assert (d4["win"], d4["draw"], d4["loss"]) == (1, 1, 1)
+        assert d4["score_pct"] == 50.0
+        e4 = moves["e4"]   # game 5 (Win)
+        assert e4["score_pct"] == 100.0
+        # The baseline these are judged against: 2.5/4 as White
+        assert tree["score_pct"] == 62.5
+
+    def test_expanding_a_branch_drills_one_move_deeper(self, df):
+        tree = repertoire_tree(df, "White")
+        d4 = next(node for node in tree["moves"] if node["san"] == "d4")
+        # All three 1.d4 games continued 1...Nf6
+        assert [child["san"] for child in d4["moves"]] == ["Nf6"]
+        nf6 = d4["moves"][0]
+        assert nf6["games"] == 3
+        assert nf6["ply"] == 2
+        # Daniel then chose 2.c4 twice, 2.e4 once — most-played line first
+        assert [child["san"] for child in nf6["moves"]] == ["c4", "e4"]
+        c4 = nf6["moves"][0]
+        assert (c4["games"], c4["win"], c4["draw"], c4["loss"]) == (2, 1, 1, 0)
+
+    def test_underperforming_branches_are_flagged(self, df):
+        """1.d4 scores 50% against Daniel's 62.5% White average over 3 games →
+        that's the leak.  Thin branches stay unflagged no matter how bad:
+        one game proves nothing."""
+        tree = repertoire_tree(df, "White", min_games=3)
+        moves = {node["san"]: node for node in tree["moves"]}
+        assert moves["d4"]["underperforming"] is True
+        assert moves["e4"]["underperforming"] is False   # 100% — above average
+
+        # 2.e4 (game 3) was a loss — 0% — but it's a single game, so no flag
+        nf6 = moves["d4"]["moves"][0]
+        thin_loss = next(child for child in nf6["moves"] if child["san"] == "e4")
+        assert thin_loss["score_pct"] == 0.0
+        assert thin_loss["underperforming"] is False
+
+    def test_nodes_link_to_the_games_that_reached_them(self, df):
+        tree = repertoire_tree(df, "White")
+        d4 = next(node for node in tree["moves"] if node["san"] == "d4")
+        refs = d4["game_refs"]
+        assert len(refs) == 3
+        assert all(r["ChapterURL"].startswith("https://lichess.org/study/") for r in refs)
+        # Each ref says who/when/how, so the UI link means something
+        assert sorted(r["Outcome"] for r in refs) == ["Draw", "Loss", "Win"]
+        assert all(r["Opponent"] for r in refs)
+
+        # Deeper down, the single-game 2.e4 node points at exactly game 3
+        nf6 = d4["moves"][0]
+        thin_loss = next(child for child in nf6["moves"] if child["san"] == "e4")
+        assert [r["ChapterURL"][-8:] for r in thin_loss["game_refs"]] == ["chap0003"]
+
+    def test_black_tree_starts_with_the_opponents_move(self, df):
+        """As Black the tree branches on what opponents throw at Daniel:
+        1.e4 twice (he answers with the Caro-Kann), 1.d4 once."""
+        tree = repertoire_tree(df, "Black")
+        assert tree["games"] == 3
+        assert tree["score_pct"] == 83.3   # 2.5/3 as Black
+        moves = {node["san"]: node for node in tree["moves"]}
+        assert moves["e4"]["games"] == 2
+        assert moves["d4"]["games"] == 1
+        # Both 1.e4 games answered 1...c6
+        assert [child["san"] for child in moves["e4"]["moves"]] == ["c6"]
+
+    def test_a_game_can_end_mid_branch(self, df):
+        """Game 6 stops at move 3 while game 2 continues — the parent node
+        keeps both games, the deeper node only the one that kept going."""
+        tree = repertoire_tree(df, "Black")
+        e4 = next(node for node in tree["moves"] if node["san"] == "e4")
+        # Walk down the shared Caro-Kann line: c6, d4, d5, e5, Bf5
+        node = e4
+        for expected_san in ("c6", "d4", "d5", "e5", "Bf5"):
+            node = node["moves"][0]
+            assert node["san"] == expected_san
+            assert node["games"] == 2
+        # Past 3...Bf5 only game 2 continues (game 6 ended there)
+        assert len(node["moves"]) == 1
+        assert node["moves"][0]["san"] == "c3"
+        assert node["moves"][0]["games"] == 1
+
+    def test_color_without_games_gives_an_empty_tree(self, df):
+        tree = repertoire_tree(df[df["Color"] == "White"], "Black")
+        assert tree == {"color": "Black", "games": 0, "score_pct": 0.0, "moves": []}
+
+    def test_empty_data(self):
+        tree = repertoire_tree(pd.DataFrame(), "White")
+        assert tree["games"] == 0
+        assert tree["moves"] == []
 
 def _pgn_with_headers(games: list[dict]) -> str:
     """

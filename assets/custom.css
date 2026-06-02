@@ -1339,6 +1339,163 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   background-color: rgba(88, 166, 255, .09) !important;
 }
 
+/* ── Repertoire tree (issue #16) ──────────────────────────────
+   The personal opening explorer: native <details> nodes, mono
+   move labels, proportional W/D/L bars, and loss-red flags on
+   branches that leak points.  Gold stays reserved for
+   achievements — a leak is a warning, so it reads red.        */
+
+.repertoire-color-toggle { margin-bottom: 16px; display: flex; gap: 10px; }
+.repertoire-color-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 16px;
+  border: 1px solid var(--cs-border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--cs-muted);
+  transition: all .15s ease;
+  user-select: none;
+}
+.repertoire-color-toggle label:hover { border-color: #444c56; color: var(--cs-text); }
+.repertoire-color-toggle label:has(input:checked) {
+  border-color: var(--cs-accent);
+  color: var(--cs-text);
+  background: rgba(210, 153, 34, .08);
+}
+.repertoire-color-toggle input { accent-color: var(--cs-accent); }
+
+.rep-baseline {
+  font-size: 12.5px;
+  color: var(--cs-muted);
+  font-family: var(--cs-font-mono);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--cs-border);
+  margin-bottom: 8px;
+}
+.rep-baseline-score { color: var(--cs-accent); }
+.rep-baseline-hint { color: var(--cs-dim); font-family: var(--cs-font-body); }
+
+/* Node rows: the <summary> of expandable branches and flat leaf rows */
+.rep-node-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  list-style: none;          /* no default disclosure triangle — we draw our own */
+}
+summary.rep-node-row::-webkit-details-marker { display: none; }
+summary.rep-node-row::before {
+  content: "▸";
+  color: var(--cs-dim);
+  font-size: 10px;
+  width: 12px;
+  flex-shrink: 0;
+  transition: transform .15s ease;
+}
+details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
+.rep-node-row:hover { background: var(--cs-hover); }
+
+.rep-node-move {
+  font-family: var(--cs-font-mono);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--cs-text);
+  min-width: 86px;
+}
+
+/* Leaf rows (single game): a dot instead of a disclosure arrow, no pointer */
+.rep-leaf .rep-node-row { cursor: default; }
+.rep-leaf .rep-node-row::before {
+  content: "·";
+  color: var(--cs-dim);
+  width: 12px;
+  flex-shrink: 0;
+}
+
+/* Proportional W/D/L mini-bar */
+.rep-bar {
+  display: inline-flex;
+  width: 120px;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--cs-card2);
+  flex-shrink: 0;
+}
+.rep-bar-seg.win  { background: var(--cs-win); }
+.rep-bar-seg.draw { background: var(--cs-draw); }
+.rep-bar-seg.loss { background: var(--cs-loss); }
+
+.rep-node-games {
+  font-family: var(--cs-font-mono);
+  font-size: 12px;
+  color: var(--cs-muted);
+  min-width: 20px;
+  text-align: right;
+}
+.rep-node-score {
+  font-family: var(--cs-font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  min-width: 44px;
+}
+.rep-node-score.win  { color: var(--cs-win); }
+.rep-node-score.loss { color: var(--cs-loss); }
+
+.rep-node-flag {
+  font-size: 11px;
+  color: var(--cs-loss);
+  background: var(--cs-loss-bg);
+  border: 1px solid rgba(248, 81, 73, .3);
+  padding: 2px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Children indent under a guide line */
+.rep-node-children {
+  margin-left: 15px;
+  padding-left: 14px;
+  border-left: 1px solid var(--cs-border);
+}
+
+/* Flagged branches carry a subtle red wash on their own row */
+.rep-flagged > .rep-node-row { background: var(--cs-loss-bg); }
+.rep-flagged > .rep-node-row:hover { background: rgba(248, 81, 73, .2); }
+
+/* Game links inside the tree */
+.rep-game-link {
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--cs-primary) !important;
+}
+.rep-game-link:hover { text-decoration: underline; }
+.rep-game-link.win  { color: var(--cs-win) !important; }
+.rep-game-link.loss { color: var(--cs-loss) !important; }
+.rep-game-link.draw { color: var(--cs-muted) !important; }
+
+.rep-ended-row { cursor: default; }
+.rep-ended-row:hover { background: none; }
+.rep-ended-label {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--cs-dim);
+}
+
+/* ── Upset tracker (issue #17) ────────────────────────────── */
+.upset-empty-line {
+  color: var(--cs-dim);
+  font-size: 12.5px;
+  padding: 6px 0 12px;
+}
+
 /* ── Phone (the chess-club view) ─────────────────────────── */
 @media (max-width: 768px) {
   .app-header-top { padding: 0 14px; height: var(--cs-header-h); gap: 10px; }
@@ -1413,4 +1570,12 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   .filter-section-date,
   .filter-section-moves { grid-column: 1 / -1; }
   .filter-section { margin-bottom: 16px; }
+
+  /* Repertoire tree thumbs-on-phone: tighter rows, shorter bars,
+     shallower indents so deep lines stay on screen (issue #16) */
+  .rep-node-move { min-width: 72px; font-size: 12.5px; }
+  .rep-bar { width: 56px; }
+  .rep-node-children { margin-left: 6px; padding-left: 8px; }
+  .rep-node-flag { font-size: 10px; padding: 2px 7px; }
+  .rep-node-row { gap: 6px 8px; padding: 7px 6px; }
 }
