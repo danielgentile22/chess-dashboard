@@ -73,6 +73,9 @@ __all__ = [
     "tag_counts",
     "recurring_weaknesses",
     "review_queue",
+    "round_performance",
+    "time_control_summary",
+    "upset_tracker",
     "win_rate_over_time",
     "player_rating_over_time",
     "opponent_summary",
@@ -311,7 +314,9 @@ def load_games_from_text(
 
             rows.append({
                 "Index": idx, "Date": date, "Time": time_tag,
-                "Event": event, "Site": site, "Round": round_tag, "Board": board_tag,
+                "Event": event, "Site": site, "Round": round_tag,
+                # Numeric round so round 10 sorts after round 2, not after round 1
+                "RoundNum": safe_int(round_tag), "Board": board_tag,
                 "ECO": eco, "Opening": opening, "TimeControl": timecontrol,
                 "White": white, "WhiteRating": white_rating,
                 "WhiteRatingNum": safe_int(white_rating), "WhiteID": white_id,
@@ -1062,6 +1067,170 @@ def performance_rating_stats(df: pd.DataFrame) -> dict:
         "score": score,
         "score_pct": round(score_pct * 100, 1),
         "rated_games": total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Time control / fatigue / upset analytics (issue #17)
+# ---------------------------------------------------------------------------
+
+_TC_COLS = ["TimeControl", "Speed", "Minutes", "Games", "Win", "Draw", "Loss", "WinRate"]
+
+# TimeControl header parsing.  OTB headers are written by hand, so the formats
+# vary: "110+10" (minutes + increment seconds), "40/80, SD30; +30" (multi-stage
+# USCF), "60+5d" (delay), "G/30;d5" (game-in-N).
+_TC_STAGE_RE = re.compile(r"(\d+)\s*/\s*(\d+)")          # "40/80" → 80 min stage
+_TC_SD_RE = re.compile(r"SD\s*(\d+)", re.IGNORECASE)     # "SD30" → 30 min sudden death
+_TC_GAME_RE = re.compile(r"G\s*/\s*(\d+)", re.IGNORECASE)  # "G/30" → 30 min game
+_TC_BASE_RE = re.compile(r"^(\d+)")                       # "110+10" → 110 min base
+_TC_EXTRA_RE = re.compile(r"[+;d]\s*(\d+)\s*d?", re.IGNORECASE)  # "+30" / "d5" / "+5d" seconds
+
+
+def _time_control_minutes(tc: str) -> float | None:
+    """
+    Estimated total thinking time per player in minutes (None if unparseable).
+
+    Uses the standard convention that an increment/delay adds one minute of
+    total time per second (a game lasting ~60 moves).
+    """
+    s = str(tc or "").strip()
+    if not s:
+        return None
+
+    # Stage minutes ("40/80", "SD30", "G/30") are summed, then removed so the
+    # SD's "D" can't be mistaken for a delay marker below.
+    base = 0.0
+    base += sum(int(minutes) for _, minutes in _TC_STAGE_RE.findall(s))
+    base += sum(int(m) for m in _TC_SD_RE.findall(s))
+    base += sum(int(m) for m in _TC_GAME_RE.findall(s))
+    remainder = _TC_GAME_RE.sub("", _TC_SD_RE.sub("", _TC_STAGE_RE.sub("", s)))
+
+    if base == 0:
+        head = _TC_BASE_RE.match(remainder)
+        if not head:
+            return None
+        base = float(head.group(1))
+        # The PGN standard writes seconds ("5400+30"); hand-written OTB headers
+        # write minutes ("110+10").  No real game has a 300+ minute base.
+        if base > 300:
+            base /= 60.0
+        remainder = remainder[head.end():]
+
+    extras = _TC_EXTRA_RE.findall(remainder)
+    increment = float(extras[0]) if extras else 0.0
+    return base + increment
+
+
+def _speed_class(minutes: float | None) -> str:
+    """Classical / Rapid / Blitz / Unknown from estimated total minutes."""
+    # NaN-aware: pandas turns None into NaN inside the numeric Minutes column
+    if minutes is None or pd.isna(minutes):
+        return "Unknown"
+    if minutes >= 60:
+        return "Classical"
+    if minutes >= 10:
+        return "Rapid"
+    return "Blitz"
+
+
+_ROUND_COLS = ["Round", "Games", "Win", "Draw", "Loss", "WinRate", "ScorePct", "Reliable"]
+
+
+def round_performance(df: pd.DataFrame, *, min_games: int = 3) -> pd.DataFrame:
+    """
+    W/D/L per round number (issue #17): does Daniel fade in late rounds?
+
+    One row per round number that has finished Games, sorted numerically
+    (round 10 after round 9, not after round 1).
+    Columns: Round, Games, Win, Draw, Loss, WinRate,
+    ScorePct ((W + D/2) / Games — fatigue shows up as draws too),
+    Reliable (Games >= *min_games* — rounds below the threshold can't support
+    a fatigue conclusion and should render dimmed).
+    """
+    if df.empty or "RoundNum" not in df.columns:
+        return pd.DataFrame(columns=_ROUND_COLS)
+
+    d = df[df["RoundNum"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
+    if d.empty:
+        return pd.DataFrame(columns=_ROUND_COLS)
+
+    pivot = (
+        d.groupby(d["RoundNum"].astype(int))["Outcome"].value_counts()
+        .unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+    )
+    pivot["Games"] = pivot.sum(axis=1)
+    pivot["WinRate"] = (pivot["Win"] / pivot["Games"] * 100).round(1)
+    pivot["ScorePct"] = ((pivot["Win"] + 0.5 * pivot["Draw"]) / pivot["Games"] * 100).round(1)
+    pivot["Reliable"] = pivot["Games"] >= min_games
+    out = pivot.reset_index().rename(columns={"RoundNum": "Round"})
+    return out.sort_values("Round").reset_index(drop=True)[_ROUND_COLS]
+
+
+def time_control_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    W/D/L per time control (issue #17): does Daniel play better slow or fast?
+
+    One row per distinct TimeControl header value, slowest first.
+    Columns: TimeControl, Speed (Classical/Rapid/Blitz/Unknown),
+    Minutes (estimated total thinking time), Games, Win, Draw, Loss, WinRate.
+    """
+    if df.empty or "TimeControl" not in df.columns:
+        return pd.DataFrame(columns=_TC_COLS)
+
+    d = df[df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
+    if d.empty:
+        return pd.DataFrame(columns=_TC_COLS)
+
+    pivot = (
+        d.groupby(["TimeControl", "Outcome"]).size()
+        .unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+    )
+    pivot["Games"] = pivot.sum(axis=1)
+    pivot["WinRate"] = (pivot["Win"] / pivot["Games"] * 100).round(1)
+    out = pivot.reset_index()
+    out["Minutes"] = out["TimeControl"].map(_time_control_minutes)
+    out["Speed"] = out["Minutes"].map(_speed_class)
+    # Slowest first; unparseable time controls go last
+    out["_o"] = out["Minutes"].fillna(-1.0)
+    return out.sort_values("_o", ascending=False).drop(columns="_o").reset_index(drop=True)[_TC_COLS]
+
+
+# Columns each upset row carries (for tables that click through to the Game)
+_UPSET_ROW_COLS = ["Date", "Opponent", "OpponentRating", "PlayerRating",
+                   "Event", "Round", "ChapterURL"]
+
+
+def upset_tracker(df: pd.DataFrame) -> dict:
+    """
+    Giant kills and upset losses (issue #17).
+
+    Returns ``{"wins": [...], "losses": [...]}``:
+      wins   : Wins against higher-rated opponents, biggest rating margin first.
+      losses : Losses to lower-rated opponents, biggest rating margin first.
+
+    Each row carries Date, Opponent, both ratings, Margin (rating points),
+    Event, Round, and ChapterURL so tables can click through to the Game.
+    Games where either rating is unknown can't be ranked and are skipped.
+    """
+    empty: dict = {"wins": [], "losses": []}
+    if df.empty or "RatingDiff" not in df.columns:
+        return empty
+
+    rated = df[df["RatingDiff"].notna()]
+
+    def _rows(games: pd.DataFrame) -> list[dict]:
+        out = games[_UPSET_ROW_COLS].copy()
+        out["Margin"] = games["RatingDiff"].abs().astype(int)
+        return out.to_dict("records")
+
+    wins = rated[(rated["Outcome"] == "Win") & (rated["RatingDiff"] > 0)]
+    losses = rated[(rated["Outcome"] == "Loss") & (rated["RatingDiff"] < 0)]
+
+    return {
+        "wins": _rows(wins.sort_values("RatingDiff", ascending=False)),
+        "losses": _rows(losses.sort_values("RatingDiff", ascending=True)),
     }
 
 

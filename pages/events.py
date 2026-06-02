@@ -117,8 +117,9 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
     row = table_data[selected_rows[0]]
     event_name = row.get("Event", "")
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    # RoundNum, not Round: round 10 sorts after round 9, not after round 1
     ev_games = df_f[df_f["Event"] == event_name].sort_values(
-        ["Date", "Round"], na_position="last"
+        ["Date", "RoundNum"], na_position="last"
     )
     if ev_games.empty:
         return None

@@ -7,6 +7,10 @@ Per the PRD layout decision, Game Length and Activity content folds in here
 alongside the timeline charts.  The activity heatmap calendar (issue #14)
 leads the page: one GitHub-contribution-style calendar per year, cells
 colored by that day's results.
+
+Issue #17 adds the conditions analytics: score by time control, score by
+round number (the fatigue check), and the upset tracker — giant kills and
+upset losses ranked by rating margin, each clickable into its Game.
 """
 from __future__ import annotations
 
@@ -15,15 +19,26 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Output, callback, dcc, html
+from dash import Input, Output, State, callback, dash_table, dcc, html
 
-from components import chart_card, content_card, empty_state, page_header
+from components import (
+    TABLE_CELL,
+    TABLE_HEADER,
+    chart_card,
+    content_card,
+    empty_state,
+    page_header,
+    row_click_to_game,
+)
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import (
     activity_data,
     daily_activity,
     game_length_data,
     player_rating_over_time,
+    round_performance,
+    time_control_summary,
+    upset_tracker,
     win_rate_over_time,
 )
 from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
@@ -36,6 +51,33 @@ dash.register_page(
 # ---------------------------------------------------------------------------
 # Layout
 # ---------------------------------------------------------------------------
+
+# Columns shown in both upset tables (Margin is pre-formatted with its sign)
+_UPSET_TABLE_COLS = [
+    {"name": "Date",     "id": "Date"},
+    {"name": "Opponent", "id": "Opponent"},
+    {"name": "Them",     "id": "OpponentRating"},
+    {"name": "Me",       "id": "PlayerRating"},
+    {"name": "Margin",   "id": "Margin"},
+    {"name": "Event",    "id": "Event"},
+]
+
+
+def _upset_table(table_id: str) -> dash_table.DataTable:
+    """One of the two upset tables — rows click through to the Game (issue #11)."""
+    return dash_table.DataTable(
+        id=table_id,
+        columns=_UPSET_TABLE_COLS,
+        data=[],
+        page_size=8,
+        style_table={"overflowX": "auto"},
+        style_cell={**TABLE_CELL, "fontSize": "11px", "padding": "5px 8px"},
+        style_header=TABLE_HEADER,
+        style_data_conditional=[
+            {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]}
+        ],
+    )
+
 
 def layout(**kwargs) -> html.Div:
     return html.Div(className="page", children=[
@@ -55,6 +97,30 @@ def layout(**kwargs) -> html.Div:
         html.Div(className="g2", children=[
             chart_card("Move count distribution by outcome", "length-hist"),
             content_card("Average game length", html.Div(id="length-stats")),
+        ]),
+
+        # Playing conditions (issue #17): time control + round fatigue
+        html.Div(className="g2", children=[
+            chart_card("Results by time control", "tc-bar"),
+            chart_card("Score by round — the fatigue check", "round-bar"),
+        ]),
+
+        # Upset tracker (issue #17): giant kills and upset losses
+        html.Div(className="g2", children=[
+            content_card(
+                "Giant kills — wins over higher-rated opponents",
+                html.Div(id="upset-wins-status"),
+                html.Div(className="clickable-rows", children=[
+                    _upset_table("upset-wins-table"),
+                ]),
+            ),
+            content_card(
+                "Upset losses — losses to lower-rated opponents",
+                html.Div(id="upset-losses-status"),
+                html.Div(className="clickable-rows", children=[
+                    _upset_table("upset-losses-table"),
+                ]),
+            ),
         ]),
     ])
 
@@ -294,6 +360,169 @@ def update_length_hist(colors, outcomes, terminations, start, end, events, moves
     )
     apply_dark_theme(fig, xaxis_title="Moves", yaxis_title="Games", legend_title="Outcome")
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Time control, fatigue, and upsets (issue #17)
+# ---------------------------------------------------------------------------
+
+# Label for Games whose PGN has no TimeControl header
+_NO_TC_LABEL = "(not recorded)"
+
+
+@callback(Output("tc-bar", "figure"), FILTER_INPUTS)
+def update_time_control(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+    """Stacked W/D/L per time control, slowest first, speed class in the hover."""
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    tc = time_control_summary(df_f)
+    if tc.empty:
+        return empty_fig("No finished games in this filter")
+
+    tc = tc.copy()
+    tc["TimeControl"] = tc["TimeControl"].replace("", _NO_TC_LABEL)
+    tc["Speed"] = tc["Speed"].where(tc["TimeControl"] != _NO_TC_LABEL, "—")
+
+    fig = go.Figure()
+    for outcome in ("Win", "Draw", "Loss"):
+        fig.add_trace(go.Bar(
+            y=tc["TimeControl"], x=tc[outcome],
+            name=outcome, orientation="h",
+            marker_color=WDL_COLOR_MAP[outcome],
+            customdata=tc[["Speed", "Games", "WinRate"]].values,
+            hovertemplate=(
+                "<b>%{y}</b> · %{customdata[0]}<br>"
+                + outcome + ": %{x} of %{customdata[1]} games"
+                + "<br>Win rate: %{customdata[2]:.0f}%<extra></extra>"
+            ),
+        ))
+    fig.update_layout(barmode="stack")
+    apply_dark_theme(fig, xaxis_title="Games", legend_title="Outcome")
+    # Slowest control on top (the summary is already sorted slowest-first)
+    fig.update_yaxes(autorange="reversed")
+    return fig
+
+
+def _round_fig(rounds: pd.DataFrame) -> go.Figure:
+    """
+    Score% per round: solid bars where there's enough data to mean something,
+    dimmed bars (with an honest hover) where there isn't.
+    """
+    reliable = rounds[rounds["Reliable"]]
+    thin = rounds[~rounds["Reliable"]]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=reliable["Round"], y=reliable["ScorePct"],
+        marker=dict(
+            color=reliable["ScorePct"],
+            colorscale=[[0, COLORS["loss"]], [0.5, COLORS["muted"]], [1, COLORS["win"]]],
+            cmin=0, cmax=100,
+        ),
+        customdata=reliable[["Games", "Win", "Draw", "Loss"]].values,
+        hovertemplate=(
+            "<b>Round %{x}</b><br>Score: %{y:.0f}%<br>"
+            "%{customdata[1]}W %{customdata[2]}D %{customdata[3]}L"
+            " (%{customdata[0]} games)<extra></extra>"
+        ),
+        name="",
+    ))
+    fig.add_trace(go.Bar(
+        x=thin["Round"], y=thin["ScorePct"],
+        marker_color=COLORS["border"],
+        customdata=thin[["Games", "Win", "Draw", "Loss"]].values,
+        hovertemplate=(
+            "<b>Round %{x}</b><br>Score: %{y:.0f}%<br>"
+            "Only %{customdata[0]} game(s) — too few to conclude<extra></extra>"
+        ),
+        name="",
+    ))
+    fig.add_hline(
+        y=50, line_dash="dash",
+        line_color=COLORS["muted"], line_width=1,
+        annotation_text="50%", annotation_position="right",
+        annotation_font=dict(color=COLORS["muted"], size=10),
+    )
+    apply_dark_theme(fig, xaxis_title="Round", yaxis_title="Score %", show_legend=False)
+    fig.update_xaxes(dtick=1)
+    fig.update_yaxes(range=[0, 105])
+    return fig
+
+
+@callback(Output("round-bar", "figure"), FILTER_INPUTS)
+def update_round_performance(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+    """Score by round number — late-round fatigue shows up as a downhill slope."""
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    rounds = round_performance(df_f)
+    if rounds.empty:
+        return empty_fig("No games with round numbers in this filter")
+    return _round_fig(rounds)
+
+
+def _upset_rows(upsets: list[dict], sign: str) -> list[dict]:
+    """Upset tracker rows → table rows with a signed, readable margin."""
+    return [
+        {**row, "Margin": f"{sign}{row['Margin']}"}
+        for row in upsets
+    ]
+
+
+@callback(
+    Output("upset-wins-table", "data"),
+    Output("upset-wins-status", "children"),
+    Output("upset-losses-table", "data"),
+    Output("upset-losses-status", "children"),
+    FILTER_INPUTS,
+)
+def update_upsets(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+    """Both upset tables + the lines that explain them when they're empty."""
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    upsets = upset_tracker(df_f)
+
+    wins_status = None
+    if not upsets["wins"]:
+        wins_status = html.Div(
+            "No giant kills in this filter yet — beat someone rated above you "
+            "and they show up here.",
+            className="upset-empty-line",
+        )
+
+    losses_status = None
+    if not upsets["losses"]:
+        losses_status = html.Div(
+            "No upset losses — you hold serve against lower-rated opponents.",
+            className="upset-empty-line",
+        )
+
+    return (
+        _upset_rows(upsets["wins"], "+"),
+        wins_status,
+        _upset_rows(upsets["losses"], "−"),
+        losses_status,
+    )
+
+
+@callback(
+    Output("url", "href", allow_duplicate=True),
+    Output("upset-wins-table", "active_cell"),
+    Input("upset-wins-table", "active_cell"),
+    State("upset-wins-table", "derived_viewport_data"),
+    prevent_initial_call=True,
+)
+def navigate_to_game_from_upset_win(active_cell, viewport_rows):
+    """Clicking a giant kill opens that Game's detail view."""
+    return row_click_to_game(active_cell, viewport_rows), None
+
+
+@callback(
+    Output("url", "href", allow_duplicate=True),
+    Output("upset-losses-table", "active_cell"),
+    Input("upset-losses-table", "active_cell"),
+    State("upset-losses-table", "derived_viewport_data"),
+    prevent_initial_call=True,
+)
+def navigate_to_game_from_upset_loss(active_cell, viewport_rows):
+    """Clicking an upset loss opens that Game's detail view."""
+    return row_click_to_game(active_cell, viewport_rows), None
 
 
 @callback(Output("length-stats", "children"), FILTER_INPUTS)
