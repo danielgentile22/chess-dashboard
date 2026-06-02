@@ -1517,7 +1517,7 @@ def _trace(fig, name: str):
 
 
 class TestDualLineRatingTrend:
-    def test_the_chart_draws_both_series(self, ui_app, ui_data):
+    def test_the_chart_draws_both_series(self, ui_app, real_career_ui):
         """The Official step line (published integers) and the Live line
         (per-Rated-Event decimals) — Daniel's whole real career."""
         from pages.trends import update_rating
@@ -1538,7 +1538,7 @@ class TestDualLineRatingTrend:
         assert live.y[-1] == 1570.72
 
     def test_the_active_lens_is_emphasized_without_hiding_the_other(
-        self, ui_app, ui_data
+        self, ui_app, real_career_ui
     ):
         """Toggling the lens changes emphasis only — both lines render under
         either lens; the active one is full strength, the other recedes."""
@@ -1554,7 +1554,7 @@ class TestDualLineRatingTrend:
         assert (_trace(live_fig, "Live").opacity
                 > _trace(live_fig, "Official").opacity)
 
-    def test_the_date_filter_trims_both_lines(self, ui_app, ui_data):
+    def test_the_date_filter_trims_both_lines(self, ui_app, real_career_ui):
         """The chart respects the global date filter: Q1 2026 keeps three
         supplements and seven Rated-Event points."""
         from pages.trends import update_rating
@@ -1563,7 +1563,7 @@ class TestDualLineRatingTrend:
         assert list(_trace(fig, "Official").y) == [1386, 1419, 1506]
         assert len(_trace(fig, "Live").y) == 7
 
-    def test_event_names_render_verbatim_typos_included(self, ui_app, ui_data):
+    def test_event_names_render_verbatim_typos_included(self, ui_app, real_career_ui):
         """USCF's own typo'd event name ('ACC Aprril 2026') displays as-is —
         the dashboard never 'fixes' official records."""
         from pages.trends import update_rating
@@ -1598,11 +1598,127 @@ class TestDualLineRatingTrend:
         finally:
             data.reset()
 
-    def test_an_empty_date_range_says_so(self, ui_app, ui_data):
+    def test_an_empty_date_range_says_so(self, ui_app, real_career_ui):
         """A range with no rating points yields an honest empty chart, not a crash."""
         from pages.trends import update_rating
         fig = update_rating(*_filter_args(start="2030-01-01", end="2030-12-31"))
         assert not fig.data
+
+
+# ---------------------------------------------------------------------------
+# The rating lens across all rating-derived stats (issue #32)
+#
+# Tested against Daniel's real fixture pair (the real_career_ui conftest
+# fixture: the 63-chapter Study snapshot matched to his real USCF record),
+# where the two world views genuinely differ:  Official current/peak
+# 1470/1506 vs Live 1544/1544; 10 giant kills under Official vs 14 under Live.
+# ---------------------------------------------------------------------------
+
+class TestRatingLensAcrossStats:
+    def test_overview_kpis_flip_with_the_lens(self, ui_app, real_career_ui):
+        """Current and peak rating follow the lens basis; the lens never hides
+        Games, so the total stays put."""
+        from pages.overview import update_kpis
+        official = update_kpis(*_filter_args(lens="official"))
+        live = update_kpis(*_filter_args(lens="live"))
+
+        # current rating: the May supplement vs the Live chain entering ACC MAY
+        assert official[4] == "1470"
+        assert live[4] == "1544"
+        # peak: the March supplement vs the career-high live basis
+        assert official[5] == "1506"
+        assert live[5] == "1544"
+        # a lens, not a filter
+        assert official[0] == live[0] == "63"
+
+    def test_the_upset_tracker_follows_the_lens(self, ui_app, real_career_ui):
+        """'Upset' means the same thing as the rating basis you're looking at
+        (PRD #24): the two lenses see different giant kills."""
+        from pages.trends import update_upsets
+        official_wins, _, official_losses, _ = update_upsets(
+            *_filter_args(lens="official"))
+        live_wins, _, live_losses, _ = update_upsets(*_filter_args(lens="live"))
+
+        assert len(official_wins) == 10
+        assert len(official_losses) == 4
+        assert len(live_wins) == 14
+        assert len(live_losses) == 2
+        # The biggest kill is a different game in each world view
+        assert official_wins[0]["Opponent"] == "Avyukt Sathish"
+        assert official_wins[0]["Margin"] == "+303"
+        assert live_wins[0]["Opponent"] == "Kyle Eric Vandeventer"
+        assert live_wins[0]["Margin"] == "+351"
+
+    def test_opponent_strength_buckets_follow_the_lens(self, ui_app, real_career_ui):
+        """The strength-bucket distribution is built on rating-diff, so the
+        two lenses bucket the same Games differently."""
+        from pages.opponents import update_bucket
+        official_fig = update_bucket(*_filter_args(lens="official"))
+        live_fig = update_bucket(*_filter_args(lens="live"))
+
+        def bucket_counts(fig):
+            return tuple(v for trace in fig.data for v in _axis_vals(trace.y))
+
+        assert bucket_counts(official_fig) != bucket_counts(live_fig)
+
+    def test_the_games_table_shows_the_lens_rating(self, ui_app, real_career_ui):
+        """The Games table's rating column speaks the lens basis — the chapter
+        Daniel typo'd 1440 reads 1470 under Official, 1544.47 under Live."""
+        from pages.games import update_games_table
+        typo_chapter = "CPHC8p72"
+
+        def rating_of(rows):
+            return next(r["PlayerRating"] for r in rows
+                        if r["ChapterURL"].endswith(typo_chapter))
+
+        assert rating_of(update_games_table(*_filter_args(lens="official"))) == "1470"
+        assert rating_of(update_games_table(*_filter_args(lens="live"))) == "1544.47"
+
+    def test_performance_rating_stays_opponent_based(self, ui_app, real_career_ui):
+        """The documented limitation, visible in numbers: performance rating
+        and average-opponent strength are built from opponent ratings, which
+        stay typed under both lenses until Phase D."""
+        from pages.overview import update_kpis
+        official = update_kpis(*_filter_args(lens="official"))
+        live = update_kpis(*_filter_args(lens="live"))
+
+        assert official[6] == live[6] == "1344"   # performance rating
+
+    def test_the_pre_supplement_era_shows_no_official_rating(
+        self, ui_app, real_career_ui
+    ):
+        """Filtered to the months before the first supplement, the Official
+        lens shows '—', never a fake number; the Live lens has real values."""
+        from pages.overview import update_kpis
+        era = dict(start="2025-06-01", end="2025-08-31")
+        official = update_kpis(*_filter_args(lens="official", **era))
+        live = update_kpis(*_filter_args(lens="live", **era))
+
+        assert official[4] == "—"     # current rating: nothing to show
+        assert live[4] != "—"         # the live chain existed from event one
+
+    def test_the_lens_composes_with_global_filters(self, ui_app, real_career_ui):
+        """Lens and filters are independent: wins-only + Live shows only wins,
+        all rated on the Live basis."""
+        from pages.trends import update_upsets
+        wins, _, losses, _ = update_upsets(
+            *_filter_args(lens="live", outcomes=["Win"]))
+
+        assert len(wins) == 14        # giant kills are wins — all still here
+        assert losses == []           # losses filtered out entirely
+
+
+class TestRatingDiffLimitationNote:
+    def test_the_note_appears_where_rating_diff_appears(self, ui_app, ui_data):
+        """Issue #32: the opponent-rating limitation is documented in the UI,
+        on both surfaces built from rating-diff (upsets, strength charts)."""
+        trends = str(_render(_page("/trends")))
+        opponents = str(_render(_page("/opponents")))
+
+        for rendered in (trends, opponents):
+            assert "typed" in rendered.lower()
+            assert "opponent" in rendered.lower()
+            assert "rating-basis-note" in rendered
 
 
 # ---------------------------------------------------------------------------
