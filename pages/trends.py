@@ -309,8 +309,10 @@ def _dual_line_rating_fig(official, live, lens: str) -> go.Figure:
         hovertemplate="<b>%{x|%B %Y} supplement</b><br>"
                       "Official Rating: %{y}<extra></extra>",
     ))
-    # The Live Rating: one point per Rated Event, decimals preserved.
-    # Names render verbatim — including USCF's own typos.
+    # The Live Rating: one point per Rated Event.  The chain is plotted at
+    # full precision but every number the hover shows is whole — ratings
+    # display without decimal places.  Names render verbatim — including
+    # USCF's own typos.
     fig.add_trace(go.Scatter(
         x=[p.end_date for p in live],
         y=[p.post for p in live],
@@ -321,11 +323,11 @@ def _dual_line_rating_fig(official, live, lens: str) -> go.Figure:
         opacity=1.0 if not official_active else 0.4,
         customdata=[
             [p.event_name, p.section_name,
-             "unrated" if p.pre is None else f"{p.pre:.2f}"]
+             "unrated" if p.pre is None else f"{p.pre:.0f}"]
             for p in live
         ],
         hovertemplate="<b>%{customdata[0]}</b> · %{customdata[1]}<br>"
-                      "Live Rating: %{customdata[2]} → %{y:.2f}<br>"
+                      "Live Rating: %{customdata[2]} → %{y:.0f}<br>"
                       "%{x|%Y-%m-%d}<extra></extra>",
     ))
     apply_dark_theme(fig, yaxis_title="Rating", legend_title="")

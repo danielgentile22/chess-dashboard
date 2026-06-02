@@ -341,8 +341,8 @@ def _uscf_regular_block(entry: UscfRating | None, live_rating: float | None) -> 
     The Regular rating tile — the backbone rating (PRD #24).
 
     With a Live Rating available it shows both values side by side
-    ("Official 1545 · Live 1570.7" — issue #27); without one it is a plain
-    rating tile.
+    ("Official 1545 · Live 1571" — issue #27); without one it is a plain
+    rating tile.  Ratings display as whole numbers — no decimal places.
     """
     if live_rating is None:
         return _uscf_rating_block("Regular", entry)
@@ -358,7 +358,7 @@ def _uscf_regular_block(entry: UscfRating | None, live_rating: float | None) -> 
             ]),
             html.Div([
                 html.Div("Live", className="uscf-dual-label"),
-                html.Div(f"{live_rating:.1f}",
+                html.Div(f"{live_rating:.0f}",
                          className="uscf-stat-value uscf-live-value"),
             ]),
         ]),
