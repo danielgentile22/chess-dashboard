@@ -21,6 +21,8 @@ callback tests here.
 """
 from __future__ import annotations
 
+from unittest import mock
+
 import dash
 import pytest
 
@@ -56,24 +58,24 @@ def _filter_args(**overrides):
             a["end"], a["events"], a["moves"], a["sync"])
 
 
+def _walk_components(component):
+    """Yield every Dash component in a layout tree (depth-first)."""
+    if component is None or isinstance(component, (str, int, float, bool)):
+        return
+    if isinstance(component, (list, tuple)):
+        for item in component:
+            yield from _walk_components(item)
+        return
+    yield component
+    yield from _walk_components(getattr(component, "children", None))
+
+
 def _collect_ids(component) -> set[str]:
     """Recursively collect every component ID in a layout tree."""
-    ids: set[str] = set()
-
-    def _walk(node):
-        if node is None or isinstance(node, (str, int, float, bool)):
-            return
-        if isinstance(node, (list, tuple)):
-            for item in node:
-                _walk(item)
-            return
-        node_id = getattr(node, "id", None)
-        if isinstance(node_id, str):
-            ids.add(node_id)
-        _walk(getattr(node, "children", None))
-
-    _walk(component)
-    return ids
+    return {
+        node.id for node in _walk_components(component)
+        if isinstance(getattr(node, "id", None), str)
+    }
 
 
 def _page(path: str) -> dict:
@@ -172,6 +174,13 @@ class TestShell:
             assert "color-filter" not in page_ids
             assert "date-filter" not in page_ids
 
+    def test_celebration_zone_lives_in_shell_not_pages(self, shell_ids, ui_data):
+        """A celebration earned by a Sync must survive page navigation (issue #15):
+        the zone never unmounts because it's part of the shell, not a page."""
+        assert "celebration-zone" in shell_ids
+        for path, _ in PAGES:
+            assert "celebration-zone" not in _collect_ids(_render(_page(path)))
+
 
 # ---------------------------------------------------------------------------
 # Callback integrity: every callback wires to components that exist
@@ -186,13 +195,15 @@ class TestCallbackIntegrity:
             known |= _collect_ids(_render(_page(path)))
 
         # Some components only exist after a user action creates them
-        # dynamically: the H2H game list (appears once an opponent is chosen)
-        # and the event detail table (appears once an event row is selected).
+        # dynamically: the Scouting Report (appears once an opponent is chosen),
+        # the event detail table (appears once an event row is selected), and
+        # the review overlay (appears at /lessons?review=1).
         from pages.events import update_event_table, update_tournament_detail
-        from pages.opponents import update_h2h
-        known |= _collect_ids(update_h2h("Opponent A", *_filter_args()))
+        from pages.opponents import update_scouting_report
+        known |= _collect_ids(update_scouting_report("Opponent A", *_filter_args()))
         event_rows = update_event_table(*_filter_args())
         known |= _collect_ids(update_tournament_detail([0], event_rows, *_filter_args()))
+        known |= _collect_ids(_page("/lessons")["layout"](review="1"))
 
         # Force callback registration merge, then check every dependency
         ui_app.server.test_client().get("/")
@@ -299,6 +310,56 @@ class TestTrendsCallbacks:
                    update_dow, update_length_hist, update_length_stats):
             cb(*impossible)
 
+    # -- Activity heatmap calendar (issue #14) ------------------------------
+
+    @staticmethod
+    def _calendar_hover_text(calendar_blocks) -> str:
+        """All hover text across every cell of every year's calendar."""
+        figures = [
+            comp.figure for block in calendar_blocks
+            for comp in _walk_components(block)
+            if getattr(comp, "figure", None) is not None
+        ]
+        return " ".join(
+            cell
+            for fig in figures
+            for trace in fig.data
+            for row in (trace.text or [])
+            for cell in row
+        )
+
+    def test_activity_calendar_one_block_per_year(self, ui_app, ui_data):
+        """Fixture Games are all from 2024 → exactly one year block."""
+        from pages.trends import update_activity_calendar
+        years = update_activity_calendar(*_filter_args())
+        labels = [c.children for block in years for c in _walk_components(block)
+                  if "activity-year-label" in (getattr(c, "className", "") or "")]
+        assert labels == ["2024"]
+
+    def test_activity_calendar_cells_carry_the_days_games(self, ui_app, ui_data):
+        """Hovering a cell shows that day's Games (opponent, result)."""
+        from pages.trends import update_activity_calendar
+        hover = self._calendar_hover_text(update_activity_calendar(*_filter_args()))
+        assert "Win vs Opponent A" in hover
+        assert "Draw vs Opponent B" in hover
+        assert "No games" in hover  # days without Games are visibly empty
+
+    def test_activity_calendar_responds_to_filters(self, ui_app, ui_data):
+        """Filtering to wins-only removes the loss day's games from the calendar."""
+        from pages.trends import update_activity_calendar
+        all_hover = self._calendar_hover_text(update_activity_calendar(*_filter_args()))
+        wins_hover = self._calendar_hover_text(
+            update_activity_calendar(*_filter_args(outcomes=["Win"]))
+        )
+        assert "Loss vs Opponent C" in all_hover
+        assert "Loss vs Opponent C" not in wins_hover
+
+    def test_activity_calendar_empty_filter_shows_empty_state(self, ui_app, ui_data):
+        from pages.trends import update_activity_calendar
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        result = update_activity_calendar(*impossible)
+        assert "empty-state" in str(getattr(result, "className", ""))
+
 
 # ---------------------------------------------------------------------------
 # Openings page callbacks (issue #9)
@@ -331,24 +392,47 @@ class TestOpponentsCallbacks:
         # Opponents A and B are both played more than once in the fixture
         assert update_opponents(*_filter_args()).data
 
-    def test_h2h_renders_record_for_known_opponent(self, ui_app, ui_data):
-        from pages.opponents import update_h2h
-        result = update_h2h("Opponent A", *_filter_args())
-        assert "Select an opponent" not in str(result)
-
-    def test_h2h_prompts_when_no_opponent_chosen(self, ui_app, ui_data):
-        from pages.opponents import update_h2h
-        assert "Select an opponent" in str(update_h2h(None, *_filter_args()))
-
-    def test_h2h_options_follow_the_data(self, ui_app, ui_data):
-        from pages.opponents import update_h2h_options
-        options = update_h2h_options({"seq": 1, "new_games": 0})
-        assert {"label": "Opponent A", "value": "Opponent A"} in options
-
     def test_strength_charts_build(self, ui_app, ui_data):
         from pages.opponents import update_bucket, update_scatter
         assert update_bucket(*_filter_args()).data
         assert update_scatter(*_filter_args()).data
+
+
+# ---------------------------------------------------------------------------
+# Scouting Report (issue #13) — the pre-game dossier
+# ---------------------------------------------------------------------------
+
+class TestScoutingReportPage:
+    def test_dossier_renders_for_known_opponent(self, ui_app, ui_data):
+        """Opponent picked → score, rating gap, openings, and lessons appear."""
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("Opponent A", *_filter_args()))
+        assert "2.5/3" in rendered                    # H2H score
+        assert "1925" in rendered                     # their latest rating
+        assert "King's Indian Defense" in rendered    # opening split by color
+        assert "Keep the tension" in rendered         # a Lesson from facing them
+
+    def test_dossier_lessons_link_to_their_games(self, ui_app, ui_data):
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("Opponent A", *_filter_args()))
+        assert "/game/chap0001" in rendered    # G1's Lesson → G1's detail view
+
+    def test_prompts_when_no_opponent_chosen(self, ui_app, ui_data):
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report(None, *_filter_args())).lower()
+        assert "opponent" in rendered    # "pick an opponent" hint, not a crash
+
+    def test_unknown_opponent_in_filter_says_so(self, ui_app, ui_data):
+        """An opponent filtered out of view gets a no-games message, not a crash."""
+        from pages.opponents import update_scouting_report
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        rendered = str(update_scouting_report("Opponent A", *impossible)).lower()
+        assert "no games" in rendered
+
+    def test_picker_options_follow_the_data(self, ui_app, ui_data):
+        from pages.opponents import update_scout_options
+        options = update_scout_options({"seq": 1, "new_games": 0})
+        assert {"label": "Opponent A", "value": "Opponent A"} in options
 
 
 # ---------------------------------------------------------------------------
@@ -372,6 +456,69 @@ class TestEventsCallbacks:
         from pages.events import update_event_table, update_tournament_detail
         rows = update_event_table(*_filter_args())
         assert update_tournament_detail([], rows, *_filter_args()) is None
+
+
+# ---------------------------------------------------------------------------
+# Recurring weakness detection (issue #18)
+# ---------------------------------------------------------------------------
+
+def _pgn_with_weakness_pattern() -> str:
+    """An archive with a clear pattern: 4 of 4 losses tagged #time-trouble."""
+    games = []
+    for i in range(1, 7):
+        is_loss = i <= 4
+        result = "0-1" if is_loss else "1-0"           # "Me" always plays White
+        comment = "{ Flagged in a winning position. #time-trouble } " if is_loss else ""
+        games.append(f"""[Event "Club Night"]
+[Site "S"]
+[Date "2024.0{i}.01"]
+[White "Me"]
+[Black "Opp {i}"]
+[Result "{result}"]
+[ChapterURL "https://lichess.org/study/wstudy/wch{i:04d}"]
+
+{comment}1. e4 e5 {result}""")
+    return "\n\n".join(games)
+
+
+@pytest.fixture()
+def weakness_data(ui_app):
+    """A data store whose archive shows a clear recurring weakness."""
+    import data
+    import sync
+
+    data.reset()
+    with mock.patch.object(sync, "fetch_study_pgn",
+                           return_value=_pgn_with_weakness_pattern()):
+        data.initialize(["wstudy"], player_name="Me")
+    yield
+    data.reset()
+
+
+class TestWeaknessCallouts:
+    def test_lessons_page_calls_out_a_clear_pattern(self, ui_app, weakness_data):
+        from pages.lessons import update_weakness_callouts
+        rendered = str(update_weakness_callouts(*_filter_args()))
+        assert "#time-trouble" in rendered
+        assert "4 of your last 4 losses" in rendered
+
+    def test_callout_games_are_clickable(self, ui_app, weakness_data):
+        """Each callout links to the Games behind it."""
+        from pages.lessons import update_weakness_callouts
+        rendered = str(update_weakness_callouts(*_filter_args()))
+        assert "/game/wch0001" in rendered
+
+    def test_overview_shows_only_the_top_callout(self, ui_app, weakness_data):
+        from pages.overview import update_top_weakness
+        rendered = str(update_top_weakness(*_filter_args()))
+        assert "#time-trouble" in rendered
+
+    def test_silence_when_below_threshold(self, ui_app, ui_data):
+        """The 7-game fixture (one Loss) is below threshold → both pages stay quiet."""
+        from pages.lessons import update_weakness_callouts
+        from pages.overview import update_top_weakness
+        assert update_weakness_callouts(*_filter_args()) is None
+        assert update_top_weakness(*_filter_args()) is None
 
 
 # ---------------------------------------------------------------------------
@@ -458,6 +605,82 @@ class TestLessonsPage:
         from pages.lessons import toggle_lesson_tag
         # When the strip re-renders, all n_clicks are None — must not toggle
         assert toggle_lesson_tag([None, None], ["endgame"]) is no_update
+
+
+# ---------------------------------------------------------------------------
+# Pre-game review mode (issue #19)
+# ---------------------------------------------------------------------------
+
+class TestReviewMode:
+    """Full-screen, card-by-card lesson review for the minutes before a round."""
+
+    @staticmethod
+    def _review_queue_store(tree):
+        return next((c for c in _walk_components(tree)
+                     if getattr(c, "id", None) == "review-queue-store"), None)
+
+    def test_lessons_page_has_a_launch_link(self, ui_app, ui_data):
+        hrefs = {getattr(c, "href", None)
+                 for c in _walk_components(_render(_page("/lessons")))}
+        assert "/lessons?review=1" in hrefs
+
+    def test_normal_lessons_page_has_no_overlay(self, ui_app, ui_data):
+        assert self._review_queue_store(_render(_page("/lessons"))) is None
+
+    def test_review_param_opens_the_overlay_with_the_queue(self, ui_app, ui_data):
+        """/lessons?review=1 → the overlay holds the prioritized queue."""
+        tree = _page("/lessons")["layout"](review="1")
+        store = self._review_queue_store(tree)
+        assert store is not None
+        assert len(store.data) == 3            # the fixture's three Lessons
+        assert all(c["reason"] for c in store.data)
+
+    def test_opponent_review_prioritizes_their_lessons(self, ui_app, ui_data):
+        """Scouting context: ?opponent=X marks X's lessons as the reason."""
+        tree = _page("/lessons")["layout"](review="1", opponent="Opponent A")
+        store = self._review_queue_store(tree)
+        assert all(c["reason"] == "You're facing Opponent A" for c in store.data)
+
+    def test_card_renders_with_progress(self, ui_app, ui_data):
+        from pages.lessons import render_review_card
+        tree = _page("/lessons")["layout"](review="1")
+        queue = self._review_queue_store(tree).data
+        card, progress = render_review_card(0, queue)
+        assert "1 / 3" in str(progress)
+        # Fixture has no recurring weaknesses → recency order, newest first
+        assert "grab pawns" in str(card) or "Castle before" in str(card)
+
+    def test_tap_advances_prev_goes_back(self, ui_app, ui_data):
+        from pages.lessons import navigate_review
+        queue = [{"Lesson": "A"}, {"Lesson": "B"}]
+        with mock.patch("pages.lessons.ctx") as fake_ctx:
+            fake_ctx.triggered_id = "review-tap"
+            assert navigate_review(1, None, 0, queue) == 1
+            assert navigate_review(2, None, 1, queue) == 2   # one past the end = done
+            assert navigate_review(3, None, 2, queue) == 2   # …and stays there
+        with mock.patch("pages.lessons.ctx") as fake_ctx:
+            fake_ctx.triggered_id = "review-prev"
+            assert navigate_review(1, 1, 1, queue) == 0
+            assert navigate_review(1, 2, 0, queue) == 0      # can't go below 0
+
+    def test_done_card_after_the_last_lesson(self, ui_app, ui_data):
+        from pages.lessons import render_review_card
+        queue = [{"Lesson": "Only one", "Tags": [], "reason": "Recent lesson",
+                  "Opponent": "X", "Date": "2024.01.01", "Outcome": "Win",
+                  "Event": "E", "Result": "1-0", "ChapterURL": ""}]
+        card, progress = render_review_card(1, queue)        # one past the end
+        assert "play" in str(card).lower()                   # "go play"
+
+    def test_review_with_no_lessons_explains_why(self, ui_app, weakness_data):
+        """An archive with no Lessons → the overlay explains, doesn't crash."""
+        tree = _page("/lessons")["layout"](review="1")
+        rendered = str(tree)
+        assert "Lesson:" in rendered    # teaches the convention
+
+    def test_scouting_report_offers_opponent_review(self, ui_app, ui_data):
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("Opponent A", *_filter_args()))
+        assert "/lessons?review=1&opponent=Opponent%20A" in rendered
 
 
 # ---------------------------------------------------------------------------
@@ -557,12 +780,12 @@ class TestGameNavigation:
         assert row_click_to_game({"row": 0, "column_id": "Date"}, rows) is no_update
 
     def test_all_three_tables_have_navigation_callbacks(self, ui_app, ui_data):
-        """Games table, head-to-head list, and event detail all open Games."""
+        """Games table, Scouting Report timeline, and event detail all open Games."""
         from pages.events import navigate_to_game_from_event
         from pages.games import navigate_to_game
-        from pages.opponents import navigate_to_game_from_h2h
+        from pages.opponents import navigate_to_game_from_scout
 
-        for fn in (navigate_to_game, navigate_to_game_from_h2h, navigate_to_game_from_event):
+        for fn in (navigate_to_game, navigate_to_game_from_scout, navigate_to_game_from_event):
             href, _reset = fn({"row": 0, "column_id": "Date"}, self.ROWS)
             assert href == "/game/chap0003"
 

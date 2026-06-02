@@ -71,18 +71,23 @@ __all__ = [
     "kpi_stats",
     "lessons_table",
     "tag_counts",
+    "recurring_weaknesses",
+    "review_queue",
     "win_rate_over_time",
     "player_rating_over_time",
     "opponent_summary",
     "head_to_head",
+    "scouting_report",
     "opening_summary",
     "opponent_rating_bucket_summary",
     "outcome_vs_rating_data",
     "game_length_data",
     "activity_data",
+    "daily_activity",
     "event_summary",
     "performance_rating_stats",
     "compute_milestones",
+    "milestone_deltas",
 ]
 
 
@@ -674,6 +679,76 @@ def head_to_head(df: pd.DataFrame, opponent: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Scouting Report (issue #13)
+# ---------------------------------------------------------------------------
+
+def scouting_report(df: pd.DataFrame, opponent: str) -> dict:
+    """
+    The pre-game dossier on one opponent (CONTEXT.md: Scouting Report).
+
+    Composes everything Daniel wants to know right before facing someone
+    again: the head-to-head score and rating gap, the per-game results
+    timeline, the openings they've played against him (split by his color),
+    how those Games ended, and the Lessons he wrote after facing them.
+    """
+    report: dict = {
+        "opponent": opponent,
+        "total": 0, "win": 0, "draw": 0, "loss": 0, "score": "0/0",
+        "their_rating": None, "my_rating": None, "rating_gap": None,
+        "timeline": [],
+        "openings_as_white": [], "openings_as_black": [],
+        "terminations": [],
+        "lessons": [],
+    }
+    if df.empty or "Opponent" not in df.columns:
+        return report
+
+    # The opponent's games, filtered once; everything below works on this slice
+    games = df[df["Opponent"] == opponent]
+
+    h2h = head_to_head(games, opponent)
+    total = h2h["total"]
+    report.update({
+        "total": total,
+        "win": h2h.get("win", 0),
+        "draw": h2h.get("draw", 0),
+        "loss": h2h.get("loss", 0),
+        "score": f"{h2h.get('win', 0) + 0.5 * h2h.get('draw', 0):g}/{total}",
+        # Per-game results, oldest → newest (head_to_head sorts by date)
+        "timeline": h2h.get("game_rows", []),
+    })
+    if total == 0:
+        return report
+
+    def _latest_rating(frame: pd.DataFrame, column: str) -> int | None:
+        """The rating in the most recent dated game (ties broken by Index)."""
+        rated = frame[frame["Date_dt"].notna() & frame[column].notna()]
+        if rated.empty:
+            return None
+        return int(rated.sort_values(["Date_dt", "Index"]).iloc[-1][column])
+
+    # Rating gap: their latest known rating (vs Daniel) against Daniel's
+    # latest rating anywhere — "where do I stand if we play tomorrow?"
+    report["their_rating"] = _latest_rating(games, "OpponentRatingNum")
+    report["my_rating"] = _latest_rating(df, "PlayerRatingNum")
+    if report["their_rating"] is not None and report["my_rating"] is not None:
+        report["rating_gap"] = report["their_rating"] - report["my_rating"]
+
+    # Openings they've played against me, split by my color
+    for color, key in (("White", "openings_as_white"), ("Black", "openings_as_black")):
+        _, openings = opening_summary(games[games["Color"] == color])
+        report[key] = openings.to_dict("records")
+
+    # How our games ended
+    report["terminations"] = termination_counts(games).to_dict("records")
+
+    # The differentiator: every Lesson written after facing them
+    report["lessons"] = lessons_table(games).to_dict("records")
+
+    return report
+
+
+# ---------------------------------------------------------------------------
 # Openings
 # ---------------------------------------------------------------------------
 
@@ -858,6 +933,46 @@ def activity_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return m, dw
 
 
+_DAILY_COLS = ["Date_dt", "Games", "Win", "Draw", "Loss", "Net", "Detail"]
+
+
+def daily_activity(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Per-day Game results for the activity heatmap calendar (issue #14).
+
+    One row per calendar day that has dated Games, sorted by day.
+    Columns:
+      Date_dt          : the day
+      Games            : how many Games were played
+      Win, Draw, Loss  : outcome counts
+      Net              : Win − Loss (positive = winning day → green,
+                         negative = losing day → red; drives the cell color)
+      Detail           : that day's Games as text, one per line
+                         ("Win vs Opponent A<br>Draw vs Opponent B") for hover
+    Days without Games don't appear (the calendar shows them as empty cells).
+    Unfinished games (Outcome "Unknown") are excluded — same convention as
+    the monthly/day-of-week activity charts.
+    """
+    if df.empty or "Date_dt" not in df.columns:
+        return pd.DataFrame(columns=_DAILY_COLS)
+
+    d = df[df["Date_dt"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
+    if d.empty:
+        return pd.DataFrame(columns=_DAILY_COLS)
+
+    d["Day"] = d["Date_dt"].dt.normalize()
+    daily = (
+        d.groupby("Day")["Outcome"].value_counts().unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+    )
+    daily["Games"] = d.groupby("Day").size()
+    daily["Net"] = daily["Win"] - daily["Loss"]
+    d["_line"] = d["Outcome"].astype(str) + " vs " + d["Opponent"].astype(str)
+    daily["Detail"] = d.groupby("Day")["_line"].agg("<br>".join)
+    out = daily.reset_index().rename(columns={"Day": "Date_dt"})
+    return out.sort_values("Date_dt").reset_index(drop=True)[_DAILY_COLS]
+
+
 # ---------------------------------------------------------------------------
 # Events / tournaments
 # ---------------------------------------------------------------------------
@@ -1035,6 +1150,145 @@ def tag_counts(df: pd.DataFrame) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Recurring weakness detection (issue #18)
+# ---------------------------------------------------------------------------
+
+def recurring_weaknesses(
+    df: pd.DataFrame,
+    *,
+    loss_window: int = 10,
+    min_occurrences: int = 3,
+) -> list[dict]:
+    """
+    Recurring weaknesses (issue #18): Tags that keep showing up in recent
+    losses — the insight that makes Tags pay off.
+
+    Looks at the last *loss_window* Losses and calls out every Tag that
+
+      (a) appears in at least *min_occurrences* of them, and
+      (b) is genuinely loss-associated: over the same period it shows up in
+          losses more than in wins/draws (otherwise it's just a frequent
+          Tag, not a weakness).
+
+    Below those thresholds nothing is reported — silence over noise.
+
+    Returns callouts ranked by severity (most severe first), each:
+      tag           : the Tag (without '#')
+      loss_count    : how many of the windowed losses carry it
+      window_losses : how many losses the window holds
+      stat          : the headline ("#time-trouble appears in 6 of your last
+                      8 losses")
+      window        : the period those games span ("Mar – Jun 2024")
+      severity      : 0..1 ranking score
+      chapter_urls  : the Games behind the callout, for linking
+    """
+    if df.empty or "Tags" not in df.columns:
+        return []
+
+    d = df.copy()
+    d["_ds"] = d["Date_dt"].fillna(pd.Timestamp.max)
+    d = d.sort_values(["_ds", "Index"]).reset_index(drop=True)
+
+    loss_positions = d.index[d["Outcome"] == "Loss"]
+    if len(loss_positions) == 0:
+        return []
+    windowed_positions = loss_positions[-loss_window:]
+    window_losses = len(windowed_positions)
+
+    # The comparison window: every game from the first windowed loss onward
+    window_games = d.iloc[windowed_positions[0]:]
+    recent_losses = d.loc[windowed_positions]
+    non_losses = window_games[window_games["Outcome"] != "Loss"]
+
+    loss_tag_counts: Counter[str] = Counter()
+    loss_tag_games: dict[str, list[str]] = {}
+    for _, game in recent_losses.iterrows():
+        for tag in game["Tags"]:
+            loss_tag_counts[tag] += 1
+            loss_tag_games.setdefault(tag, []).append(game.get("ChapterURL", ""))
+
+    non_loss_tag_counts: Counter[str] = Counter()
+    for _, game in non_losses.iterrows():
+        for tag in game["Tags"]:
+            non_loss_tag_counts[tag] += 1
+
+    # The period the callout covers, for display
+    dated = window_games[window_games["Date_dt"].notna()]
+    if dated.empty:
+        window_label = ""
+    else:
+        start = f"{dated['Date_dt'].min():%b %Y}"
+        end = f"{dated['Date_dt'].max():%b %Y}"
+        window_label = start if start == end else f"{start} – {end}"
+
+    callouts: list[dict] = []
+    for tag, loss_count in loss_tag_counts.items():
+        if loss_count < min_occurrences:
+            continue
+        association = loss_count / (loss_count + non_loss_tag_counts[tag])
+        if association <= 0.5:
+            continue  # shows up just as often when you don't lose
+        severity = (loss_count / window_losses) * association
+        callouts.append({
+            "tag": tag,
+            "loss_count": loss_count,
+            "window_losses": window_losses,
+            "stat": f"#{tag} appears in {loss_count} of your last {window_losses} losses",
+            "window": window_label,
+            "severity": round(severity, 3),
+            "chapter_urls": loss_tag_games[tag],
+        })
+
+    callouts.sort(key=lambda c: (-c["severity"], c["tag"]))
+    return callouts
+
+
+# ---------------------------------------------------------------------------
+# Pre-game review (issue #19)
+# ---------------------------------------------------------------------------
+
+def review_queue(df: pd.DataFrame, *, opponent: str | None = None) -> list[dict]:
+    """
+    The Lessons to re-read in the five minutes before a round (issue #19),
+    most relevant first.
+
+    Priority order:
+      1. Lessons tagged with a detected recurring weakness — what's actually
+         costing you games right now
+      2. Lessons from Games against *opponent* (when one is given)
+      3. Everything else
+
+    Within each bucket, newest first.  Each card carries a ``reason`` saying
+    why it made the queue.
+    """
+    lessons = lessons_table(df)  # already newest-first
+    if lessons.empty:
+        return []
+
+    weakness_tags = {w["tag"] for w in recurring_weaknesses(df)}
+
+    def _bucket(card: dict) -> tuple[int, str]:
+        """(priority, reason) for one Lesson."""
+        card_weak_tags = [t for t in card["Tags"] if t in weakness_tags]
+        if card_weak_tags:
+            return 0, "Recurring weakness: " + " ".join(f"#{t}" for t in card_weak_tags)
+        if opponent and card["Opponent"] == opponent:
+            return 1, f"You're facing {opponent}"
+        return 2, "Recent lesson"
+
+    cards = []
+    for _, row in lessons.iterrows():
+        card = row.to_dict()
+        card["priority"], card["reason"] = _bucket(card)
+        cards.append(card)
+
+    # Stable sort: lessons_table is newest-first, so sorting by priority
+    # alone keeps recency order inside each bucket.
+    cards.sort(key=lambda c: c["priority"])
+    return cards
+
+
+# ---------------------------------------------------------------------------
 # Milestones
 # ---------------------------------------------------------------------------
 
@@ -1110,3 +1364,69 @@ def compute_milestones(df: pd.DataFrame) -> list[dict]:
 
     items.sort(key=lambda x: x["game_num"])
     return items
+
+
+def _peak_rating(df: pd.DataFrame) -> int | None:
+    """The player's highest rating in *df*, or None if no rated games."""
+    if df.empty or "PlayerRatingNum" not in df.columns:
+        return None
+    rated = df["PlayerRatingNum"].dropna()
+    return int(rated.max()) if not rated.empty else None
+
+
+def _best_win(df: pd.DataFrame) -> tuple[int, str] | None:
+    """(rating, opponent) of the highest-rated opponent beaten, or None."""
+    if df.empty or "OpponentRatingNum" not in df.columns:
+        return None
+    beaten = df[(df["Outcome"] == "Win") & df["OpponentRatingNum"].notna()]
+    if beaten.empty:
+        return None
+    best = beaten.loc[beaten["OpponentRatingNum"].idxmax()]
+    return int(best["OpponentRatingNum"]), str(best["Opponent"])
+
+
+def milestone_deltas(old_df: pd.DataFrame, new_df: pd.DataFrame) -> list[dict]:
+    """
+    Personal bests set between two data snapshots (issue #15).
+
+    Compares the pre-Sync and post-Sync Games and reports every record that
+    the new Games broke.  Nothing is persisted: the comparison is the whole
+    state (ADR 0002).
+
+    Returns a list of deltas, each:
+      {"kind": "peak_rating", "old": <previous best>, "new": <new best>,
+       "description": <celebration text>}
+
+    An empty *old_df* (or one with no baseline value for a record) produces
+    no delta for it — there is nothing to beat, so nothing to celebrate.
+    """
+    deltas: list[dict] = []
+
+    old_peak, new_peak = _peak_rating(old_df), _peak_rating(new_df)
+    if old_peak is not None and new_peak is not None and new_peak > old_peak:
+        deltas.append({
+            "kind": "peak_rating", "old": old_peak, "new": new_peak,
+            "description": f"New peak rating: {new_peak} (was {old_peak})",
+        })
+
+    # A baseline of 0 from real games still counts: someone whose archive has
+    # no win streak yet deserves the banner for their first one.
+    old_streak = streaks(old_df)["longest_streak_wins_only"]
+    new_streak = streaks(new_df)["longest_streak_wins_only"]
+    if not old_df.empty and new_streak > old_streak:
+        deltas.append({
+            "kind": "win_streak", "old": old_streak, "new": new_streak,
+            "description": (f"New longest win streak: {new_streak} games in a row "
+                            f"(was {old_streak})"),
+        })
+
+    old_best, new_best = _best_win(old_df), _best_win(new_df)
+    if old_best is not None and new_best is not None and new_best[0] > old_best[0]:
+        rating, opponent = new_best
+        deltas.append({
+            "kind": "giant_kill", "old": old_best[0], "new": rating,
+            "description": (f"Beat your highest-rated opponent yet: "
+                            f"{opponent} ({rating}, previous best {old_best[0]})"),
+        })
+
+    return deltas

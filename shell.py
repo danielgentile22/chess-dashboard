@@ -21,9 +21,9 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, State, callback, dcc, html, no_update
 
 import data
-from components import form_indicator
+from components import celebration_banner, form_indicator
 from filters import FILTER_INPUTS, get_filtered, make_filter_button, make_filter_drawer
-from pgn_stats_core import current_form
+from pgn_stats_core import current_form, milestone_deltas
 
 # ---------------------------------------------------------------------------
 # Layout
@@ -106,6 +106,10 @@ def make_shell() -> html.Div:
         # Cache / offline notice (filled by callback when relevant)
         html.Div(id="cache-notice"),
 
+        # Milestone celebrations (issue #15) — lives in the shell so a banner
+        # earned by a Sync survives page navigation until it's dismissed
+        html.Div(id="celebration-zone"),
+
         # Programmatic navigation target: clicking a Game row anywhere
         # outputs a /game/<id> path here (issue #11)
         dcc.Location(id="url", refresh="callback-nav"),
@@ -161,21 +165,25 @@ def _describe_new_games(new_games: list[dict]) -> str:
     Output("sync-toast", "header"),
     Output("sync-toast", "icon"),
     Output("sync-toast", "children"),
+    Output("celebration-zone", "children"),
     Input("sync-button", "n_clicks"),
     State("sync-store", "data"),
     prevent_initial_call=True,
 )
 def run_sync(n_clicks, store):
     """The Sync button: re-Sync all designated Studies, report the outcome."""
+    # Snapshot the pre-Sync Games: refresh() rebinds the store, so this
+    # reference keeps pointing at the old data — the milestone baseline.
+    pre_sync_df = data.get_df()
     outcome = data.refresh()
 
     if outcome.status == "already_running":
         return (no_update, True, "Sync already running", "warning",
-                "A Sync is already in progress — hang tight.")
+                "A Sync is already in progress — hang tight.", no_update)
 
     if outcome.status == "error":
         return (no_update, True, "Sync failed", "danger",
-                f"{outcome.error} — still showing your current games.")
+                f"{outcome.error} — still showing your current games.", no_update)
 
     # Success: bump the store so every chart re-renders on the new data
     seq = (store or {}).get("seq", 0) + 1
@@ -184,7 +192,12 @@ def run_sync(n_clicks, store):
         failed = ", ".join(study_id for study_id, _ in outcome.failures)
         body += f" (couldn't fetch: {failed})"
     new_store = {"seq": seq, "new_games": len(outcome.new_games)}
-    return new_store, True, "Sync complete", "success", body
+
+    # Did the new Games set any personal bests? (issue #15)
+    deltas = milestone_deltas(pre_sync_df, data.get_df())
+    celebration = celebration_banner(deltas) if deltas else no_update
+
+    return new_store, True, "Sync complete", "success", body, celebration
 
 
 @callback(Output("header-form", "children"), FILTER_INPUTS)
