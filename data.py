@@ -29,7 +29,16 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from sync import SyncError, SyncResult, detect_new_games, load_from_cache, sync_studies
+from sync import (
+    SyncError,
+    SyncResult,
+    UscfSyncResult,
+    detect_new_games,
+    load_from_cache,
+    sync_studies,
+    sync_uscf,
+)
+from uscf_core import UscfProfile
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +50,15 @@ _synced_at: datetime | None = None
 _source: str = "lichess"          # "lichess" | "cache"
 _cached_at: datetime | None = None  # only meaningful when _source == "cache"
 
+# --- USCF enrichment (ADR 0003: optional, never required) ------------------
+_uscf: UscfSyncResult = UscfSyncResult()
+
 # --- the designated Studies (remembered so refresh() can re-Sync) ----------
 _study_ids: list[str] = []
 _player_name: str | None = None
 _token: str | None = None
 _cache_path: str | None = None
+_uscf_member_id: str | None = None
 
 # Guards against doubled Syncs (button mashing); refresh() never blocks on it.
 _sync_lock = threading.Lock()
@@ -67,6 +80,7 @@ def initialize(
     player_name: str | None = None,
     token: str | None = None,
     cache_path: str | None = None,
+    uscf_member_id: str | None = None,
 ) -> tuple[pd.DataFrame, str]:
     """
     Sync all designated Studies and cache the merged DataFrame module-wide.
@@ -76,14 +90,18 @@ def initialize(
     successful Sync exists at *cache_path*, the app boots from the cache
     instead (the dashboard never goes blank because Lichess is down).
 
+    When *uscf_member_id* is given, the Sync also fetches that member's USCF
+    record as enrichment.  USCF being unreachable never fails the Sync
+    (ADR 0003).
+
     Raises
     ------
     sync.SyncError : no designated Study could be fetched AND no cache exists.
     RuntimeError   : the Studies contained no games.
     """
-    global _study_ids, _player_name, _token, _cache_path
-    _study_ids, _player_name, _token, _cache_path = (
-        list(study_ids), player_name, token, cache_path,
+    global _study_ids, _player_name, _token, _cache_path, _uscf_member_id
+    _study_ids, _player_name, _token, _cache_path, _uscf_member_id = (
+        list(study_ids), player_name, token, cache_path, uscf_member_id,
     )
 
     logger.info("Syncing %d designated Studies from Lichess", len(study_ids))
@@ -92,13 +110,25 @@ def initialize(
             study_ids, player_name=player_name, token=token, cache_path=cache_path
         )
     except SyncError as exc:
-        return _boot_from_cache(exc)
+        booted = _boot_from_cache(exc)
+        _sync_uscf_into_store()
+        return booted
 
     if result.df.empty:
         raise RuntimeError(f"No games found in designated Studies: {study_ids}")
     _swap(result)
+    _sync_uscf_into_store()
     logger.info("Synced %d games for player %r", len(_df), _player)
     return _df, _player
+
+
+def _sync_uscf_into_store() -> None:
+    """Run the USCF half of a Sync (a no-op when no member ID is configured)."""
+    global _uscf
+    if not _uscf_member_id:
+        _uscf = UscfSyncResult()
+        return
+    _uscf = sync_uscf(_uscf_member_id)
 
 
 def _boot_from_cache(sync_error: SyncError) -> tuple[pd.DataFrame, str]:
@@ -153,6 +183,7 @@ def refresh() -> RefreshOutcome:
         new_games = new_df[["Opponent", "Outcome", "Result", "Date"]].to_dict("records")
 
         _swap(result)
+        _sync_uscf_into_store()  # USCF failing never fails the Sync (ADR 0003)
         logger.info(
             "Sync complete: %d games (%d new)", len(result.df), len(new_games)
         )
@@ -183,6 +214,26 @@ def _swap(result: SyncResult) -> None:
 def get_df() -> pd.DataFrame:
     """Return the full (unfiltered) DataFrame. Never mutate the result."""
     return _df
+
+
+def get_uscf_profile() -> UscfProfile | None:
+    """The member's USCF profile, or None when unavailable / not configured."""
+    return _uscf.profile
+
+
+def uscf_synced_at() -> datetime | None:
+    """When USCF data was last successfully fetched (None if never)."""
+    return _uscf.synced_at
+
+
+def uscf_failure() -> str:
+    """Why USCF data is unavailable ('' when it isn't, or USCF isn't configured)."""
+    return _uscf.failure
+
+
+def uscf_enabled() -> bool:
+    """True when a USCF member ID is configured for this run."""
+    return _uscf_member_id is not None
 
 
 def get_player() -> str:
@@ -218,7 +269,7 @@ def is_loaded() -> bool:
 def reset() -> None:
     """Clear the store (used by tests)."""
     global _df, _player, _sync_failures, _synced_at, _source, _cached_at
-    global _study_ids, _player_name, _token, _cache_path
+    global _study_ids, _player_name, _token, _cache_path, _uscf, _uscf_member_id
     _df = pd.DataFrame()
     _player = ""
     _sync_failures = []
@@ -229,3 +280,5 @@ def reset() -> None:
     _player_name = None
     _token = None
     _cache_path = None
+    _uscf = UscfSyncResult()
+    _uscf_member_id = None

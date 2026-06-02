@@ -1,12 +1,17 @@
 """
 sync.py
 =======
-Sync orchestrator: designated Lichess Studies → one merged Games DataFrame.
+Sync orchestrator: designated Lichess Studies → one merged Games DataFrame,
+plus the member's USCF record as enrichment.
 
 A Sync (see CONTEXT.md) fetches every designated Study, concatenates their
 Games, dedupes by ChapterURL (the permanent Game identity — ADR 0001), and
 sorts by date.  One Study failing never loses the Games of the Studies that
 succeeded; only when *every* Study fails is the Sync itself a failure.
+
+The USCF half is different (ADR 0003): a Sync that reaches Lichess but not
+USCF still *succeeds*.  ``sync_uscf`` therefore never raises — it returns a
+result that says whether USCF data is available and why not.
 
 A successful Sync also refreshes a local PGN cache so the dashboard can boot
 when Lichess is unreachable.  The cache is disposable and never a source of
@@ -15,9 +20,11 @@ truth (ADR 0001); a host without a writable disk just goes without it.
 Public API
 ----------
 sync_studies      Fetch + merge all designated Studies → SyncResult.
+sync_uscf         Fetch the USCF record → UscfSyncResult (never raises).
 detect_new_games  Which Games of a Sync are new vs. the previous one.
 load_from_cache   Parse the PGN cache of the last successful Sync.
 SyncResult        The outcome: merged df, player, per-Study failures.
+UscfSyncResult    The USCF outcome: profile, freshness, failure reason.
 SyncError         Raised when no designated Study could be fetched.
 """
 from __future__ import annotations
@@ -31,15 +38,19 @@ import pandas as pd
 
 from lichess_client import LichessError, fetch_study_pgn
 from pgn_stats_core import load_games_from_text
+from uscf_client import UscfError, fetch_member_profile
+from uscf_core import UscfProfile, parse_member_profile
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "SyncError",
     "SyncResult",
+    "UscfSyncResult",
     "detect_new_games",
     "load_from_cache",
     "sync_studies",
+    "sync_uscf",
 ]
 
 
@@ -111,6 +122,46 @@ def sync_studies(
         _write_cache(cache_path, merged_pgn)
 
     return SyncResult(df=df, player=player, failures=failures)
+
+
+# ---------------------------------------------------------------------------
+# The USCF half of a Sync (ADR 0003: enrichment, never a dependency)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class UscfSyncResult:
+    """The outcome of the USCF half of a Sync — never required for success."""
+
+    profile: UscfProfile | None = None
+    # When the USCF data was successfully fetched (None if it wasn't)
+    synced_at: datetime | None = None
+    # Why USCF is unavailable ('' when it isn't)
+    failure: str = ""
+
+    @property
+    def available(self) -> bool:
+        """True when USCF data was fetched."""
+        return self.profile is not None
+
+
+def sync_uscf(member_id: str) -> UscfSyncResult:
+    """
+    Fetch the USCF record for *member_id*.
+
+    Never raises: USCF data is enrichment, never a dependency (ADR 0003).
+    Any USCF failure is recorded in the result so the UI can explain why
+    USCF panels are unavailable.
+    """
+    try:
+        raw_profile = fetch_member_profile(member_id)
+    except UscfError as exc:
+        logger.warning("USCF unavailable — continuing without it (ADR 0003): %s", exc)
+        return UscfSyncResult(failure=str(exc))
+
+    return UscfSyncResult(
+        profile=parse_member_profile(raw_profile),
+        synced_at=datetime.now(timezone.utc),
+    )
 
 
 def load_from_cache(
