@@ -1,6 +1,6 @@
 # Chess Stats Dashboard
 
-Analytics dashboard for Daniel's over-the-board USCF chess games. The games live in Lichess studies; the app turns them into stats, trends, and lessons.
+Analytics dashboard for Daniel's over-the-board USCF chess games. The games live in Lichess studies; the app turns them into stats, trends, and lessons. USCF's rating system (via ratings.uschess.org) enriches the Games with official data.
 
 ## Language
 
@@ -16,10 +16,33 @@ _Avoid_: database, PGN file (those are exports/caches, not the source)
 Lichess's term for one entry inside a Study. Each Chapter holds exactly one Game and has a stable URL (the ChapterURL) that deep-links to it on Lichess.
 
 **Sync**:
-Fetching every designated Study from the Lichess API and rebuilding the full set of Games. Happens at app startup and on demand via a Sync button; a successful Sync also refreshes the local cache.
+Fetching every designated Study from the Lichess API and Daniel's USCF record from the USCF ratings API, then rebuilding the full set of Games and their enrichment. Happens at app startup and on demand via a Sync button; a successful Sync also refreshes the local cache. A Sync that reaches Lichess but not USCF still succeeds — USCF data is enrichment, never a dependency.
 
-**Event**:
-A tournament or ladder under which Games were played (PGN `Event` header), e.g. "ACC Friday Ladder".
+**Series**:
+A tournament or ladder as Daniel experiences and names it (PGN `Event` header), e.g. "ACC Friday Ladder". A Series contains one or more Rated Events.
+_Avoid_: Event (ambiguous — say Series or Rated Event)
+
+**Rated Event**:
+A USCF-rated tournament, identified by its USCF event ID, with official dates, Sections, standings, and a rating change — e.g. "ACC JUNE 2025". Daniel's monthly club ladder is one Series but twelve Rated Events per year.
+
+**Section**:
+The subdivision of a Rated Event that USCF actually rates (e.g. "U1600", "LADDER"). Rating changes happen per Section, never per game. Daniel can play more than one Section of the same Rated Event.
+
+**USCF Game Record**:
+USCF's official record of one rated game: opponent (with USCF member ID), color, result, and the Rated Event and Section it belongs to. Each USCF Game Record is matched to the Game (Chapter) that holds the moves.
+
+**Official Rating**:
+Daniel's USCF rating as published in the monthly rating supplement. An integer; the number that determines section eligibility, pairings, and prizes. Changes at most once a month.
+
+**Live Rating**:
+Daniel's USCF rating as recalculated after each Section he completes, carried to two decimals. Updates faster than the Official Rating and can differ from it by a large margin between supplements.
+_Avoid_: current rating (ambiguous — official and live are both "current")
+
+**Forfeit**:
+A Game whose Chapter exists but where no game was actually played over the board (opponent no-show). It counts toward the tournament score but USCF never rates it, so it has no USCF Game Record.
+
+**Reconciliation**:
+The dashboard surface listing every disagreement between the Studies and USCF: matched Games whose facts conflict, USCF Game Records with no Chapter, Forfeits, and typed ratings that don't match the Official Rating.
 
 **Lesson**:
 The takeaway Daniel wrote for a Game — a Lichess chapter comment starting with `Lesson:`. A Game has zero or more Lessons; they are written on Lichess, never in the dashboard.
@@ -50,6 +73,8 @@ _Avoid_: head-to-head (that's just the score; the Scouting Report includes Lesso
 ## Flagged ambiguities
 
 - "PGN file" / "database": previously meant the source of truth (a manually exported file). Now means only a local cache of the last successful Sync. The source of truth is always the designated Studies on Lichess.
+- "Event": previously the only event-like term; now ambiguous between Series (Daniel's grouping) and Rated Event (USCF's grouping). Say which one.
+- "Rating" / "Elo": ambiguous between Official Rating and Live Rating. The ratings Daniel hand-types in chapter headers are his record of the Official Rating at event start — USCF's published supplement is the authority; typed values are cross-checked against it.
 
 ## Example dialogue
 
@@ -61,3 +86,7 @@ _Avoid_: head-to-head (that's just the score; the Scouting Report includes Lesso
 > **Daniel:** In its Lesson — a chapter comment starting with `Lesson:` that I wrote on Lichess. The Tags in my comments tell you *what kind* of mistake it was; the dashboard counts those to find my recurring weaknesses.
 > **Dev:** And before you play someone you've faced before?
 > **Daniel:** I open their Scouting Report on my phone — score, their openings against me, and my own Lessons from those Games.
+> **Dev:** Your chart says you're 1545 but you said you're almost 1571 — which is it?
+> **Daniel:** Both. 1545 is my Official Rating — the June supplement missed my last event. 1570.72 is my Live Rating after that event. The dashboard's Official/Live switch picks which one every stat uses.
+> **Dev:** USCF lists a rated game I can't find a Chapter for.
+> **Daniel:** Then it shows up in Reconciliation. Either I forgot to add the game to my Study, or it's one I'm skipping on purpose — like online-rated games, which aren't OTB.
