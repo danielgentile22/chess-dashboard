@@ -35,6 +35,10 @@ class Config:
     # Disposable, gitignored, never a source of truth (ADR 0001).
     CACHE_PATH: str = os.environ.get("CACHE_PATH", "games.pgn").strip()
 
+    # Where USCF responses are cached so USCF surfaces survive the API being
+    # down (ADR 0003). Disposable, gitignored, never a source of truth.
+    USCF_CACHE_PATH: str = os.environ.get("USCF_CACHE_PATH", "uscf_cache.json").strip()
+
     # Player name override. Empty string → auto-detect from the Games.
     PLAYER_NAME: str | None = os.environ.get("PLAYER_NAME", "").strip() or None
 

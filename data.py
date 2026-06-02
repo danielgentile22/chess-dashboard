@@ -59,6 +59,7 @@ _player_name: str | None = None
 _token: str | None = None
 _cache_path: str | None = None
 _uscf_member_id: str | None = None
+_uscf_cache_path: str | None = None
 
 # Guards against doubled Syncs (button mashing); refresh() never blocks on it.
 _sync_lock = threading.Lock()
@@ -81,6 +82,7 @@ def initialize(
     token: str | None = None,
     cache_path: str | None = None,
     uscf_member_id: str | None = None,
+    uscf_cache_path: str | None = None,
 ) -> tuple[pd.DataFrame, str]:
     """
     Sync all designated Studies and cache the merged DataFrame module-wide.
@@ -92,17 +94,20 @@ def initialize(
 
     When *uscf_member_id* is given, the Sync also fetches that member's USCF
     record as enrichment.  USCF being unreachable never fails the Sync
-    (ADR 0003).
+    (ADR 0003); with a *uscf_cache_path*, USCF surfaces degrade to the last
+    successful Sync's cached data instead of disappearing.
 
     Raises
     ------
     sync.SyncError : no designated Study could be fetched AND no cache exists.
     RuntimeError   : the Studies contained no games.
     """
-    global _study_ids, _player_name, _token, _cache_path, _uscf_member_id
-    _study_ids, _player_name, _token, _cache_path, _uscf_member_id = (
-        list(study_ids), player_name, token, cache_path, uscf_member_id,
+    global _study_ids, _player_name, _token, _cache_path
+    global _uscf_member_id, _uscf_cache_path
+    _study_ids, _player_name, _token, _cache_path = (
+        list(study_ids), player_name, token, cache_path,
     )
+    _uscf_member_id, _uscf_cache_path = uscf_member_id, uscf_cache_path
 
     logger.info("Syncing %d designated Studies from Lichess", len(study_ids))
     try:
@@ -128,7 +133,7 @@ def _sync_uscf_into_store() -> None:
     if not _uscf_member_id:
         _uscf = UscfSyncResult()
         return
-    _uscf = sync_uscf(_uscf_member_id)
+    _uscf = sync_uscf(_uscf_member_id, cache_path=_uscf_cache_path)
 
 
 def _boot_from_cache(sync_error: SyncError) -> tuple[pd.DataFrame, str]:
@@ -231,6 +236,11 @@ def uscf_failure() -> str:
     return _uscf.failure
 
 
+def uscf_from_cache() -> bool:
+    """True when the USCF data shown is the previous successful Sync's cache."""
+    return _uscf.from_cache
+
+
 def uscf_enabled() -> bool:
     """True when a USCF member ID is configured for this run."""
     return _uscf_member_id is not None
@@ -269,7 +279,8 @@ def is_loaded() -> bool:
 def reset() -> None:
     """Clear the store (used by tests)."""
     global _df, _player, _sync_failures, _synced_at, _source, _cached_at
-    global _study_ids, _player_name, _token, _cache_path, _uscf, _uscf_member_id
+    global _study_ids, _player_name, _token, _cache_path
+    global _uscf, _uscf_member_id, _uscf_cache_path
     _df = pd.DataFrame()
     _player = ""
     _sync_failures = []
@@ -282,3 +293,4 @@ def reset() -> None:
     _cache_path = None
     _uscf = UscfSyncResult()
     _uscf_member_id = None
+    _uscf_cache_path = None

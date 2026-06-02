@@ -150,6 +150,33 @@ def _freshness_label(synced_at: datetime | None) -> str:
     return f"synced {int(age // 86400)} d ago"
 
 
+def _uscf_freshness_label() -> str:
+    """
+    The USCF half of the per-source freshness indicator (issue #26).
+
+    '' when USCF isn't configured — Lichess-only users see no USCF noise.
+    """
+    if not data.uscf_enabled():
+        return ""
+    if data.uscf_from_cache():
+        synced = data.uscf_synced_at()
+        when = f"{synced:%Y-%m-%d %H:%M} UTC" if synced else "an earlier run"
+        return f"USCF unavailable since {when}"
+    if data.get_uscf_profile() is None:
+        return "USCF unavailable"
+    return f"USCF {_freshness_label(data.uscf_synced_at())}"
+
+
+def _per_source_freshness(lichess_label: str) -> str:
+    """Join the Lichess and USCF freshness labels into the header string."""
+    uscf_label = _uscf_freshness_label()
+    if not uscf_label:
+        return lichess_label
+    if not lichess_label:
+        return uscf_label
+    return f"Lichess {lichess_label} · {uscf_label}"
+
+
 def _describe_new_games(new_games: list[dict]) -> str:
     """Toast body for a successful Sync, e.g. '2 new games: vs Edwards (Win), vs Lopez (Loss)'."""
     if not new_games:
@@ -214,7 +241,7 @@ def update_form(colors, outcomes, terminations, start, end, events, moves, _sync
     Input("sync-store", "data"),
 )
 def update_freshness(_n, _sync):
-    """The 'synced X ago' label, or the cached-data notice when offline."""
+    """The per-source 'synced X ago' label, or the cached-data notice when offline."""
     if data.source() == "cache":
         cached = data.cached_at()
         when = f"{cached:%Y-%m-%d %H:%M} UTC" if cached else "an earlier run"
@@ -226,5 +253,5 @@ def update_freshness(_n, _sync):
             ],
             color="warning", className="cache-notice-alert mb-0",
         )
-        return "showing cached data", notice
-    return _freshness_label(data.synced_at()), None
+        return _per_source_freshness("showing cached data"), notice
+    return _per_source_freshness(_freshness_label(data.synced_at())), None

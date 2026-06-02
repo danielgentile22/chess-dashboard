@@ -145,8 +145,18 @@ def update_uscf_card(_sync):
     profile = data.get_uscf_profile()
     if profile is None:
         return uscf_unavailable_card(data.uscf_failure())
+
+    stale = None
+    if data.uscf_from_cache():
+        synced = data.uscf_synced_at()
+        when = f"{synced:%Y-%m-%d %H:%M} UTC" if synced else "an earlier run"
+        stale = (f"USCF unavailable since {when} — showing the last successful "
+                 "Sync's data.")
+
     return uscf_profile_card(
-        profile, alert=membership_alert(profile, today=date.today())
+        profile,
+        alert=membership_alert(profile, today=date.today()),
+        stale=stale,
     )
 
 

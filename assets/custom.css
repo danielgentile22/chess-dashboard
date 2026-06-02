@@ -1584,6 +1584,16 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   font-size: 13px;
   color: var(--cs-text);
 }
+/* Degradation notice (issue #26): cached USCF data — informational, not alarming */
+.uscf-stale {
+  margin-top: 12px;
+  background: var(--cs-card2);
+  border: 1px dashed var(--cs-border);
+  border-radius: var(--cs-radius);
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: var(--cs-muted);
+}
 .uscf-alert-headline { font-weight: 600; }
 .uscf-alert-reason { color: var(--cs-muted); }
 .uscf-unavailable .uscf-alert { margin-top: 8px; }

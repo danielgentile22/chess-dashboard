@@ -29,10 +29,12 @@ SyncError         Raised when no designated Study could be fetched.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
 import pandas as pd
 
@@ -46,6 +48,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "SyncError",
     "SyncResult",
+    "UscfCache",
     "UscfSyncResult",
     "detect_new_games",
     "load_from_cache",
@@ -128,39 +131,150 @@ def sync_studies(
 # The USCF half of a Sync (ADR 0003: enrichment, never a dependency)
 # ---------------------------------------------------------------------------
 
+class UscfCache:
+    """
+    The local cache of raw USCF API responses (issue #26).
+
+    Like the PGN cache: a disposable local JSON file, never a source of truth
+    (ADR 0003).  Every filesystem misfortune — missing file, corrupt file,
+    unwritable disk — degrades to "no cache", never to an error.
+
+    Two kinds of entries:
+
+    * **current** — the member's current state (profile, …).  Overwritten as
+      a whole on every successful Sync; ``fetched_at()`` says when.
+    * **immutable** — USCF data that can never change once written (rated
+      crosstables, past supplements).  Stored once, then served from the
+      cache forever — ``fetch_immutable`` never re-fetches them.
+    """
+
+    def __init__(self, path: str | None):
+        self._path = path
+        self._data: dict[str, Any] = self._read()
+
+    # -- current entries (refreshed every Sync) -----------------------------
+
+    def get_current(self, key: str) -> Any | None:
+        """A current-state entry from the last successful Sync, or None."""
+        return self._data.get("current", {}).get(key)
+
+    def replace_current(self, entries: dict[str, Any]) -> None:
+        """Overwrite all current-state entries (a successful Sync's results)."""
+        self._data["current"] = entries
+        self._data["fetched_at"] = datetime.now(timezone.utc).isoformat()
+        self._write()
+
+    def fetched_at(self) -> datetime | None:
+        """When the current entries were written (UTC), or None if never."""
+        stamp = self._data.get("fetched_at")
+        if not stamp:
+            return None
+        try:
+            return datetime.fromisoformat(stamp)
+        except ValueError:
+            return None
+
+    # -- immutable entries (never re-fetched once stored) -------------------
+
+    def fetch_immutable(self, key: str, fetcher) -> Any:
+        """
+        The immutable entry for *key*, fetching it only the first time.
+
+        Once stored, *fetcher* is never called again for this key — immutable
+        USCF data (rated crosstables, past supplements) cannot change, so a
+        cache hit is always correct and saves a call to an API we were not
+        invited to use.
+        """
+        immutable = self._data.setdefault("immutable", {})
+        if key in immutable:
+            return immutable[key]
+        value = fetcher()
+        immutable[key] = value
+        self._write()
+        return value
+
+    # -- file I/O (failures degrade, never raise) ----------------------------
+
+    def _read(self) -> dict[str, Any]:
+        if not self._path or not os.path.exists(self._path):
+            return {}
+        try:
+            with open(self._path, encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Could not read USCF cache %r (starting empty): %s",
+                           self._path, exc)
+            return {}
+
+    def _write(self) -> None:
+        if not self._path:
+            return
+        try:
+            tmp_path = f"{self._path}.tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(self._data, f)
+            os.replace(tmp_path, self._path)
+        except OSError as exc:
+            logger.warning("Could not write USCF cache %r (continuing without): %s",
+                           self._path, exc)
+
+
 @dataclass
 class UscfSyncResult:
     """The outcome of the USCF half of a Sync — never required for success."""
 
     profile: UscfProfile | None = None
-    # When the USCF data was successfully fetched (None if it wasn't)
+    # When USCF was last successfully reached: the fetch time for live data,
+    # the cached data's age when degraded (None if USCF has never been reached)
     synced_at: datetime | None = None
     # Why USCF is unavailable ('' when it isn't)
     failure: str = ""
+    # True when the data shown is the previous successful Sync's cache
+    from_cache: bool = False
 
     @property
     def available(self) -> bool:
-        """True when USCF data was fetched."""
+        """True when USCF data (live or cached) is available to show."""
         return self.profile is not None
 
 
-def sync_uscf(member_id: str) -> UscfSyncResult:
+def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
     """
     Fetch the USCF record for *member_id*.
 
     Never raises: USCF data is enrichment, never a dependency (ADR 0003).
-    Any USCF failure is recorded in the result so the UI can explain why
-    USCF panels are unavailable.
+    A successful fetch refreshes the local cache at *cache_path*; a failure
+    falls back to that cache, so USCF surfaces degrade to "cached data plus
+    a warning" instead of disappearing.
     """
+    cache = UscfCache(cache_path)
+
     try:
         raw_profile = fetch_member_profile(member_id)
     except UscfError as exc:
         logger.warning("USCF unavailable — continuing without it (ADR 0003): %s", exc)
-        return UscfSyncResult(failure=str(exc))
+        return _uscf_from_cache(cache, failure=str(exc))
 
+    cache.replace_current({"profile": raw_profile})
     return UscfSyncResult(
         profile=parse_member_profile(raw_profile),
         synced_at=datetime.now(timezone.utc),
+    )
+
+
+def _uscf_from_cache(cache: UscfCache, failure: str) -> UscfSyncResult:
+    """The degraded USCF result: cached data if there is any, clearly marked."""
+    raw_profile = cache.get_current("profile")
+    if raw_profile is None:
+        return UscfSyncResult(failure=failure)
+
+    logger.info("Showing cached USCF data from %s", cache.fetched_at())
+    return UscfSyncResult(
+        profile=parse_member_profile(raw_profile),
+        synced_at=cache.fetched_at(),
+        failure=failure,
+        from_cache=True,
     )
 
 

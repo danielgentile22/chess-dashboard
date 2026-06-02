@@ -41,6 +41,16 @@ def stub_studies(**study_pgns):
     return mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch)
 
 
+def stub_uscf(profile):
+    """Stub the USCF client inside sync: raw profile JSON, or an Exception to raise."""
+    def fake_fetch(member_id, **kwargs):
+        if isinstance(profile, Exception):
+            raise profile
+        return profile
+
+    return mock.patch.object(sync, "fetch_member_profile", side_effect=fake_fetch)
+
+
 # ---------------------------------------------------------------------------
 # Sync button
 # ---------------------------------------------------------------------------
@@ -146,6 +156,69 @@ class TestFreshness:
         label, notice = update_freshness(0, {"seq": 0})
         assert "cached" in label
         assert notice is not None
+
+
+# ---------------------------------------------------------------------------
+# Per-source freshness (issue #26)
+# ---------------------------------------------------------------------------
+
+class TestPerSourceFreshness:
+    """The freshness indicator distinguishes Lichess and USCF (issue #26)."""
+
+    def _init_with_uscf(self, pgn, uscf, cache_path=None):
+        data.reset()
+        with stub_studies(teststudy=pgn), stub_uscf(uscf):
+            data.initialize(
+                ["teststudy"], player_name="Test Player",
+                uscf_member_id="12345678", uscf_cache_path=cache_path,
+            )
+
+    def test_both_sources_fresh_both_named(self, sample_pgn_text, uscf_profile_json):
+        from shell import update_freshness
+        self._init_with_uscf(sample_pgn_text, uscf_profile_json)
+
+        label, notice = update_freshness(0, {"seq": 0})
+
+        assert "Lichess" in label and "USCF" in label
+        assert label.count("synced") == 2    # each source has its own freshness
+        assert notice is None
+
+    def test_uscf_unavailable_is_said_plainly(self, sample_pgn_text, uscf_profile_json):
+        """USCF down, nothing cached → 'USCF unavailable', Lichess unaffected."""
+        from shell import update_freshness
+        from uscf_client import UscfUnreachableError
+        self._init_with_uscf(sample_pgn_text, UscfUnreachableError("down"))
+
+        label, _ = update_freshness(0, {"seq": 0})
+
+        assert "USCF unavailable" in label
+        assert "Lichess synced" in label
+
+    def test_cached_uscf_says_unavailable_since_when(
+        self, sample_pgn_text, uscf_profile_json, tmp_path
+    ):
+        """USCF down with cached data → 'USCF unavailable since <time>'."""
+        from shell import update_freshness
+        from uscf_client import UscfUnreachableError
+
+        cache = str(tmp_path / "uscf_cache.json")
+        self._init_with_uscf(sample_pgn_text, uscf_profile_json, cache)
+        data.reset()
+        self._init_with_uscf(sample_pgn_text, UscfUnreachableError("down"), cache)
+
+        label, _ = update_freshness(0, {"seq": 0})
+
+        assert "USCF unavailable since" in label
+
+    def test_without_uscf_configured_label_is_unchanged(self):
+        """Lichess-only users see exactly the pre-USCF label (no 'USCF' noise).
+        (The autouse fresh_store fixture initializes without USCF.)"""
+        from shell import update_freshness
+
+        label, _ = update_freshness(0, {"seq": 0})
+
+        assert "USCF" not in label
+        assert "synced" in label
 
 
 # ---------------------------------------------------------------------------

@@ -376,6 +376,33 @@ class TestUscfProfileCard:
         finally:
             data.reset()
 
+    def test_card_keeps_cached_data_with_staleness_warning(
+        self, ui_app, sample_pgn_text, tmp_path
+    ):
+        """USCF down but cached: the numbers stay, clearly marked stale (issue #26)."""
+        import data
+        from pages.overview import update_uscf_card
+        from tests.conftest import stub_ui_sources
+        from uscf_client import UscfUnreachableError
+
+        cache = str(tmp_path / "uscf_cache.json")
+        data.reset()
+        # A successful Sync populates the cache...
+        with stub_ui_sources(sample_pgn_text):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="12345678", uscf_cache_path=cache)
+        data.reset()
+        # ...then the app restarts while USCF is down
+        with stub_ui_sources(sample_pgn_text, uscf_profile=UscfUnreachableError("down")):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="12345678", uscf_cache_path=cache)
+        try:
+            rendered = str(update_uscf_card({"seq": 0}))
+            assert "1545" in rendered                       # cached ratings still shown
+            assert "unavailable since" in rendered.lower()  # but clearly marked stale
+        finally:
+            data.reset()
+
     def test_no_card_when_uscf_is_not_configured(self, ui_app, sample_pgn_text):
         """Without a member ID the Overview stays exactly as it was pre-USCF."""
         import data
