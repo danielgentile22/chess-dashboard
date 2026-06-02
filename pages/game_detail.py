@@ -18,7 +18,13 @@ import pandas as pd
 from dash import dcc, html
 
 import data
-from components import content_card, empty_state, page_header
+from components import (
+    USCF_RATING_SYSTEM_LABELS,
+    content_card,
+    empty_state,
+    page_header,
+    uscf_member_url,
+)
 
 dash.register_page(
     __name__,
@@ -79,6 +85,78 @@ def _metadata_card(game: pd.Series) -> html.Div:
         _meta_row("Study", game.get("StudyName")),
     ]
     return content_card("Game", *[r for r in rows if r is not None])
+
+
+def _uscf_facts_card(game: pd.Series) -> html.Div | None:
+    """
+    The USCF half of a matched Game (issue #28): what USCF officially recorded
+    — Rated Event, Section, rating system, and the opponent as USCF knows them,
+    linking to their page on the ratings site.
+
+    None for unmatched Games: no USCF facts are ever invented (ADR 0003).
+    """
+    if not game.get("UscfMatched"):
+        return None
+
+    system_code = str(game.get("UscfRatingSystem") or "")
+    opponent_id = str(game.get("UscfOpponentId") or "")
+    # How the match was made (issue #29): name matches deserve an eyeball
+    matched_by = {"id": "opponent ID", "name": "opponent name"}.get(
+        str(game.get("UscfMatchedBy") or ""), ""
+    )
+    rows = [
+        _meta_row("Rated Event", game.get("UscfEventName")),
+        _meta_row("Section", game.get("UscfSection")),
+        _meta_row("Rating system",
+                  USCF_RATING_SYSTEM_LABELS.get(system_code, system_code)),
+        _meta_row("Matched by", matched_by),
+    ]
+
+    # The sources disagree (issue #30): badge it and point at Reconciliation.
+    # The page itself keeps displaying the Lichess version of every fact.
+    conflict_badge = None
+    if game.get("UscfColorConflict"):
+        conflict_badge = dcc.Link(
+            className="uscf-conflict-badge", href="/reconciliation", children=[
+                html.Span("⚠", className="uscf-conflict-icon"),
+                html.Span("USCF disagrees about this game — review it in "
+                          "Reconciliation"),
+            ],
+        )
+
+    return content_card(
+        "USCF record",
+        conflict_badge,
+        *[r for r in rows if r is not None],
+        html.Div(className="meta-row", children=[
+            html.Span("Opponent", className="meta-label"),
+            html.Span(className="meta-value", children=[
+                html.A(
+                    [str(game.get("UscfOpponentName") or ""),
+                     html.Span(f" #{opponent_id}", className="uscf-member-id")],
+                    href=uscf_member_url(opponent_id),
+                    target="_blank", className="uscf-opponent-link",
+                ),
+            ]),
+        ]),
+    )
+
+
+def _forfeit_tag(game: pd.Series) -> html.Div | None:
+    """
+    The visible Forfeit tag (issue #29): this Chapter exists, but no game was
+    played — the opponent never showed, so USCF never rated it.
+    """
+    if not game.get("Forfeit"):
+        return None
+    return html.Div(className="forfeit-tag", children=[
+        html.Span("Forfeit", className="forfeit-tag-label"),
+        html.Span(
+            " — opponent no-show; USCF never rated this game. It counts toward "
+            "the event score but not toward win rate, streaks, or opening stats.",
+            className="forfeit-tag-hint",
+        ),
+    ])
 
 
 def _lessons_card(game: pd.Series) -> html.Div:
@@ -143,6 +221,9 @@ def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
             html.Div(outcome, className=f"outcome-badge {outcome.lower()}"),
         ]),
 
+        # No game was actually played (issue #29) — say so prominently
+        _forfeit_tag(game),
+
         html.Div(className="game-detail-grid", children=[
             # The Chapter's interactive board — annotations and variations
             # playable in place
@@ -158,6 +239,8 @@ def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
             html.Div(className="game-detail-side", children=[
                 _lessons_card(game),
                 _metadata_card(game),
+                # The USCF half, when this Game is matched (issue #28)
+                _uscf_facts_card(game),
                 html.A(
                     [html.I(className="bi bi-box-arrow-up-right"), " Open on Lichess"],
                     href=str(game["ChapterURL"]), target="_blank",

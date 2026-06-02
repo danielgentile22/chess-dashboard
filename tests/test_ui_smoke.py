@@ -28,13 +28,14 @@ import pytest
 
 # Every page the app must serve: (path, registry name)
 PAGES = [
-    ("/",          "Overview"),
-    ("/trends",    "Trends"),
-    ("/openings",  "Openings"),
-    ("/opponents", "Opponents"),
-    ("/events",    "Events"),
-    ("/games",     "Games"),
-    ("/lessons",   "Lessons"),
+    ("/",               "Overview"),
+    ("/trends",         "Trends"),
+    ("/openings",       "Openings"),
+    ("/opponents",      "Opponents"),
+    ("/events",         "Events"),
+    ("/games",          "Games"),
+    ("/lessons",        "Lessons"),
+    ("/reconciliation", "Reconciliation"),
 ]
 
 # Default filter-callback arguments: everything selected / no restriction,
@@ -107,7 +108,7 @@ class TestAppBoots:
         client = ui_app.server.test_client()
         assert client.get("/health").status_code == 200
 
-    def test_all_seven_pages_registered(self, ui_app, ui_data):
+    def test_every_page_registered(self, ui_app, ui_data):
         registered = {p["path"]: p["name"] for p in dash.page_registry.values()}
         for path, name in PAGES:
             assert path in registered, f"no page registered at {path}"
@@ -401,7 +402,8 @@ class TestUscfProfileCard:
              mock.patch.object(sync, "fetch_member_profile",
                                return_value=_UI_USCF_PROFILE), \
              mock.patch.object(sync, "fetch_rating_supplements", return_value=[]), \
-             mock.patch.object(sync, "fetch_member_sections", return_value=[]):
+             mock.patch.object(sync, "fetch_member_sections", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_games", return_value=[]):
             data.initialize(
                 ["teststudy"], player_name="Test Player", uscf_member_id="32487228"
             )
@@ -1155,6 +1157,268 @@ class TestGameNavigation:
         for fn in (navigate_to_game, navigate_to_game_from_scout, navigate_to_game_from_event):
             href, _reset = fn({"row": 0, "column_id": "Date"}, self.ROWS)
             assert href == "/game/chap0003"
+
+
+# ---------------------------------------------------------------------------
+# USCF matching in the UI (issues #28 / #29)
+#
+# The ui fixtures pair SAMPLE_PGN with SAMPLE_USCF_GAMES: games 1–5 match by
+# opponent ID + result, game 6 has an ID but no record (unmatched), game 7
+# has no FideId and matches by name.
+# ---------------------------------------------------------------------------
+
+class TestUscfMatchUI:
+    def test_game_detail_shows_the_uscf_half_of_a_matched_game(self, ui_app, ui_data):
+        """#28: Rated Event, Section, rating system, official opponent name and
+        member ID, and a link to the opponent's USCF page."""
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0001"))
+
+        assert "TEST OPEN JANUARY" in rendered          # Rated Event
+        assert "OPEN" in rendered                       # Section
+        assert "Regular" in rendered                    # rating system, spelled out
+        assert "OPPONENT A" in rendered                 # official (USCF) opponent name
+        assert "10000001" in rendered                   # opponent member ID
+        # Deep link to the opponent's page on the USCF ratings site
+        assert "ratings.uschess.org/members/10000001" in rendered
+
+    def test_game_detail_of_an_unmatched_game_invents_nothing(self, ui_app, ui_data):
+        """Game 6 has no USCF Game Record: its detail view shows no USCF facts
+        (and certainly no link to a member page that isn't its opponent's)."""
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0006"))
+
+        assert "ratings.uschess.org" not in rendered
+        assert "Rated Event" not in rendered
+
+    def test_games_table_distinguishes_id_matches_name_matches_and_unmatched(
+        self, ui_app, ui_data
+    ):
+        """#28/#29/#30: ✓ = matched by opponent ID, ≈ = matched by name (so
+        name matches can be eyeballed), ⚠ = matched but conflicted, blank =
+        no USCF Game Record."""
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        by_chapter = {r["ChapterURL"].rsplit("/", 1)[-1]: r for r in rows}
+
+        for chapter_id in ("chap0001", "chap0002", "chap0003", "chap0005"):
+            assert by_chapter[chapter_id]["USCF"] == "✓", f"{chapter_id}: ID match"
+        assert by_chapter["chap0004"]["USCF"] == "⚠"      # matched, color conflict
+        assert by_chapter["chap0007"]["USCF"] == "≈"      # matched by name
+        assert by_chapter["chap0006"]["USCF"] == ""       # no record
+
+    def test_game_detail_says_how_a_name_match_was_made(self, ui_app, ui_data):
+        """A name-matched Game says so in its USCF card, so Daniel can eyeball
+        whether the fallback got it right (issue #29)."""
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0007"))
+
+        assert "name" in str(rendered)
+        assert "ratings.uschess.org/members/10000001" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation page, header badge, and conflict badges (issue #30)
+#
+# With the ui fixtures: game 4 is a color conflict, game 6 is Lichess-only,
+# game 7 is missing its FideId, and one record (EXTRA OPPONENT) is USCF-only.
+# ---------------------------------------------------------------------------
+
+class TestReconciliationPage:
+    def test_page_lists_every_open_disagreement_grouped_by_kind(self, ui_app, ui_data):
+        from pages.reconciliation import update_reconciliation
+        rendered = str(update_reconciliation({"seq": 0}))
+
+        # The conflict: both versions side by side
+        assert "Opponent A" in rendered
+        assert "Black" in rendered and "White" in rendered
+        # USCF-only: the record with no Chapter
+        assert "EXTRA OPPONENT" in rendered
+        # Lichess-only: game 6 (USCF hasn't rated it)
+        assert "Opponent B" in rendered
+        # Missing FideId: game 7, with the exact ID to type in
+        assert "10000001" in rendered
+
+    def test_every_entry_offers_dismiss_and_fix_actions(self, ui_app, ui_data):
+        from pages.reconciliation import update_reconciliation
+        rendered = str(update_reconciliation({"seq": 0}))
+
+        assert "Dismiss" in rendered
+        # Fix-on-Lichess guidance links to the chapter
+        assert "lichess.org/study/teststudy/chap0004" in rendered
+
+    def test_page_documents_the_persistence_limitation(self, ui_app, ui_data):
+        """Issue #30: dismissals are best-effort — say so on the page, not
+        just in the PR."""
+        from pages.reconciliation import update_reconciliation
+        rendered = str(update_reconciliation({"seq": 0}))
+
+        assert "redeploy" in rendered.lower() or "may come back" in rendered.lower()
+
+    def test_dismissing_an_entry_removes_it_from_the_page(self, ui_app, ui_data):
+        import data
+        from pages.reconciliation import dismiss_entry
+
+        entry = next(e for e in data.get_reconciliation() if e.kind == "conflict")
+
+        # The pattern-matching callback fires with the clicked button's id
+        with mock.patch("pages.reconciliation.ctx") as fake_ctx:
+            fake_ctx.triggered_id = {"type": "reconcile-dismiss",
+                                     "index": entry.entry_id}
+            content, badge_bump = dismiss_entry([1], 0)
+
+        # Gone from the store...
+        assert entry.entry_id not in {e.entry_id for e in data.get_reconciliation()}
+        # ...gone from the re-rendered page (it was the only conflict)...
+        rendered = str(content)
+        assert "Conflicts" not in rendered
+        assert "USCF only" in rendered           # other sections remain
+        # ...and the header badge is told to update
+        assert badge_bump == 1
+
+    def test_all_reconciled_is_a_positive_empty_state(self, ui_app, sample_pgn_text):
+        """No disagreements → say so warmly, not a blank page."""
+        import data
+        from pages.reconciliation import update_reconciliation
+        from tests.conftest import SAMPLE_USCF_GAMES, stub_ui_sources
+
+        # Only the records that match cleanly (drop the conflict, the
+        # USCF-only extra, and keep game 6/7 out of dispute is impossible —
+        # so dismiss everything instead)
+        data.reset()
+        with stub_ui_sources(sample_pgn_text, uscf_games=SAMPLE_USCF_GAMES):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="32487228")
+        for entry in list(data.get_reconciliation()):
+            data.dismiss_reconciliation_entry(entry.entry_id)
+        try:
+            rendered = str(update_reconciliation({"seq": 0}))
+            assert "agree" in rendered.lower() or "reconciled" in rendered.lower()
+        finally:
+            data.reset()
+
+
+class TestReconciliationBadge:
+    def test_header_badge_shows_open_count_and_links_to_the_page(self, ui_app, ui_data):
+        import data
+        from shell import update_reconciliation_badge
+        badge = update_reconciliation_badge({"seq": 0}, 0)
+        rendered = str(badge)
+
+        assert str(len(data.get_reconciliation())) in rendered
+        assert "/reconciliation" in rendered
+
+    def test_no_badge_when_nothing_is_open(self, ui_app, sample_pgn_text):
+        """A clean reconciliation needs no badge — silence is the reward."""
+        import data
+        import sync
+        from shell import update_reconciliation_badge
+
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text):
+            data.initialize(["teststudy"], player_name="Test Player")
+        try:
+            assert update_reconciliation_badge({"seq": 0}, 0) is None
+        finally:
+            data.reset()
+
+    def test_badge_lives_in_the_shell(self, ui_app, ui_data):
+        """The badge is on every page — it belongs to the shell, not a page."""
+        layout = ui_app.layout
+        tree = layout() if callable(layout) else layout
+        assert "reconciliation-badge" in _collect_ids(tree)
+
+
+class TestConflictBadgeOnGameDetail:
+    def test_conflicted_game_detail_links_to_reconciliation(self, ui_app, ui_data):
+        """#30: the ⚠ badge on a conflicted Game links to its Reconciliation
+        entry; the Game itself still displays the Lichess version."""
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0004"))
+
+        assert "⚠" in rendered
+        assert "/reconciliation" in rendered
+        # Lichess displays: the chapter's color (Black), not USCF's (White)
+        assert "Black" in rendered
+
+    def test_clean_game_detail_has_no_conflict_badge(self, ui_app, ui_data):
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0001"))
+
+        assert "/reconciliation" not in rendered
+
+
+# ---------------------------------------------------------------------------
+# Forfeit in the UI (issue #29): a visible tag wherever the Game appears
+# ---------------------------------------------------------------------------
+
+_FORFEIT_UI_PGN = """\
+[Event "Test Open"]
+[Site "Springfield"]
+[Date "2024.01.06"]
+[Round "1"]
+[White "Test Player"]
+[Black "Opponent A"]
+[WhiteElo "1800"]
+[BlackElo "1920"]
+[ECO "E04"]
+[Opening "Catalan Opening"]
+[Result "1-0"]
+[Termination "win by resignation"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - Opponent A"]
+[ChapterURL "https://lichess.org/study/forfstudy/real0001"]
+
+1. d4 Nf6 2. c4 e6 3. g3 d5 1-0
+
+[Event "Test Open"]
+[Site "Springfield"]
+[Date "2024.01.07"]
+[Round "2"]
+[White "Test Player"]
+[Black "No Show"]
+[WhiteElo "1800"]
+[BlackElo "1700"]
+[Result "1-0"]
+[Termination "win by forfeit"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - No Show"]
+[ChapterURL "https://lichess.org/study/forfstudy/forf0002"]
+
+1. e4 1-0
+"""
+
+
+@pytest.fixture()
+def forfeit_ui_data(ui_app):
+    """A data store whose archive holds one real game and one Forfeit."""
+    import data
+    from tests.conftest import stub_ui_sources
+
+    data.reset()
+    with stub_ui_sources(_FORFEIT_UI_PGN, uscf_games=[]):
+        data.initialize(["forfstudy"], player_name="Test Player",
+                        uscf_member_id="32487228")
+    yield
+    data.reset()
+
+
+class TestForfeitUI:
+    def test_games_table_tags_the_forfeit(self, ui_app, forfeit_ui_data):
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        by_chapter = {r["ChapterURL"].rsplit("/", 1)[-1]: r for r in rows}
+
+        assert by_chapter["forf0002"]["USCF"] == "Forfeit"
+        # The forfeit still appears in the Games list (it counts for the score)
+        assert len(rows) == 2
+
+    def test_game_detail_tags_the_forfeit(self, ui_app, forfeit_ui_data):
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="forf0002"))
+
+        assert "Forfeit" in rendered
+        assert "never rated" in rendered or "no-show" in rendered.lower()
 
 
 # ---------------------------------------------------------------------------

@@ -32,10 +32,10 @@ def stub_studies(**study_pgns):
 
 
 @contextlib.contextmanager
-def stub_uscf(profile, supplements=None, sections=None):
+def stub_uscf(profile, supplements=None, sections=None, games=None):
     """
     Patch the USCF client inside sync: each value is the raw JSON to return,
-    or an Exception to raise.  Supplements/sections default to empty lists.
+    or an Exception to raise.  List endpoints default to empty lists.
     """
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -49,7 +49,9 @@ def stub_uscf(profile, supplements=None, sections=None):
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(supplements or []), create=True), \
          mock.patch.object(sync, "fetch_member_sections",
-                           side_effect=fake(sections or []), create=True):
+                           side_effect=fake(sections or []), create=True), \
+         mock.patch.object(sync, "fetch_member_games",
+                           side_effect=fake(games or []), create=True):
         yield
 
 
@@ -288,6 +290,55 @@ class TestUscfCachePolicy:
         assert cached == {"final": True}
 
 
+class TestUscfCacheDismissals:
+    """
+    Reconciliation dismissals (issue #30): user judgements ("USCF is wrong",
+    "intentionally skipped"), not API responses — they must survive every
+    Sync's replace_current and app restarts.  Best-effort persistence: a
+    redeploy on a stateless host may resurrect dismissed items (documented).
+    """
+
+    def test_dismissals_round_trip(self, tmp_path):
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.add_dismissal("conflict:https://lichess.org/study/x/abc")
+
+        assert cache.dismissals() == ["conflict:https://lichess.org/study/x/abc"]
+
+    def test_dismissals_survive_replace_current(self, tmp_path):
+        """replace_current wipes API data every Sync — never user judgements."""
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.add_dismissal("uscf-only:202601300323:32697429:Black")
+
+        cache.replace_current({"profile": {"id": "x"}})
+
+        assert cache.dismissals() == ["uscf-only:202601300323:32697429:Black"]
+
+    def test_dismissals_survive_restarts(self, tmp_path):
+        path = str(tmp_path / "uscf_cache.json")
+        sync.UscfCache(path).add_dismissal("rating-mismatch:url")
+
+        reopened = sync.UscfCache(path)
+        assert reopened.dismissals() == ["rating-mismatch:url"]
+
+    def test_dismissing_twice_stores_once(self, tmp_path):
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.add_dismissal("conflict:url")
+        cache.add_dismissal("conflict:url")
+
+        assert cache.dismissals() == ["conflict:url"]
+
+    def test_no_cache_path_keeps_dismissals_in_memory(self):
+        """Stateless hosts: dismissals work for the app's lifetime, then are
+        forgotten — the documented best-effort limitation."""
+        cache = sync.UscfCache(None)
+        cache.add_dismissal("conflict:url")  # must not raise
+
+        assert cache.dismissals() == ["conflict:url"]
+
+
 class TestSyncUscf:
     """The USCF half of a Sync (issue #25, ADR 0003)."""
 
@@ -436,6 +487,56 @@ class TestSyncUscfSeries:
         assert result.available
         assert len(result.live_series) == 23
         assert "sections endpoint broke" in result.failure
+
+
+class TestSyncUscfGames:
+    """sync_uscf also fetches USCF Game Records — the matching engine's input
+    (issue #28)."""
+
+    def test_successful_sync_returns_typed_game_records(
+        self, uscf_profile_json, uscf_games_json
+    ):
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"]):
+            result = sync.sync_uscf("32487228")
+
+        assert len(result.game_records) == 63
+        assert result.game_records[0].opponent_name == "JOHN FONTAINE"
+        assert result.game_records[0].event_name == "ACC MAY 2026"
+
+    def test_game_records_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_games_json, tmp_path
+    ):
+        """Game records degrade to the cached snapshot like everything else
+        (ADR 0003) — matching keeps working while USCF is unreachable."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"]):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert len(degraded.game_records) == 63
+
+    def test_games_endpoint_failing_degrades_the_whole_uscf_half(
+        self, uscf_profile_json, uscf_games_json, tmp_path
+    ):
+        """All-or-nothing (PR #37's decision): the games endpoint failing means
+        the whole USCF half comes from the consistent cached snapshot."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"]):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        with stub_uscf(
+            uscf_profile_json,
+            games=UscfUnreachableError("games endpoint broke"),
+        ):
+            result = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert result.from_cache is True
+        assert result.available
+        assert len(result.game_records) == 63
+        assert "games endpoint broke" in result.failure
 
 
 class TestDetectNewGames:
