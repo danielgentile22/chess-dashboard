@@ -17,8 +17,8 @@ The dashboard is a multi-page app — each page loads only its own charts, so it
 | Page | What you get |
 |---|---|
 | **Overview** | 10 KPI cards · last-20 streak badges · W/D/L donut · termination breakdown · milestone timeline · your top recurring weakness |
-| **Trends** | GitHub-style activity calendar (one cell per day, colored by results) · rating over time with trend overlay · cumulative win rate · games per month · win rate by day of week · game-length distribution |
-| **Openings** | ECO family breakdown (A/B/C/D/E) · full opening detail table |
+| **Trends** | GitHub-style activity calendar (one cell per day, colored by results) · rating over time with trend overlay · cumulative win rate · games per month · win rate by day of week · game-length distribution · results by time control · score by round (the fatigue check) · **upset tracker** (giant kills and upset losses by rating margin) |
+| **Openings** | **Repertoire tree** (your games arranged move by move, branches that leak points flagged) · ECO family breakdown (A/B/C/D/E) · full opening detail table |
 | **Opponents** | **Scouting Report** (search an opponent → score, rating gap, game timeline, their openings by your color, and every Lesson from facing them) · stacked W/D/L bar per opponent · outcome by rating bucket · outcome vs. rating scatter |
 | **Events** | Performance per tournament · selectable event table → per-event game list + performance rating |
 | **Games** | Every game with Open-on-Lichess links, Lesson indicators (💡), and Tags — click any row to open the game |
@@ -29,6 +29,10 @@ Clicking a Game anywhere opens its **detail view**: an embedded interactive Lich
 ### Pre-game review mode
 
 `/lessons?review=1` (the "Review before playing" button, or "Review before facing X" inside a Scouting Report) opens a full-screen, card-by-card walk through your most relevant Lessons — recurring weaknesses first, then the selected opponent's games, then everything else newest-first. Built for one hand and the five minutes before a round.
+
+### Repertoire tree
+
+The Openings page leads with your personal opening explorer: every game as White (or Black — toggleable) arranged move by move. Each branch shows how many games continued that way, a W/D/L bar, and its score; expanding a branch drills one move deeper, down to links into the exact games. Branches that score below your overall average for that color across 3+ games are flagged in red — that's where your repertoire is leaking points.
 
 ### Header
 
@@ -189,6 +193,8 @@ Games are read from Lichess Study chapters (which Lichess serves as standard PGN
 | `Event` | Optional | Tournament performance section |
 | `ECO` / `Opening` | Optional | Opening analysis section |
 | `Termination` | Optional | Termination breakdown chart |
+| `TimeControl` | Optional | Results-by-time-control chart (`110+10`, `40/80, SD30; +30`, `G/30;d5`, …) |
+| `Round` | Optional | Score-by-round fatigue chart |
 
 ---
 
@@ -208,8 +214,8 @@ chess-stats-dashboard/
 ├── pgn_stats_core.py        # PGN parsing, statistics, and insights functions
 ├── pages/                   # One module per page (Dash Pages)
 │   ├── overview.py          #   /          KPIs, streaks, W/D/L, milestones
-│   ├── trends.py            #   /trends    rating, win rate, activity, game length
-│   ├── openings.py          #   /openings  ECO families + openings table
+│   ├── trends.py            #   /trends    rating, activity, time controls, upsets
+│   ├── openings.py          #   /openings  repertoire tree + ECO families
 │   ├── opponents.py         #   /opponents records, head-to-head, strength
 │   ├── events.py            #   /events    tournament performance
 │   ├── games.py             #   /games     full games table
