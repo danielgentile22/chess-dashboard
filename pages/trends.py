@@ -29,6 +29,7 @@ from components import (
     content_card,
     empty_state,
     page_header,
+    rating_basis_note,
     register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
@@ -43,7 +44,7 @@ from pgn_stats_core import (
     win_rate_over_time,
 )
 from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
-from uscf_core import rating_trend_series
+from uscf_core import LIVE_LENS, OFFICIAL_LENS, rating_trend_series
 
 dash.register_page(
     __name__, path="/trends", name="Trends", title="Trends — Chess Stats", order=1,
@@ -124,6 +125,8 @@ def layout(**kwargs) -> html.Div:
                 ]),
             ),
         ]),
+        # Upset margins are rating-diff — say what basis they mix (issue #32)
+        rating_basis_note(),
     ])
 
 
@@ -213,9 +216,9 @@ def _year_calendar_fig(year_daily: pd.DataFrame, year: int) -> go.Figure:
 
 
 @callback(Output("activity-calendar", "children"), FILTER_INPUTS)
-def update_activity_calendar(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
+def update_activity_calendar(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
     """One calendar block per year with Games, newest year first."""
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     daily = daily_activity(df_f)
     if daily.empty:
         return empty_state("♙", "No dated games in this filter",
@@ -290,7 +293,7 @@ def _dual_line_rating_fig(official, live, lens: str) -> go.Figure:
     Live per-Rated-Event line, both always drawn.  The active lens is full
     strength; the other stays readable but recedes.
     """
-    official_active = lens != "live"
+    official_active = lens != LIVE_LENS
 
     fig = go.Figure()
     # The Official Rating: a step function changing only at supplement dates
@@ -331,7 +334,7 @@ def _dual_line_rating_fig(official, live, lens: str) -> go.Figure:
 
 @callback(Output("rating-line", "figure"), FILTER_INPUTS)
 def update_rating(colors, outcomes, terminations, start, end, events, moves,
-                  _sync=None, lens="official"):
+                  _sync=None, lens=None):
     """The rating trend: dual-line (Official + Live) when USCF data exists,
     typed header values otherwise (ADR 0003 — enrichment, never a dependency)."""
     full_official = data.get_official_series()
@@ -339,7 +342,7 @@ def update_rating(colors, outcomes, terminations, start, end, events, moves,
 
     if not full_official and not full_live:
         # USCF never reached or not configured → the Studies' own numbers
-        df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+        df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
         pr = player_rating_over_time(df_f)
         if pr.empty:
             return empty_fig("No rating data")
@@ -350,12 +353,12 @@ def update_rating(colors, outcomes, terminations, start, end, events, moves,
     )
     if not official and not live:
         return empty_fig("No rating data in this date range")
-    return _dual_line_rating_fig(official, live, lens or "official")
+    return _dual_line_rating_fig(official, live, lens or OFFICIAL_LENS)
 
 
 @callback(Output("winrate-line", "figure"), FILTER_INPUTS)
-def update_winrate(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_winrate(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     wr = win_rate_over_time(df_f)
     if wr.empty:
         return empty_fig("No dated games")
@@ -383,8 +386,8 @@ def update_winrate(colors, outcomes, terminations, start, end, events, moves, _s
 
 
 @callback(Output("monthly-bar", "figure"), FILTER_INPUTS)
-def update_monthly(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_monthly(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     m, _ = activity_data(df_f)
     if m.empty:
         return empty_fig("No dated games")
@@ -402,8 +405,8 @@ def update_monthly(colors, outcomes, terminations, start, end, events, moves, _s
 
 
 @callback(Output("dow-bar", "figure"), FILTER_INPUTS)
-def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     _, dw = activity_data(df_f)
     if dw.empty:
         return empty_fig("No dated games")
@@ -424,8 +427,8 @@ def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=
 
 
 @callback(Output("length-hist", "figure"), FILTER_INPUTS)
-def update_length_hist(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_length_hist(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     hist_df, _ = game_length_data(df_f)
     if hist_df.empty:
         return empty_fig("No data")
@@ -448,9 +451,9 @@ _NO_TC_LABEL = "(not recorded)"
 
 
 @callback(Output("tc-bar", "figure"), FILTER_INPUTS)
-def update_time_control(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
+def update_time_control(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
     """Stacked W/D/L per time control, slowest first, speed class in the hover."""
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     tc = time_control_summary(df_f)
     if tc.empty:
         return empty_fig("No finished games in this filter")
@@ -530,9 +533,9 @@ def _round_fig(rounds: pd.DataFrame) -> go.Figure:
 
 
 @callback(Output("round-bar", "figure"), FILTER_INPUTS)
-def update_round_performance(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
+def update_round_performance(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
     """Score by round number — late-round fatigue shows up as a downhill slope."""
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     rounds = round_performance(df_f)
     if rounds.empty:
         return empty_fig("No games with round numbers in this filter")
@@ -554,9 +557,9 @@ def _upset_rows(upsets: list[dict], sign: str) -> list[dict]:
     Output("upset-losses-status", "children"),
     FILTER_INPUTS,
 )
-def update_upsets(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
+def update_upsets(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
     """Both upset tables + the lines that explain them when they're empty."""
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     upsets = upset_tracker(df_f)
 
     wins_status = None
@@ -589,8 +592,8 @@ navigate_to_game_from_upset_loss = register_game_navigation(
 
 
 @callback(Output("length-stats", "children"), FILTER_INPUTS)
-def update_length_stats(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_length_stats(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     _, avgs = game_length_data(df_f)
     if not avgs:
         return html.Div("No data", style={"color": COLORS["dim"]})

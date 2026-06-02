@@ -77,8 +77,8 @@ def layout(**kwargs) -> html.Div:
 # ---------------------------------------------------------------------------
 
 @callback(Output("event-bar", "figure"), FILTER_INPUTS)
-def update_event_bar(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_event_bar(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     ev = event_summary(df_f)
     if ev.empty:
         return empty_fig("No event data")
@@ -95,8 +95,8 @@ def update_event_bar(colors, outcomes, terminations, start, end, events, moves, 
 
 
 @callback(Output("event-table", "data"), FILTER_INPUTS)
-def update_event_table(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_event_table(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     return event_summary(df_f).to_dict("records")
 
 
@@ -107,7 +107,7 @@ def update_event_table(colors, outcomes, terminations, start, end, events, moves
     FILTER_INPUTS,
 )
 def update_tournament_detail(selected_rows, table_data, colors, outcomes,
-                             terminations, start, end, events, moves, _sync=None, _lens=None):
+                             terminations, start, end, events, moves, _sync=None, lens=None):
     if not selected_rows or not table_data:
         return None
     # The selection can be stale: a filter change may have shrunk the table
@@ -116,7 +116,7 @@ def update_tournament_detail(selected_rows, table_data, colors, outcomes,
         return None
     row = table_data[selected_rows[0]]
     event_name = row.get("Event", "")
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     # RoundNum, not Round: round 10 sorts after round 9, not after round 1
     ev_games = df_f[df_f["Event"] == event_name].sort_values(
         ["Date", "RoundNum"], na_position="last"

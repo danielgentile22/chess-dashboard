@@ -373,6 +373,51 @@ SAMPLE_USCF_GAMES = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Sample supplements + sections that pair with SAMPLE_PGN (issue #32).
+#
+# SAMPLE_PGN's games are dated 2024, while the real captured supplements and
+# sections are 2025–26 — so without these, no sample Game would have any
+# value under the rating lens.  The supplement values equal the typed
+# ratings (1800 / 1810), so the Official lens shows the same numbers the
+# typed values always showed and no Reconciliation rating-mismatch appears;
+# the Live values carry decimals so the Live lens is visibly different.
+# ---------------------------------------------------------------------------
+
+SAMPLE_USCF_SUPPLEMENTS = [
+    {"ratingSupplementDate": "2024-01-01",
+     "ratings": [{"source": "R", "rating": 1800}]},
+    {"ratingSupplementDate": "2024-06-01",
+     "ratings": [{"source": "R", "rating": 1810}]},
+]
+
+
+def _sample_uscf_section(event_id, event_name, start, end, pre, post,
+                         section="OPEN"):
+    """One raw /members/{id}/sections item (the real endpoint shape)."""
+    return {
+        "ratingSystem": "R",
+        "sectionName": section,
+        "event": {"id": event_id, "name": event_name,
+                  "startDate": start, "endDate": end},
+        "ratingRecords": [{
+            "ratingSource": "R",
+            "preRating": round(pre), "preRatingDecimal": pre,
+            "postRating": round(post), "postRatingDecimal": post,
+        }],
+    }
+
+
+SAMPLE_USCF_SECTIONS = [
+    # Games 1–3's Rated Event; pre-rating carries decimals for Live-lens tests
+    _sample_uscf_section("202401070001", "TEST OPEN JANUARY",
+                         "2024-01-06", "2024-01-07", pre=1782.5, post=1800.5),
+    # Games 4–7's Rated Event; chains from the January Section
+    _sample_uscf_section("202406160002", "SUMMER CUP 2024",
+                         "2024-06-15", "2024-06-16", pre=1800.5, post=1812.44),
+]
+
+
 @pytest.fixture(scope="session")
 def sample_uscf_games() -> list[dict]:
     """USCF Game Records that pair with SAMPLE_PGN (5 matches + 1 USCF-only)."""
@@ -406,21 +451,31 @@ def sample_pgn_path(tmp_path_factory) -> Path:
 # The same real response shapes, available without requesting the session
 # fixtures (ui_app builds the app at session scope).
 _UI_USCF_PROFILE = json.loads((USCF_FIXTURES_DIR / "member-profile.json").read_text())
-_UI_USCF_SUPPLEMENTS = json.loads(
+REAL_USCF_SUPPLEMENTS = json.loads(
     (USCF_FIXTURES_DIR / "rating-supplements.json").read_text()
 )["items"]
-_UI_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())["items"]
+REAL_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())["items"]
+
+# What UI fixtures feed by default: the real 2025–26 career (so the profile
+# card and the rating series are real) plus the 2024 sample items that cover
+# SAMPLE_PGN's Games (so the rating lens has values for them — issue #32).
+_UI_USCF_SUPPLEMENTS = SAMPLE_USCF_SUPPLEMENTS + REAL_USCF_SUPPLEMENTS
+_UI_USCF_SECTIONS = SAMPLE_USCF_SECTIONS + REAL_USCF_SECTIONS
 
 
 @contextmanager
 def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
-                    uscf_games: list | None = None):
+                    uscf_games: list | None = None,
+                    uscf_supplements: list | None = None,
+                    uscf_sections: list | None = None):
     """
     Patch both clients at sync's module boundary for UI fixtures/tests:
     Lichess returns *pgn_text*; USCF returns the real captured responses.
     Pass an Exception as *uscf_profile* to simulate USCF being down
     (every endpoint raises it).  *uscf_games* defaults to the records that
-    pair with SAMPLE_PGN, so UI tests render against matched Games.
+    pair with SAMPLE_PGN, so UI tests render against matched Games;
+    *uscf_supplements* / *uscf_sections* default to the real career extended
+    with the 2024 sample items that cover SAMPLE_PGN.
     """
     import sync
 
@@ -428,6 +483,10 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
         uscf_profile = _UI_USCF_PROFILE
     if uscf_games is None:
         uscf_games = SAMPLE_USCF_GAMES
+    if uscf_supplements is None:
+        uscf_supplements = _UI_USCF_SUPPLEMENTS
+    if uscf_sections is None:
+        uscf_sections = _UI_USCF_SECTIONS
     uscf_down = uscf_profile if isinstance(uscf_profile, Exception) else None
 
     def fake(value):
@@ -441,9 +500,9 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
          mock.patch.object(sync, "fetch_member_profile",
                            side_effect=fake(uscf_profile)), \
          mock.patch.object(sync, "fetch_rating_supplements",
-                           side_effect=fake(_UI_USCF_SUPPLEMENTS)), \
+                           side_effect=fake(uscf_supplements)), \
          mock.patch.object(sync, "fetch_member_sections",
-                           side_effect=fake(_UI_USCF_SECTIONS)), \
+                           side_effect=fake(uscf_sections)), \
          mock.patch.object(sync, "fetch_member_games",
                            side_effect=fake(uscf_games)):
         yield
@@ -473,6 +532,29 @@ def ui_data(sample_pgn_text):
         data.initialize(
             ["teststudy"], player_name="Test Player", uscf_member_id="12345678"
         )
+    yield
+    data.reset()
+
+
+@pytest.fixture()
+def real_career_ui(ui_app):
+    """
+    The data store loaded with Daniel's real fixture pair: the 63-chapter
+    Study snapshot matched against his real USCF record (issues #31/#32).
+
+    Pure real data — no 2024 sample items — so series lengths and values
+    match the captured career exactly.
+    """
+    import data
+
+    pgn_text = (USCF_FIXTURES_DIR / "lichess-study-snapshot.pgn").read_text()
+    games = json.loads((USCF_FIXTURES_DIR / "games.json").read_text())["items"]
+    data.reset()
+    with stub_ui_sources(pgn_text, uscf_games=games,
+                         uscf_supplements=REAL_USCF_SUPPLEMENTS,
+                         uscf_sections=REAL_USCF_SECTIONS):
+        data.initialize(["realstudy"], player_name="Daniel Gentile",
+                        uscf_member_id="12345678")
     yield
     data.reset()
 

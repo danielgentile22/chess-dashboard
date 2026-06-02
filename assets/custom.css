@@ -1607,6 +1607,15 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 /* The Live Rating reads blue — it's the "really, right now" number.
    Gold stays reserved for achievements. */
 .uscf-live-value { color: var(--cs-primary); }
+
+/* The opponent-rating limitation note (issue #32): shown wherever
+   rating-diff appears, so mixed-basis margins are never a silent surprise. */
+.rating-basis-note {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--cs-dim);
+  font-style: italic;
+}
 .uscf-stat {
   background: var(--cs-card2);
   border: 1px solid var(--cs-border);

@@ -21,6 +21,7 @@ rating_trend_series     both series trimmed to a date range (the Trends chart's 
 build_game_records      raw game items → typed USCF Game Records.
 match_games             USCF Game Records ↔ Games (the matching engine).
 enrich_games            Games df + MatchResult → df with USCF enrichment columns.
+apply_rating_lens       Games df with player ratings rewritten per the Official/Live lens.
 reconcile               Every disagreement between the Studies and USCF.
 UscfProfile             Who the member is according to USCF.
 UscfRating              One rating system's entry (rating, provisional, floor).
@@ -39,6 +40,8 @@ from datetime import date, datetime
 import pandas as pd
 
 __all__ = [
+    "LIVE_LENS",
+    "OFFICIAL_LENS",
     "GameMatch",
     "LiveRatingPoint",
     "MatchResult",
@@ -47,6 +50,7 @@ __all__ = [
     "UscfGameRecord",
     "UscfProfile",
     "UscfRating",
+    "apply_rating_lens",
     "build_game_records",
     "build_live_series",
     "build_official_series",
@@ -668,6 +672,129 @@ def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
         & (enriched["UscfColor"] != enriched["Color"])
     )
     return enriched
+
+
+# ---------------------------------------------------------------------------
+# The rating lens (issue #32)
+# ---------------------------------------------------------------------------
+
+# The two lenses — also the values of the UI's [Official | Live] toggle.
+OFFICIAL_LENS = "official"
+LIVE_LENS = "live"
+
+
+def apply_rating_lens(
+    df: pd.DataFrame,
+    lens: str,
+    official_series: list[OfficialRatingPoint],
+    live_series: list[LiveRatingPoint],
+    match_result: MatchResult,
+) -> pd.DataFrame:
+    """
+    Return a copy of *df* whose player-rating columns reflect the lens basis,
+    so every rating-derived stat downstream follows the lens without knowing
+    it exists.
+
+    Official — the supplement in effect at the matched Rated Event's start
+    date (Daniel's long-standing convention); a Game with no USCF Game Record
+    uses the supplement at its own date; Games before the first supplement
+    have no value — never invented.
+
+    Live — the matched Section's pre-rating, decimals preserved; a Game with
+    no matched Section falls back to the Official basis.
+
+    The lens never hides Games: only PlayerRating / PlayerRatingNum (and the
+    RatingDiff derived from them) change.
+
+    With no USCF data at all (both series empty — USCF unreachable and never
+    cached, ADR 0003), *df* is returned unchanged: typed values are all there
+    is, and wiping them would turn an outage into data loss.
+    """
+    if df.empty or (not official_series and not live_series):
+        return df
+
+    out = df.copy()
+    live_by_section = {(p.event_id, p.section_name): p.pre for p in live_series}
+
+    values = []
+    for _, game in out.iterrows():
+        record = (match_result.record_for(game["ChapterURL"])
+                  if game["ChapterURL"] else None)
+        official_value = _official_basis(record, game, official_series)
+        if lens == LIVE_LENS:
+            values.append(_live_basis(record, live_by_section,
+                                      fallback=official_value))
+        else:
+            values.append(official_value)
+
+    out["PlayerRatingNum"] = pd.to_numeric(
+        pd.Series(values, index=out.index, dtype="object"), errors="coerce",
+    )
+    out["PlayerRating"] = [_rating_display(v) for v in values]
+    # Opponent ratings stay typed under both lenses (the Phase D limitation),
+    # but the diff must compare against the lens basis, not the typed value.
+    out["RatingDiff"] = out["OpponentRatingNum"] - out["PlayerRatingNum"]
+    return out
+
+
+def _live_basis(
+    record: UscfGameRecord | None,
+    live_by_section: dict[tuple[str, str], float | None],
+    fallback: int | None,
+) -> float | int | None:
+    """
+    A Game's Live Rating: its matched Section's pre-rating (decimals).
+
+    A Game with no matched Section can't have one → the Official basis.
+    A matched Section whose pre is None means Daniel was unrated walking in —
+    honestly no value, never the fallback.
+    """
+    if record is None:
+        return fallback
+    key = (record.event_id, record.section_name)
+    if key not in live_by_section:
+        return fallback
+    return live_by_section[key]
+
+
+def _official_basis(
+    record: UscfGameRecord | None,
+    game: pd.Series,
+    official_series: list[OfficialRatingPoint],
+) -> int | None:
+    """
+    A Game's Official Rating: the supplement in effect at its Rated Event's
+    start date (Daniel's convention) — or, for a Game with no USCF Game
+    Record, at the Game's own date.  None when neither gives a basis
+    (the pre-supplement era) — never invented.
+    """
+    if record is not None and record.event_start is not None:
+        basis_date = record.event_start
+    elif pd.notna(game["Date_dt"]):
+        basis_date = game["Date_dt"].date()
+    else:
+        return None
+    return _supplement_in_effect(official_series, basis_date)
+
+
+def _supplement_in_effect(
+    official_series: list[OfficialRatingPoint], on_date: date
+) -> int | None:
+    """The Official Rating in effect on a date: the latest supplement published
+    on or before it.  None before the first supplement — never invented."""
+    in_effect = None
+    for point in official_series:  # chronological
+        if point.month > on_date:
+            break
+        in_effect = point.rating
+    return in_effect
+
+
+def _rating_display(value: int | float | None) -> str:
+    """A lens value as the display string the PlayerRating column carries."""
+    if value is None:
+        return ""
+    return str(value)
 
 
 # ---------------------------------------------------------------------------
