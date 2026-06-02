@@ -2,16 +2,81 @@
 tests/test_uscf_core.py
 =======================
 Tests for the pure USCF interpretation layer (uscf_core.py): raw MUIR API
-responses in → typed records and rating series out.
+responses in → typed records, rating series, and Game matches out.
 
 No HTTP, no Dash — everything runs on real captured response shapes
-(tests/fixtures/uscf/) plus inline variants for edge cases.
+(tests/fixtures/uscf/) plus inline variants for edge cases.  Matching tests
+build the Games side through the real PGN parser (load_games_from_text) so
+the engine always sees exactly what a Sync produces.
 """
 from __future__ import annotations
 
+import itertools
 from datetime import date
 
 import uscf_core
+from pgn_stats_core import load_games_from_text
+
+# ---------------------------------------------------------------------------
+# Matching-test builders: compact specs → real parsed Games / raw USCF items
+# ---------------------------------------------------------------------------
+
+_CHAPTER_IDS = itertools.count(1)
+
+
+def chapter(opponent="John Fontaine", opponent_id="16441708", color="White",
+            result="1-0", date="2026.05.01", event="ACC Friday Ladder",
+            moves="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6", player_rating="1470",
+            opponent_rating="1465"):
+    """One Game as Study-export PGN: Test Player vs *opponent*."""
+    n = next(_CHAPTER_IDS)
+    me, my_id = "Test Player", "99999999"
+    if color == "White":
+        white, black, white_id, black_id = me, opponent, my_id, opponent_id
+        white_elo, black_elo = player_rating, opponent_rating
+    else:
+        white, black, white_id, black_id = opponent, me, opponent_id, my_id
+        white_elo, black_elo = opponent_rating, player_rating
+
+    headers = [
+        f'[Event "{event}"]', f'[Date "{date}"]',
+        f'[White "{white}"]', f'[Black "{black}"]', f'[Result "{result}"]',
+        f'[WhiteElo "{white_elo}"]', f'[BlackElo "{black_elo}"]',
+        f'[ChapterURL "https://lichess.org/study/matchtest/chap{n:04d}"]',
+    ]
+    # A chapter missing the opponent's FideId omits the header entirely
+    # (exactly what Lichess exports when Daniel didn't type one).
+    if white_id:
+        headers.append(f'[WhiteFideId "{white_id}"]')
+    if black_id:
+        headers.append(f'[BlackFideId "{black_id}"]')
+    return "\n".join(headers) + f"\n\n{moves} {result}\n"
+
+
+def games_df(*chapters):
+    """Parse chapter() texts into a Games DataFrame via the real PGN parser."""
+    df, _ = load_games_from_text("\n\n".join(chapters), player_name="Test Player")
+    return df
+
+
+def uscf_game(opponent_id="16441708", opponent_first="JOHN", opponent_last="FONTAINE",
+              player_color="White", player_outcome="Win",
+              event="ACC MAY 2026", event_id="202605290393",
+              start="2026-05-01", end="2026-05-29",
+              section="LADDER", rating_system="R"):
+    """One raw USCF Game Record item (the real games-endpoint shape)."""
+    opponent_color = "Black" if player_color == "White" else "White"
+    opponent_outcome = {"Win": "Loss", "Loss": "Win", "Draw": "Draw"}[player_outcome]
+    return {
+        "section": {"id": "x", "number": 1, "name": section},
+        "event": {"id": event_id, "name": event,
+                  "startDate": start, "endDate": end, "stateCode": "VA"},
+        "ratingSystem": rating_system,
+        "player": {"color": player_color, "outcome": player_outcome},
+        "opponent": {"id": opponent_id, "firstName": opponent_first,
+                     "lastName": opponent_last, "stateRep": "VA",
+                     "color": opponent_color, "outcome": opponent_outcome},
+    }
 
 # ---------------------------------------------------------------------------
 # Member profile parsing (issue #25)
@@ -179,6 +244,30 @@ class TestBuildOfficialSeries:
 
 
 # ---------------------------------------------------------------------------
+# USCF Game Records (issue #28)
+#
+# Raw /members/{id}/games items → typed records the matching engine consumes.
+# ---------------------------------------------------------------------------
+
+class TestBuildGameRecords:
+    def test_parses_the_real_games_response(self, uscf_games_json):
+        records = uscf_core.build_game_records(uscf_games_json["items"])
+
+        assert len(records) == 63
+        # The most recent game: a win with White against JOHN FONTAINE
+        first = records[0]
+        assert first.opponent_id == "16441708"
+        assert first.opponent_name == "JOHN FONTAINE"
+        assert first.player_color == "White"
+        assert first.player_outcome == "Win"
+        assert first.event_name == "ACC MAY 2026"
+        assert first.section_name == "LADDER"
+        assert first.rating_system == "R"
+        assert first.event_start == date(2026, 5, 1)
+        assert first.event_end == date(2026, 5, 29)
+
+
+# ---------------------------------------------------------------------------
 # The Live Rating series (issue #27)
 #
 # One pre→post pair per Regular-rated Section, decimals preserved,
@@ -262,3 +351,351 @@ class TestBuildLiveSeries:
         assert dmv[0].section_name == "Under 1800"               # rated first
         assert dmv[1].section_name == "Extra games - Classical"  # rated second
         assert dmv[1].pre == dmv[0].post                          # and they chain
+
+
+# ---------------------------------------------------------------------------
+# The matching engine — primary pass: opponent ID + result (issue #28)
+# ---------------------------------------------------------------------------
+
+class TestMatchGamesById:
+    def test_a_game_record_matches_its_game_by_opponent_id_and_result(self):
+        """The tracer bullet: one Game, one USCF Game Record, same opponent
+        member ID, same result → matched."""
+        df = games_df(chapter(opponent="John Fontaine", opponent_id="16441708",
+                              color="White", result="1-0"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_color="White",
+                      player_outcome="Win"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+        match = result.matches[0]
+        assert match.chapter_url == df.iloc[0]["ChapterURL"]
+        assert match.record.event_name == "ACC MAY 2026"
+        assert match.matched_by == "id"
+        # Nothing left over on either side
+        assert result.unmatched_chapter_urls == ()
+        assert result.unmatched_records == ()
+
+    def test_result_disagreement_prevents_a_match(self):
+        """Same opponent, but the chapter says Win and USCF says Loss — these
+        cannot be the same game.  Both sides stay unmatched (Reconciliation's
+        problem, not the matcher's)."""
+        df = games_df(chapter(opponent_id="16441708", color="White", result="1-0"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_outcome="Loss"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+        assert result.unmatched_chapter_urls == (df.iloc[0]["ChapterURL"],)
+        assert len(result.unmatched_records) == 1
+
+    def test_chapter_without_fide_id_is_not_matched_by_this_pass(self):
+        """A chapter where Daniel never typed the opponent's member ID cannot
+        match by ID — it waits for the name-fallback pass (issue #29)."""
+        df = games_df(chapter(opponent="James K. Williams", opponent_id="",
+                              color="White", result="1-0"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="12424913", opponent_first="JAMES K",
+                      opponent_last="WILLIAMS", player_outcome="Win"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+        assert len(result.unmatched_chapter_urls) == 1
+        assert len(result.unmatched_records) == 1
+
+    def test_two_missing_ids_never_match_each_other(self):
+        """'' == '' is not an ID match — absence of data is not a key."""
+        df = games_df(chapter(opponent_id="", color="White", result="1-0"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="", player_outcome="Win"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+
+
+class TestRepeatOpponentDisambiguation:
+    """
+    Issue #28: repeat opponents with identical results disambiguate via color
+    and the Rated Event date window — tiebreakers, never match requirements.
+    """
+
+    def test_color_disambiguates_two_wins_against_the_same_opponent(self):
+        """The real Baru case: Daniel beat the same opponent twice in the same
+        monthly Rated Event — once as Black, once as White.  Only color says
+        which USCF record belongs to which chapter."""
+        df = games_df(
+            chapter(opponent="Baru Dharmesh", opponent_id="32018453",
+                    color="Black", result="0-1", date="2025.12.05"),   # Win as Black
+            chapter(opponent="Baru Dharmesh", opponent_id="32018453",
+                    color="White", result="1-0", date="2025.12.26"),   # Win as White
+        )
+        december = dict(opponent_id="32018453", opponent_first="Dharmesh",
+                        opponent_last="Baru", player_outcome="Win",
+                        event="ACC DECEMBER 2025", event_id="202512260263",
+                        start="2025-12-05", end="2025-12-26")
+        records = uscf_core.build_game_records([
+            uscf_game(**december, player_color="White"),
+            uscf_game(**december, player_color="Black"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 2
+        record_for = {m.chapter_url: m.record for m in result.matches}
+        black_game, white_game = df.iloc[0]["ChapterURL"], df.iloc[1]["ChapterURL"]
+        assert record_for[black_game].player_color == "Black"
+        assert record_for[white_game].player_color == "White"
+
+    def test_date_window_disambiguates_when_color_cannot(self):
+        """Two wins against the same opponent with the same color, months apart
+        in different Rated Events — the chapter date falls inside exactly one
+        event's window."""
+        df = games_df(
+            chapter(opponent_id="13419518", color="White", result="1-0",
+                    date="2025.10.04"),
+            chapter(opponent_id="13419518", color="White", result="1-0",
+                    date="2025.12.14"),
+        )
+        hiban = dict(opponent_id="13419518", opponent_first="Michael Thomas",
+                     opponent_last="Hiban", player_color="White", player_outcome="Win")
+        records = uscf_core.build_game_records([
+            uscf_game(**hiban, event="SECOND ANNUAL FEDERAL OPEN",
+                      event_id="202510054832", start="2025-10-03", end="2025-10-05"),
+            uscf_game(**hiban, event="First Annual Oak Grove Open",
+                      event_id="202512140213", start="2025-12-12", end="2025-12-14"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 2
+        event_for = {m.chapter_url: m.record.event_name for m in result.matches}
+        assert event_for[df.iloc[0]["ChapterURL"]] == "SECOND ANNUAL FEDERAL OPEN"
+        assert event_for[df.iloc[1]["ChapterURL"]] == "First Annual Oak Grove Open"
+
+    def test_one_record_for_two_chapters_goes_to_the_better_fit(self):
+        """Daniel played the opponent twice (same result) but USCF rated only
+        one of the games: the record attaches to the chapter whose color and
+        date agree; the other chapter stays unmatched."""
+        df = games_df(
+            chapter(opponent_id="32018453", color="Black", result="0-1",
+                    date="2025.12.05"),
+            chapter(opponent_id="32018453", color="White", result="1-0",
+                    date="2026.02.06"),
+        )
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="32018453", player_color="White",
+                      player_outcome="Win", event="ACC FEBRUARY 2026",
+                      start="2026-02-06", end="2026-02-27"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+        assert result.matches[0].chapter_url == df.iloc[1]["ChapterURL"]
+        assert result.unmatched_chapter_urls == (df.iloc[0]["ChapterURL"],)
+
+
+class TestMatchingPolicies:
+    def test_color_disagreement_does_not_prevent_a_match(self):
+        """The real Nordberg case: the chapter says Daniel played Black, USCF
+        says White.  Color is itself a fact that can conflict between sources —
+        it is never a match requirement (PRD #24)."""
+        df = games_df(chapter(opponent="Justin Nordberg", opponent_id="32668352",
+                              color="Black", result="1/2-1/2", date="2026.02.20"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="32668352", opponent_first="Justin",
+                      opponent_last="Nordberg", player_color="White",
+                      player_outcome="Draw", event="ACC FEBRUARY 2026",
+                      start="2026-02-20", end="2026-02-27"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+        match = result.matches[0]
+        # The match carries both colors so Reconciliation can flag the conflict
+        assert match.record.player_color == "White"
+        assert df.iloc[0]["Color"] == "Black"
+
+    def test_online_rated_records_never_match_chapters(self):
+        """The Study is OTB-only by design (PRD #24): an online-rated (OR)
+        record never becomes a Game, even when opponent and result line up.
+        It surfaces in Reconciliation as a skippable USCF-only item."""
+        df = games_df(chapter(opponent="Will Soublo", opponent_id="32697429",
+                              color="Black", result="0-1"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="32697429", opponent_first="Will",
+                      opponent_last="Soublo", player_color="Black",
+                      player_outcome="Win", rating_system="OR"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+        assert len(result.unmatched_records) == 1
+        assert result.unmatched_records[0].rating_system == "OR"
+
+    def test_dual_rated_records_match_like_regular_ones(self):
+        """Dual-rated (D) Sections are over-the-board games — they match
+        exactly like Regular (R) ones (the real Thanksgiving Open case)."""
+        df = games_df(chapter(opponent="Vignesh Srinivasan", opponent_id="14822404",
+                              color="Black", result="0-1", date="2025.11.01"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="14822404", opponent_first="Vignesh",
+                      opponent_last="Srinivasan", player_color="Black",
+                      player_outcome="Win", rating_system="D",
+                      event="2nd Annual Thankgiving Day Open",
+                      start="2025-10-31", end="2025-11-02"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+
+
+# ---------------------------------------------------------------------------
+# The matching engine against the real fixture pair: Daniel's full Study
+# (63 chapters) ↔ his full USCF record (63 USCF Game Records), captured the
+# same day (2026-06-02).  This is the engine's ground truth.
+# ---------------------------------------------------------------------------
+
+class TestIdPassAgainstRealData:
+    def test_the_id_pass_matches_55_of_63_games(
+        self, study_snapshot_df, uscf_games_json
+    ):
+        """Every chapter with a typed FideId whose USCF record exists matches:
+        54 with full agreement + 1 with a color conflict (Nordberg)."""
+        records = uscf_core.build_game_records(uscf_games_json["items"])
+        result = uscf_core.match_games(study_snapshot_df, records)
+
+        id_matches = [m for m in result.matches if m.matched_by == "id"]
+        assert len(id_matches) == 55
+
+    def test_unmatched_chapters_are_the_seven_id_less_ones_plus_the_forfeit(
+        self, study_snapshot_df, uscf_games_json
+    ):
+        """After the ID pass: the 7 chapters Daniel never typed FideIds into
+        (Apr–May 2026) plus the Forfeit (Feketekuty no-show) remain unmatched."""
+        records = uscf_core.build_game_records(uscf_games_json["items"])
+        result = uscf_core.match_games(study_snapshot_df, records)
+
+        unmatched = study_snapshot_df[
+            study_snapshot_df["ChapterURL"].isin(result.unmatched_chapter_urls)
+        ]
+        assert len(unmatched) == 8
+        # The Forfeit: Dennis Feketekuty never showed; USCF never rated it
+        assert "Dennis Feketekuty" in set(unmatched["Opponent"])
+        # The other 7 are exactly the chapters with no typed opponent FideId
+        with_ids = unmatched[unmatched["Opponent"] != "Dennis Feketekuty"]
+        for _, game in with_ids.iterrows():
+            opponent_id = game["BlackID"] if game["Color"] == "White" else game["WhiteID"]
+            assert opponent_id == "", f"{game['Opponent']} has an ID but didn't match"
+
+    def test_unmatched_records_include_the_online_game(
+        self, study_snapshot_df, uscf_games_json
+    ):
+        """The online-rated (OR) game Daniel deliberately keeps out of his OTB
+        Study is exposed as an unmatched record, never silently dropped."""
+        records = uscf_core.build_game_records(uscf_games_json["items"])
+        result = uscf_core.match_games(study_snapshot_df, records)
+
+        online = [r for r in result.unmatched_records if r.rating_system == "OR"]
+        assert len(online) == 1
+        assert online[0].opponent_name == "Will Soublo"
+
+    def test_every_match_agrees_on_opponent_and_result(
+        self, study_snapshot_df, uscf_games_json
+    ):
+        """No false matches by construction: every matched pair agrees on the
+        opponent's member ID and the result, across the entire real career."""
+        records = uscf_core.build_game_records(uscf_games_json["items"])
+        result = uscf_core.match_games(study_snapshot_df, records)
+        games_by_url = {
+            game["ChapterURL"]: game for _, game in study_snapshot_df.iterrows()
+        }
+
+        for match in result.matches:
+            game = games_by_url[match.chapter_url]
+            if match.matched_by == "id":
+                opponent_id = (game["BlackID"] if game["Color"] == "White"
+                               else game["WhiteID"])
+                assert match.record.opponent_id == opponent_id
+            assert match.record.player_outcome == game["Outcome"]
+
+
+# ---------------------------------------------------------------------------
+# Enrichment: matched Games gain their USCF Game Record facts as columns
+# (issue #28) — "match & enrich", the Game stays the central entity (ADR 0003)
+# ---------------------------------------------------------------------------
+
+class TestEnrichGames:
+    def _enriched_pair(self):
+        """One matched Game + one unmatched Game, enriched."""
+        df = games_df(
+            chapter(opponent="John Fontaine", opponent_id="16441708",
+                    color="White", result="1-0"),
+            chapter(opponent="Nobody USCF Knows", opponent_id="11111111",
+                    color="Black", result="0-1"),
+        )
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_color="White",
+                      player_outcome="Win"),
+        ])
+        return uscf_core.enrich_games(df, uscf_core.match_games(df, records)), df
+
+    def test_matched_games_gain_their_uscf_facts(self):
+        enriched, _ = self._enriched_pair()
+        game = enriched.iloc[0]
+
+        assert bool(game["UscfMatched"]) is True
+        assert game["UscfMatchedBy"] == "id"
+        assert game["UscfEventName"] == "ACC MAY 2026"
+        assert game["UscfSection"] == "LADDER"
+        assert game["UscfRatingSystem"] == "R"
+        assert game["UscfOpponentName"] == "JOHN FONTAINE"
+        assert game["UscfOpponentId"] == "16441708"
+
+    def test_unmatched_games_carry_empty_enrichment(self):
+        """Unmatched Games keep working everywhere — enrichment is additive,
+        never a filter (ADR 0003)."""
+        enriched, _ = self._enriched_pair()
+        game = enriched.iloc[1]
+
+        assert bool(game["UscfMatched"]) is False
+        assert game["UscfMatchedBy"] == ""
+        assert game["UscfEventName"] == ""
+        assert game["UscfOpponentId"] == ""
+
+    def test_the_input_df_is_never_mutated(self):
+        """Pages read the store concurrently — enrichment returns a copy."""
+        _, original = self._enriched_pair()
+        assert "UscfMatched" not in original.columns
+
+    def test_an_empty_match_result_still_adds_the_columns(self):
+        """USCF down / not configured: the columns exist (all unmatched) so
+        pages never need to check for their presence."""
+        df = games_df(chapter())
+        empty = uscf_core.match_games(df, [])
+
+        enriched = uscf_core.enrich_games(df, empty)
+
+        assert "UscfMatched" in enriched.columns
+        assert not enriched["UscfMatched"].any()
+
+    def test_an_empty_df_is_enriched_harmlessly(self):
+        """A Lichess-cache boot with zero games must not crash enrichment."""
+        import pandas as pd
+
+        enriched = uscf_core.enrich_games(
+            pd.DataFrame(), uscf_core.match_games(pd.DataFrame(), [])
+        )
+        assert enriched.empty

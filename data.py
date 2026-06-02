@@ -38,7 +38,14 @@ from sync import (
     sync_studies,
     sync_uscf,
 )
-from uscf_core import LiveRatingPoint, OfficialRatingPoint, UscfProfile
+from uscf_core import (
+    LiveRatingPoint,
+    MatchResult,
+    OfficialRatingPoint,
+    UscfProfile,
+    enrich_games,
+    match_games,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +59,8 @@ _cached_at: datetime | None = None  # only meaningful when _source == "cache"
 
 # --- USCF enrichment (ADR 0003: optional, never required) ------------------
 _uscf: UscfSyncResult = UscfSyncResult()
+# USCF Game Records ↔ Games (issue #28); empty when USCF is off/unavailable
+_match_result: MatchResult = MatchResult((), (), ())
 
 # --- the designated Studies (remembered so refresh() can re-Sync) ----------
 _study_ids: list[str] = []
@@ -128,12 +137,22 @@ def initialize(
 
 
 def _sync_uscf_into_store() -> None:
-    """Run the USCF half of a Sync (a no-op when no member ID is configured)."""
-    global _uscf
+    """
+    Run the USCF half of a Sync and enrich the Games with whatever matching
+    produces (a no-op USCF result when no member ID is configured).
+
+    The enrichment columns always exist afterwards — with USCF off or down,
+    every Game is simply unmatched — so pages never check for their presence.
+    """
+    global _uscf, _match_result, _df
     if not _uscf_member_id:
         _uscf = UscfSyncResult()
-        return
-    _uscf = sync_uscf(_uscf_member_id, cache_path=_uscf_cache_path)
+    else:
+        _uscf = sync_uscf(_uscf_member_id, cache_path=_uscf_cache_path)
+
+    # Match & enrich (issue #28): USCF Game Records attach to Games
+    _match_result = match_games(_df, _uscf.game_records)
+    _df = enrich_games(_df, _match_result)
 
 
 def _boot_from_cache(sync_error: SyncError) -> tuple[pd.DataFrame, str]:
@@ -226,6 +245,16 @@ def get_uscf_profile() -> UscfProfile | None:
     return _uscf.profile
 
 
+def get_uscf_matches() -> MatchResult:
+    """
+    The last Sync's USCF Game Record ↔ Game matching (issue #28).
+
+    Both leftovers (unmatched Games, unmatched records) are exposed —
+    Reconciliation is built from them.  Empty when USCF is off/unavailable.
+    """
+    return _match_result
+
+
 def get_official_series() -> list[OfficialRatingPoint]:
     """The Official Rating series: one point per supplement month, chronological."""
     return _uscf.official_series
@@ -305,7 +334,7 @@ def reset() -> None:
     """Clear the store (used by tests)."""
     global _df, _player, _sync_failures, _synced_at, _source, _cached_at
     global _study_ids, _player_name, _token, _cache_path
-    global _uscf, _uscf_member_id, _uscf_cache_path
+    global _uscf, _uscf_member_id, _uscf_cache_path, _match_result
     _df = pd.DataFrame()
     _player = ""
     _sync_failures = []
@@ -319,3 +348,4 @@ def reset() -> None:
     _uscf = UscfSyncResult()
     _uscf_member_id = None
     _uscf_cache_path = None
+    _match_result = MatchResult((), (), ())

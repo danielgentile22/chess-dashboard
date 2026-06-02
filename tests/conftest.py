@@ -59,7 +59,9 @@ SAMPLE_PGN = """\
 [Round "1"]
 [White "Test Player"]
 [Black "Opponent A"]
+[WhiteFideId "99999999"]
 [WhiteElo "1800"]
+[BlackFideId "10000001"]
 [BlackElo "1920"]
 [TimeControl "40/80, SD30; +30"]
 [ECO "E04"]
@@ -79,7 +81,9 @@ SAMPLE_PGN = """\
 [Round "2"]
 [White "Opponent B"]
 [Black "Test Player"]
+[WhiteFideId "10000002"]
 [WhiteElo "1750"]
+[BlackFideId "99999999"]
 [BlackElo "1800"]
 [TimeControl "40/80, SD30; +30"]
 [ECO "B12"]
@@ -98,7 +102,9 @@ SAMPLE_PGN = """\
 [Round "3"]
 [White "Test Player"]
 [Black "Opponent C"]
+[WhiteFideId "99999999"]
 [WhiteElo "1800"]
+[BlackFideId "10000003"]
 [BlackElo "2050"]
 [TimeControl "40/80, SD30; +30"]
 [ECO "A45"]
@@ -117,7 +123,9 @@ SAMPLE_PGN = """\
 [Round "1"]
 [White "Opponent A"]
 [Black "Test Player"]
+[WhiteFideId "10000001"]
 [WhiteElo "1930"]
+[BlackFideId "99999999"]
 [BlackElo "1810"]
 [TimeControl "30+5"]
 [ECO "E60"]
@@ -137,7 +145,9 @@ SAMPLE_PGN = """\
 [Round "2"]
 [White "Test Player"]
 [Black "Opponent D"]
+[WhiteFideId "99999999"]
 [WhiteElo "1810"]
+[BlackFideId "10000004"]
 [BlackElo "1600"]
 [TimeControl "30+5"]
 [ECO "C50"]
@@ -156,7 +166,9 @@ SAMPLE_PGN = """\
 [Round "3"]
 [White "Opponent B"]
 [Black "Test Player"]
+[WhiteFideId "10000002"]
 [WhiteElo "1760"]
+[BlackFideId "99999999"]
 [BlackElo "1810"]
 [TimeControl "30+5"]
 [ECO "B12"]
@@ -284,6 +296,84 @@ def uscf_sections_json() -> dict:
 
 
 @pytest.fixture(scope="session")
+def uscf_games_json() -> dict:
+    """A real /members/{id}/games response: 63 USCF Game Records — every rated
+    game with opponent member ID, color, outcome, Rated Event, and Section."""
+    return json.loads((USCF_FIXTURES_DIR / "games.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def study_snapshot_df():
+    """
+    Daniel's real Study (63 chapters), captured the same day as games.json —
+    the matching engine's ground-truth fixture pair (issue #28).
+
+    Parsed through the real PGN loader so matching tests see exactly what a
+    Sync produces.
+    """
+    from pgn_stats_core import load_games_from_text
+
+    pgn_text = (USCF_FIXTURES_DIR / "lichess-study-snapshot.pgn").read_text()
+    df, _player = load_games_from_text(pgn_text, player_name="Daniel Gentile")
+    return df
+
+
+# ---------------------------------------------------------------------------
+# USCF Game Records that pair with SAMPLE_PGN (issue #28).
+#
+# Records 1–5 match SAMPLE_PGN games 1–5 by opponent member ID + result
+# (games 1 and 4 are both wins against Opponent A — color disambiguates).
+# Game 6 has an ID but no record (a Game USCF hasn't rated).
+# Game 7 has no FideId typed (unmatched until the name-fallback pass).
+# The last record matches no Game at all (USCF-only → Reconciliation).
+# ---------------------------------------------------------------------------
+
+def _sample_uscf_game(opponent_id, first, last, player_color, player_outcome,
+                      event, event_id, start, end, section="OPEN",
+                      rating_system="R"):
+    opponent_color = "Black" if player_color == "White" else "White"
+    opponent_outcome = {"Win": "Loss", "Loss": "Win", "Draw": "Draw"}[player_outcome]
+    return {
+        "section": {"id": f"section-{event_id}", "number": 1, "name": section},
+        "event": {"id": event_id, "name": event,
+                  "startDate": start, "endDate": end, "stateCode": "VA"},
+        "ratingSystem": rating_system,
+        "player": {"color": player_color, "outcome": player_outcome},
+        "opponent": {"id": opponent_id, "firstName": first, "lastName": last,
+                     "stateRep": "VA", "color": opponent_color,
+                     "outcome": opponent_outcome},
+    }
+
+
+SAMPLE_USCF_GAMES = [
+    # → game 1: Test Player (White) beat Opponent A in the January open
+    _sample_uscf_game("10000001", "OPPONENT", "A", "White", "Win",
+                      "TEST OPEN JANUARY", "202401070001", "2024-01-06", "2024-01-07"),
+    # → game 2: drew Opponent B with Black
+    _sample_uscf_game("10000002", "OPPONENT", "B", "Black", "Draw",
+                      "TEST OPEN JANUARY", "202401070001", "2024-01-06", "2024-01-07"),
+    # → game 3: lost to Opponent C with White
+    _sample_uscf_game("10000003", "OPPONENT", "C", "White", "Loss",
+                      "TEST OPEN JANUARY", "202401070001", "2024-01-06", "2024-01-07"),
+    # → game 4: beat Opponent A again, now with Black (color disambiguates vs game 1)
+    _sample_uscf_game("10000001", "OPPONENT", "A", "Black", "Win",
+                      "SUMMER CUP 2024", "202406160002", "2024-06-15", "2024-06-16"),
+    # → game 5: beat Opponent D with White
+    _sample_uscf_game("10000004", "OPPONENT", "D", "White", "Win",
+                      "SUMMER CUP 2024", "202406160002", "2024-06-15", "2024-06-16"),
+    # → no Game: a rated game whose Chapter was never added (USCF-only)
+    _sample_uscf_game("10000005", "EXTRA", "OPPONENT", "White", "Win",
+                      "SUMMER CUP 2024", "202406160002", "2024-06-15", "2024-06-16"),
+]
+
+
+@pytest.fixture(scope="session")
+def sample_uscf_games() -> list[dict]:
+    """USCF Game Records that pair with SAMPLE_PGN (5 matches + 1 USCF-only)."""
+    return SAMPLE_USCF_GAMES
+
+
+@pytest.fixture(scope="session")
 def sample_pgn_study2_text() -> str:
     """A second Study's PGN: 2 new games + 1 duplicate of SAMPLE_PGN's chap0007."""
     return SAMPLE_PGN_STUDY2
@@ -317,17 +407,21 @@ _UI_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text()
 
 
 @contextmanager
-def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None):
+def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
+                    uscf_games: list | None = None):
     """
     Patch both clients at sync's module boundary for UI fixtures/tests:
     Lichess returns *pgn_text*; USCF returns the real captured responses.
     Pass an Exception as *uscf_profile* to simulate USCF being down
-    (every endpoint raises it).
+    (every endpoint raises it).  *uscf_games* defaults to the records that
+    pair with SAMPLE_PGN, so UI tests render against matched Games.
     """
     import sync
 
     if uscf_profile is None:
         uscf_profile = _UI_USCF_PROFILE
+    if uscf_games is None:
+        uscf_games = SAMPLE_USCF_GAMES
     uscf_down = uscf_profile if isinstance(uscf_profile, Exception) else None
 
     def fake(value):
@@ -343,7 +437,9 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None):
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(_UI_USCF_SUPPLEMENTS)), \
          mock.patch.object(sync, "fetch_member_sections",
-                           side_effect=fake(_UI_USCF_SECTIONS)):
+                           side_effect=fake(_UI_USCF_SECTIONS)), \
+         mock.patch.object(sync, "fetch_member_games",
+                           side_effect=fake(uscf_games)):
         yield
 
 

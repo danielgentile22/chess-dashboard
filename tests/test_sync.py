@@ -32,10 +32,10 @@ def stub_studies(**study_pgns):
 
 
 @contextlib.contextmanager
-def stub_uscf(profile, supplements=None, sections=None):
+def stub_uscf(profile, supplements=None, sections=None, games=None):
     """
     Patch the USCF client inside sync: each value is the raw JSON to return,
-    or an Exception to raise.  Supplements/sections default to empty lists.
+    or an Exception to raise.  List endpoints default to empty lists.
     """
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -49,7 +49,9 @@ def stub_uscf(profile, supplements=None, sections=None):
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(supplements or []), create=True), \
          mock.patch.object(sync, "fetch_member_sections",
-                           side_effect=fake(sections or []), create=True):
+                           side_effect=fake(sections or []), create=True), \
+         mock.patch.object(sync, "fetch_member_games",
+                           side_effect=fake(games or []), create=True):
         yield
 
 
@@ -436,6 +438,56 @@ class TestSyncUscfSeries:
         assert result.available
         assert len(result.live_series) == 23
         assert "sections endpoint broke" in result.failure
+
+
+class TestSyncUscfGames:
+    """sync_uscf also fetches USCF Game Records — the matching engine's input
+    (issue #28)."""
+
+    def test_successful_sync_returns_typed_game_records(
+        self, uscf_profile_json, uscf_games_json
+    ):
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"]):
+            result = sync.sync_uscf("32487228")
+
+        assert len(result.game_records) == 63
+        assert result.game_records[0].opponent_name == "JOHN FONTAINE"
+        assert result.game_records[0].event_name == "ACC MAY 2026"
+
+    def test_game_records_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_games_json, tmp_path
+    ):
+        """Game records degrade to the cached snapshot like everything else
+        (ADR 0003) — matching keeps working while USCF is unreachable."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"]):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert len(degraded.game_records) == 63
+
+    def test_games_endpoint_failing_degrades_the_whole_uscf_half(
+        self, uscf_profile_json, uscf_games_json, tmp_path
+    ):
+        """All-or-nothing (PR #37's decision): the games endpoint failing means
+        the whole USCF half comes from the consistent cached snapshot."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"]):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        with stub_uscf(
+            uscf_profile_json,
+            games=UscfUnreachableError("games endpoint broke"),
+        ):
+            result = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert result.from_cache is True
+        assert result.available
+        assert len(result.game_records) == 63
+        assert "games endpoint broke" in result.failure
 
 
 class TestDetectNewGames:

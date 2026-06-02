@@ -26,6 +26,10 @@ flask_session/
 # source of truth — ADR 0001). Never commit game data.
 games.pgn
 *.pgn
+# Exception: the frozen Study snapshot that pairs with tests/fixtures/uscf/
+# games.json — the matching engine's ground truth (issue #28). It is a test
+# fixture captured once, not a cache.
+!tests/fixtures/uscf/*.pgn
 
 # Local USCF response cache (enrichment, never a source of truth — ADR 0003)
 uscf_cache.json
