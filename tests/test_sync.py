@@ -290,6 +290,55 @@ class TestUscfCachePolicy:
         assert cached == {"final": True}
 
 
+class TestUscfCacheDismissals:
+    """
+    Reconciliation dismissals (issue #30): user judgements ("USCF is wrong",
+    "intentionally skipped"), not API responses — they must survive every
+    Sync's replace_current and app restarts.  Best-effort persistence: a
+    redeploy on a stateless host may resurrect dismissed items (documented).
+    """
+
+    def test_dismissals_round_trip(self, tmp_path):
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.add_dismissal("conflict:https://lichess.org/study/x/abc")
+
+        assert cache.dismissals() == ["conflict:https://lichess.org/study/x/abc"]
+
+    def test_dismissals_survive_replace_current(self, tmp_path):
+        """replace_current wipes API data every Sync — never user judgements."""
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.add_dismissal("uscf-only:202601300323:32697429:Black")
+
+        cache.replace_current({"profile": {"id": "x"}})
+
+        assert cache.dismissals() == ["uscf-only:202601300323:32697429:Black"]
+
+    def test_dismissals_survive_restarts(self, tmp_path):
+        path = str(tmp_path / "uscf_cache.json")
+        sync.UscfCache(path).add_dismissal("rating-mismatch:url")
+
+        reopened = sync.UscfCache(path)
+        assert reopened.dismissals() == ["rating-mismatch:url"]
+
+    def test_dismissing_twice_stores_once(self, tmp_path):
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.add_dismissal("conflict:url")
+        cache.add_dismissal("conflict:url")
+
+        assert cache.dismissals() == ["conflict:url"]
+
+    def test_no_cache_path_keeps_dismissals_in_memory(self):
+        """Stateless hosts: dismissals work for the app's lifetime, then are
+        forgotten — the documented best-effort limitation."""
+        cache = sync.UscfCache(None)
+        cache.add_dismissal("conflict:url")  # must not raise
+
+        assert cache.dismissals() == ["conflict:url"]
+
+
 class TestSyncUscf:
     """The USCF half of a Sync (issue #25, ADR 0003)."""
 

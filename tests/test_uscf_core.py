@@ -855,6 +855,31 @@ class TestEnrichGames:
         )
         assert enriched.empty
 
+    def test_color_conflicts_are_flagged_on_the_matched_game(self):
+        """The real Nordberg case (issue #30): chapter says Black, USCF says
+        White.  The Game stays matched and displays the Lichess version — the
+        disagreement is flagged, never hidden."""
+        df = games_df(
+            chapter(opponent="Justin Nordberg", opponent_id="32668352",
+                    color="Black", result="1/2-1/2"),       # conflicted
+            chapter(opponent="John Fontaine", opponent_id="16441708",
+                    color="White", result="1-0"),           # clean
+        )
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="32668352", opponent_first="Justin",
+                      opponent_last="Nordberg", player_color="White",
+                      player_outcome="Draw"),
+            uscf_game(opponent_id="16441708", player_color="White",
+                      player_outcome="Win"),
+        ])
+
+        enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, records))
+
+        assert bool(enriched.iloc[0]["UscfColorConflict"]) is True
+        assert bool(enriched.iloc[1]["UscfColorConflict"]) is False
+        # Lichess displays: the Color column itself is untouched
+        assert enriched.iloc[0]["Color"] == "Black"
+
 
 # ---------------------------------------------------------------------------
 # Forfeit detection (issue #29)
@@ -905,3 +930,330 @@ class TestForfeitDetection:
 
         forfeits = enriched[enriched["Forfeit"]]
         assert list(forfeits["Opponent"]) == ["Dennis Feketekuty"]
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation (issue #30): every disagreement between the Studies and USCF
+# becomes a visible, actionable entry.
+# ---------------------------------------------------------------------------
+
+def _reconcile(df, records, official_series=None, dismissed=frozenset()):
+    """Run the full pipeline the way data.py does: match → enrich → reconcile."""
+    result = uscf_core.match_games(df, records)
+    enriched = uscf_core.enrich_games(df, result)
+    return uscf_core.reconcile(
+        enriched, result, official_series or [], dismissed=dismissed
+    )
+
+
+class TestReconcileConflicts:
+    def test_a_color_conflict_becomes_an_entry_showing_both_versions(self):
+        """The real Nordberg case: matched, but the chapter says Black and
+        USCF says White.  Both versions appear side by side."""
+        df = games_df(chapter(opponent="Justin Nordberg", opponent_id="32668352",
+                              color="Black", result="1/2-1/2", date="2026.02.20"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="32668352", opponent_first="Justin",
+                      opponent_last="Nordberg", player_color="White",
+                      player_outcome="Draw", event="ACC FEBRUARY 2026",
+                      start="2026-02-20", end="2026-02-27"),
+        ])
+
+        entries = _reconcile(df, records)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.kind == "conflict"
+        assert entry.opponent == "Justin Nordberg"
+        assert "Black" in entry.lichess_says
+        assert "White" in entry.uscf_says
+        # The fix-on-Lichess action knows which chapter to open
+        assert entry.chapter_url == df.iloc[0]["ChapterURL"]
+
+    def test_a_clean_match_produces_no_entry(self):
+        """Agreement is silence — Reconciliation only lists disagreements."""
+        df = games_df(chapter(opponent="John Fontaine", opponent_id="16441708",
+                              color="White", result="1-0"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_color="White",
+                      player_outcome="Win"),
+        ])
+
+        assert _reconcile(df, records) == []
+
+
+class TestReconcileUnmatched:
+    def test_a_uscf_only_record_becomes_an_entry(self):
+        """The real online-game case: USCF rated it, but Daniel deliberately
+        never added a Chapter.  The entry offers Skip (dismiss)."""
+        df = games_df(chapter(opponent="John Fontaine", opponent_id="16441708",
+                              color="White", result="1-0"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_color="White",
+                      player_outcome="Win"),
+            uscf_game(opponent_id="32697429", opponent_first="Will",
+                      opponent_last="Soublo", player_color="Black",
+                      player_outcome="Win", rating_system="OR",
+                      event="DMVCHESS.COM JANUARY CLIMB", event_id="202601300323",
+                      start="2026-01-01", end="2026-01-30"),
+        ])
+
+        entries = _reconcile(df, records)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.kind == "uscf_only"
+        assert entry.opponent == "Will Soublo"
+        assert entry.lichess_says == ""             # there is no chapter
+        assert "DMVCHESS.COM" in entry.uscf_says
+        assert entry.chapter_url == ""              # nothing to link to
+
+    def test_an_unmatched_real_game_becomes_a_lichess_only_entry(self):
+        """A Game USCF hasn't rated (or rated under a different account):
+        visible here so it isn't silently un-enriched forever."""
+        df = games_df(chapter(opponent="Jane Newplayer", opponent_id="77777777",
+                              color="White", result="1-0", date="2026.05.20",
+                              moves="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6"))
+
+        entries = _reconcile(df, [])
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.kind == "lichess_only"
+        assert entry.opponent == "Jane Newplayer"
+        assert entry.uscf_says == ""                # USCF has no record
+        assert entry.chapter_url == df.iloc[0]["ChapterURL"]
+
+    def test_forfeits_are_not_lichess_only_entries(self):
+        """The Forfeit is already explained (opponent no-show, never rated) —
+        listing it as a discrepancy would be noise."""
+        df = games_df(chapter(opponent="Dennis Feketekuty", opponent_id="30077997",
+                              color="White", result="1-0", moves="1. e4"))
+
+        entries = _reconcile(df, [])
+
+        assert entries == []
+
+
+class TestReconcileMissingFideIds:
+    def test_a_chapter_without_an_opponent_id_becomes_an_entry(self):
+        """Even when the name fallback matched it, the chapter is listed so
+        Daniel can type the FideId in and make the match robust."""
+        df = games_df(chapter(opponent="John Fontaine", opponent_id="",
+                              color="White", result="1-0", date="2026.05.01"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", opponent_first="JOHN",
+                      opponent_last="FONTAINE", player_color="White",
+                      player_outcome="Win"),
+        ])
+
+        entries = _reconcile(df, records)
+
+        missing = [e for e in entries if e.kind == "missing_fide_id"]
+        assert len(missing) == 1
+        assert missing[0].opponent == "John Fontaine"
+        assert missing[0].chapter_url == df.iloc[0]["ChapterURL"]
+        # The matched record tells Daniel exactly which ID to type in
+        assert "16441708" in missing[0].uscf_says
+
+    def test_chapters_with_ids_are_not_listed(self):
+        df = games_df(chapter(opponent_id="16441708", color="White", result="1-0"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_color="White",
+                      player_outcome="Win"),
+        ])
+
+        entries = _reconcile(df, records)
+
+        assert [e for e in entries if e.kind == "missing_fide_id"] == []
+
+
+class TestReconcileRatingMismatches:
+    def _records(self):
+        return uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_color="White",
+                      player_outcome="Win", event="ACC MAY 2026",
+                      start="2026-05-01", end="2026-05-29"),
+        ])
+
+    def _official(self):
+        """An Official series where May 2026 = 1470."""
+        return uscf_core.build_official_series([
+            {"ratingSupplementDate": "2026-05-01",
+             "ratings": [{"source": "R", "rating": 1470}]},
+        ])
+
+    def test_typed_rating_disagreeing_with_official_becomes_an_entry(self):
+        """The real case: Daniel typed 1440 on a May chapter; the May
+        supplement says 1470."""
+        df = games_df(chapter(opponent_id="16441708", color="White",
+                              result="1-0", date="2026.05.01",
+                              player_rating="1440"))
+
+        entries = uscf_core.reconcile(
+            uscf_core.enrich_games(df, uscf_core.match_games(df, self._records())),
+            uscf_core.match_games(df, self._records()),
+            self._official(),
+        )
+
+        mismatches = [e for e in entries if e.kind == "rating_mismatch"]
+        assert len(mismatches) == 1
+        assert "1440" in mismatches[0].lichess_says
+        assert "1470" in mismatches[0].uscf_says
+
+    def test_agreeing_typed_rating_produces_no_entry(self):
+        df = games_df(chapter(opponent_id="16441708", color="White",
+                              result="1-0", date="2026.05.01",
+                              player_rating="1470"))
+        result = uscf_core.match_games(df, self._records())
+
+        entries = uscf_core.reconcile(
+            uscf_core.enrich_games(df, result), result, self._official(),
+        )
+
+        assert [e for e in entries if e.kind == "rating_mismatch"] == []
+
+    def test_no_official_rating_for_that_month_means_no_check(self):
+        """Months before the first supplement have no official value — typed
+        ratings there are unverifiable, not wrong."""
+        df = games_df(chapter(opponent_id="16441708", color="White",
+                              result="1-0", date="2026.05.01",
+                              player_rating="1440"))
+        result = uscf_core.match_games(df, self._records())
+
+        entries = uscf_core.reconcile(
+            uscf_core.enrich_games(df, result), result, [],  # no supplements at all
+        )
+
+        assert [e for e in entries if e.kind == "rating_mismatch"] == []
+
+    def test_unmatched_games_have_no_rating_check(self):
+        """Without a match there is no Rated Event, hence no month to check
+        the typed rating against."""
+        df = games_df(chapter(opponent_id="16441708", color="White",
+                              result="1-0", date="2026.05.01",
+                              player_rating="1440",
+                              moves="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6"))
+
+        entries = uscf_core.reconcile(
+            uscf_core.enrich_games(df, uscf_core.match_games(df, [])),
+            uscf_core.match_games(df, []),
+            self._official(),
+        )
+
+        assert [e for e in entries if e.kind == "rating_mismatch"] == []
+
+
+class TestReconcileDismissals:
+    def test_dismissed_entries_disappear(self):
+        """A dismissal ('USCF is wrong' / 'intentionally skipped') removes the
+        entry; everything else stays."""
+        df = games_df(
+            chapter(opponent="Justin Nordberg", opponent_id="32668352",
+                    color="Black", result="1/2-1/2"),
+        )
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="32668352", opponent_first="Justin",
+                      opponent_last="Nordberg", player_color="White",
+                      player_outcome="Draw"),
+            uscf_game(opponent_id="32697429", opponent_first="Will",
+                      opponent_last="Soublo", player_color="Black",
+                      player_outcome="Win", rating_system="OR",
+                      event="ONLINE LADDER", event_id="999"),
+        ])
+        open_entries = _reconcile(df, records)
+        assert {e.kind for e in open_entries} == {"conflict", "uscf_only"}
+
+        conflict_id = next(e.entry_id for e in open_entries if e.kind == "conflict")
+        remaining = _reconcile(df, records, dismissed={conflict_id})
+
+        assert {e.kind for e in remaining} == {"uscf_only"}
+
+    def test_entry_ids_are_stable_across_syncs(self):
+        """Dismissals persist by entry_id — the same disagreement must produce
+        the same id on every Sync, or dismissals would resurrect."""
+        df = games_df(chapter(opponent="Justin Nordberg", opponent_id="32668352",
+                              color="Black", result="1/2-1/2"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="32668352", opponent_first="Justin",
+                      opponent_last="Nordberg", player_color="White",
+                      player_outcome="Draw"),
+        ])
+
+        first = _reconcile(df, records)
+        second = _reconcile(df, records)
+
+        assert [e.entry_id for e in first] == [e.entry_id for e in second]
+
+
+class TestReconcileAgainstRealData:
+    """The full Reconciliation ground truth for the captured fixture pair.
+
+    Note: planning (PRD #24 / issue #30) predicted 2 color conflicts; the
+    captured data actually contains 3 — the Miles April chapter (chapter says
+    White, USCF says Black) was missed by the planning experiment.  The data
+    is the authority; the discrepancy is flagged for Daniel in the phase PR.
+    """
+
+    def _entries(self, study_snapshot_df, uscf_games_json, uscf_supplements_json):
+        records = uscf_core.build_game_records(uscf_games_json["items"])
+        result = uscf_core.match_games(study_snapshot_df, records)
+        enriched = uscf_core.enrich_games(study_snapshot_df, result)
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        return uscf_core.reconcile(enriched, result, official)
+
+    def test_three_color_conflicts(
+        self, study_snapshot_df, uscf_games_json, uscf_supplements_json
+    ):
+        entries = self._entries(study_snapshot_df, uscf_games_json,
+                                uscf_supplements_json)
+        conflicts = [e for e in entries if e.kind == "conflict"]
+
+        assert {e.opponent for e in conflicts} == {
+            "Justin Nordberg",     # Feb 2026 — known at planning time
+            "Christian Miles",     # Apr 2026 — found by this engine
+            "Wade Robertson",      # May 2026 — known at planning time
+        }
+
+    def test_one_uscf_only_entry_the_online_game(
+        self, study_snapshot_df, uscf_games_json, uscf_supplements_json
+    ):
+        entries = self._entries(study_snapshot_df, uscf_games_json,
+                                uscf_supplements_json)
+        uscf_only = [e for e in entries if e.kind == "uscf_only"]
+
+        assert len(uscf_only) == 1
+        assert uscf_only[0].opponent == "Will Soublo"
+
+    def test_no_lichess_only_entries(
+        self, study_snapshot_df, uscf_games_json, uscf_supplements_json
+    ):
+        """Every real game is matched; the only unmatched chapter is the
+        Forfeit, which is not a discrepancy."""
+        entries = self._entries(study_snapshot_df, uscf_games_json,
+                                uscf_supplements_json)
+
+        assert [e for e in entries if e.kind == "lichess_only"] == []
+
+    def test_seven_missing_fide_id_entries(
+        self, study_snapshot_df, uscf_games_json, uscf_supplements_json
+    ):
+        entries = self._entries(study_snapshot_df, uscf_games_json,
+                                uscf_supplements_json)
+        missing = [e for e in entries if e.kind == "missing_fide_id"]
+
+        assert len(missing) == 7
+        # Every one tells Daniel the exact ID to type in (they all matched by name)
+        assert all("type that ID" in e.uscf_says for e in missing)
+
+    def test_one_rating_mismatch_typed_1440_official_1470(
+        self, study_snapshot_df, uscf_games_json, uscf_supplements_json
+    ):
+        entries = self._entries(study_snapshot_df, uscf_games_json,
+                                uscf_supplements_json)
+        mismatches = [e for e in entries if e.kind == "rating_mismatch"]
+
+        assert len(mismatches) == 1
+        assert "1440" in mismatches[0].lichess_says
+        assert "1470" in mismatches[0].uscf_says
+        assert mismatches[0].opponent == "John Fontaine"

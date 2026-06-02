@@ -112,8 +112,21 @@ def _uscf_facts_card(game: pd.Series) -> html.Div | None:
         _meta_row("Matched by", matched_by),
     ]
 
+    # The sources disagree (issue #30): badge it and point at Reconciliation.
+    # The page itself keeps displaying the Lichess version of every fact.
+    conflict_badge = None
+    if game.get("UscfColorConflict"):
+        conflict_badge = dcc.Link(
+            className="uscf-conflict-badge", href="/reconciliation", children=[
+                html.Span("⚠", className="uscf-conflict-icon"),
+                html.Span("USCF disagrees about this game — review it in "
+                          "Reconciliation"),
+            ],
+        )
+
     return content_card(
         "USCF record",
+        conflict_badge,
         *[r for r in rows if r is not None],
         html.Div(className="meta-row", children=[
             html.Span("Opponent", className="meta-label"),
