@@ -479,6 +479,64 @@ class TestOpeningsCallbacks:
 
 
 # ---------------------------------------------------------------------------
+# Repertoire tree (issue #16) — the personal opening explorer
+# ---------------------------------------------------------------------------
+
+class TestRepertoireTreePage:
+    def test_white_tree_shows_first_moves_with_scores(self, ui_app, ui_data):
+        from pages.openings import update_repertoire
+        rendered = str(update_repertoire("White", *_filter_args()))
+        assert "1. d4" in rendered    # played 3 times as White
+        assert "1. e4" in rendered    # played once
+        # The overall baseline the branches are judged against
+        assert "62.5%" in rendered
+
+    def test_black_tree_branches_on_what_opponents_play(self, ui_app, ui_data):
+        from pages.openings import update_repertoire
+        rendered = str(update_repertoire("Black", *_filter_args()))
+        assert "1. e4" in rendered     # what they played
+        assert "1... c6" in rendered   # Daniel's Caro-Kann answer
+
+    def test_underperforming_branch_is_visually_flagged(self, ui_app, ui_data):
+        """1.d4 scores 50% against a 62.5% White average over 3 games — the
+        tree must say so, in the issue's own words: it's leaking points."""
+        from pages.openings import update_repertoire
+        rendered = str(update_repertoire("White", *_filter_args()))
+        assert "leaking points" in rendered
+        assert "rep-flagged" in rendered
+
+    def test_above_average_branches_are_not_flagged(self, ui_app, ui_data):
+        from pages.openings import update_repertoire
+        rendered = str(update_repertoire("Black", *_filter_args()))
+        # As Black everything scores at/above the 83.3% baseline except
+        # nothing — no branch has 3+ games below it
+        assert "leaking points" not in rendered
+
+    def test_nodes_link_to_their_games(self, ui_app, ui_data):
+        from pages.openings import update_repertoire
+        rendered = str(update_repertoire("White", *_filter_args()))
+        # The single 1.e4 game (game 5) links straight to its detail view
+        assert "/game/chap0005" in rendered
+        # Drilling the 1.d4 line reaches game 3's detail link too
+        assert "/game/chap0003" in rendered
+
+    def test_empty_filter_shows_empty_state(self, ui_app, ui_data):
+        from pages.openings import update_repertoire
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        rendered = str(update_repertoire("White", *impossible))
+        assert "empty-state" in rendered
+
+    def test_tree_respects_global_filters(self, ui_app, ui_data):
+        """Filtering to January leaves only the two Test Open games Daniel
+        played as White — both 1.d4."""
+        from pages.openings import update_repertoire
+        january = _filter_args(start="2024-01-01", end="2024-02-01")
+        rendered = str(update_repertoire("White", *january))
+        assert "1. d4" in rendered
+        assert "1. e4" not in rendered
+
+
+# ---------------------------------------------------------------------------
 # Opponents page callbacks (issue #9)
 # ---------------------------------------------------------------------------
 

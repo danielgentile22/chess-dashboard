@@ -1,17 +1,35 @@
 """
 pages/openings.py
 =================
-The Openings page — ECO families and per-opening results.
+The Openings page — the repertoire tree plus ECO families and per-opening
+results.
+
+The repertoire tree (issue #16) is Daniel's personal opening explorer: every
+Game as one color, arranged move by move.  Each branch shows how many Games
+went that way and what they scored; branches that score below his overall
+average for that color (across enough games to mean something) are flagged —
+"your anti-Sicilian is leaking points".
+
+Expansion uses native <details>/<summary> elements: no callbacks, works on a
+phone, keyboard accessible.
 """
 from __future__ import annotations
 
 import dash
 import plotly.express as px
-from dash import Output, callback, dash_table, html
+from dash import Input, Output, callback, dash_table, dcc, html
 
-from components import TABLE_CELL, TABLE_HEADER, chart_card, content_card, page_header
+from components import (
+    TABLE_CELL,
+    TABLE_HEADER,
+    chart_card,
+    content_card,
+    empty_state,
+    game_detail_path,
+    page_header,
+)
 from filters import FILTER_INPUTS, get_filtered
-from pgn_stats_core import opening_summary
+from pgn_stats_core import opening_summary, repertoire_tree
 from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
 
 dash.register_page(
@@ -26,6 +44,22 @@ dash.register_page(
 def layout(**kwargs) -> html.Div:
     return html.Div(className="page", children=[
         page_header("Openings", "Where your repertoire wins and leaks points"),
+
+        # The repertoire tree (issue #16) — the personal opening explorer
+        content_card(
+            "Repertoire",
+            dcc.RadioItems(
+                id="repertoire-color",
+                options=[
+                    {"label": " ♔ As White", "value": "White"},
+                    {"label": " ♚ As Black", "value": "Black"},
+                ],
+                value="White",
+                inline=True,
+                className="repertoire-color-toggle",
+            ),
+            html.Div(id="repertoire-tree", className="repertoire-tree"),
+        ),
 
         html.Div(className="g2", children=[
             chart_card("Win rate by ECO family", "opening-family-bar", height=420),
@@ -59,7 +93,132 @@ def layout(**kwargs) -> html.Div:
 
 
 # ---------------------------------------------------------------------------
-# Callbacks
+# Repertoire tree rendering (issue #16)
+# ---------------------------------------------------------------------------
+
+def _move_label(node: dict) -> str:
+    """SAN with its move number: ply 1 → '1. d4', ply 2 → '1... Nf6'."""
+    number = (node["ply"] + 1) // 2
+    dots = "." if node["ply"] % 2 == 1 else "..."
+    return f"{number}{dots} {node['san']}"
+
+
+def _game_link(ref: dict, *, arrow: bool = True):
+    """A compact link to one Game: 'Win vs Opponent A →'."""
+    text = f"{ref['Outcome']} vs {ref['Opponent']}" + (" →" if arrow else "")
+    path = game_detail_path(ref["ChapterURL"])
+    cls = f"rep-game-link {ref['Outcome'].lower()}"
+    if not path:
+        return html.Span(text, className=cls)
+    return dcc.Link(text, href=path, className=cls)
+
+
+def _wdl_bar(node: dict) -> html.Span:
+    """A proportional W/D/L mini-bar for a node row."""
+    total = node["games"]
+    return html.Span(className="rep-bar", children=[
+        html.Span(className=f"rep-bar-seg {outcome.lower()}",
+                  style={"width": f"{node[outcome.lower()] / total * 100}%"})
+        for outcome in ("Win", "Draw", "Loss") if node[outcome.lower()]
+    ])
+
+
+def _ended_here(node: dict) -> list[dict]:
+    """The Games whose move sequence stops at this node (ADR 0001: ChapterURL
+    is a Game's identity, so it's the comparison key)."""
+    continued = {
+        ref["ChapterURL"]
+        for child in node["moves"]
+        for ref in child["game_refs"]
+    }
+    return [ref for ref in node["game_refs"] if ref["ChapterURL"] not in continued]
+
+
+def _tree_node(node: dict, baseline: float):
+    """
+    One move of the repertoire tree.
+
+    Several Games → an expandable <details> branch; a single Game → a flat
+    row linking straight to it (drilling further would just replay the game).
+    """
+    flagged = " rep-flagged" if node["underperforming"] else ""
+    label = html.Span(_move_label(node), className="rep-node-move")
+
+    if node["games"] == 1:
+        return html.Div(className="rep-node rep-leaf" + flagged, children=[
+            html.Div(className="rep-node-row", children=[
+                label,
+                _game_link(node["game_refs"][0]),
+            ]),
+        ])
+
+    score_cls = "win" if node["score_pct"] >= baseline else "loss"
+    summary_row = html.Summary(className="rep-node-row", children=[
+        label,
+        _wdl_bar(node),
+        html.Span(str(node["games"]), className="rep-node-games",
+                  title=f"{node['win']}W {node['draw']}D {node['loss']}L"),
+        html.Span(f"{node['score_pct']:.0f}%",
+                  className=f"rep-node-score {score_cls}"),
+        html.Span("⚠ leaking points", className="rep-node-flag")
+        if node["underperforming"] else None,
+    ])
+
+    # Games that stopped at this position get their links here; games that
+    # kept going are reached by drilling into the child moves.
+    ended = [
+        html.Div(className="rep-node-row rep-ended-row", children=[
+            html.Span("ended here", className="rep-ended-label"),
+            _game_link(ref),
+        ])
+        for ref in _ended_here(node)
+    ]
+
+    return html.Details(className="rep-node" + flagged, children=[
+        summary_row,
+        html.Div(className="rep-node-children", children=[
+            *[_tree_node(child, baseline) for child in node["moves"]],
+            *ended,
+        ]),
+    ])
+
+
+@callback(
+    Output("repertoire-tree", "children"),
+    Input("repertoire-color", "value"),
+    FILTER_INPUTS,
+)
+def update_repertoire(color, colors, outcomes, terminations, start, end,
+                      events, moves, _sync=None):
+    """The repertoire tree for one color, honoring the global filters."""
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    tree = repertoire_tree(df_f, color)
+
+    if tree["games"] == 0:
+        return empty_state(
+            "♘" if color == "White" else "♞",
+            f"No games as {color} in this filter",
+            "The repertoire tree builds itself from your games' moves.",
+        )
+
+    return [
+        # The baseline every branch is judged against
+        html.Div(className="rep-baseline", children=[
+            html.Span(f"{tree['games']} games", className="rep-baseline-games"),
+            html.Span(" · "),
+            html.Span(f"{tree['score_pct']}% overall score",
+                      className="rep-baseline-score"),
+            html.Span("  —  branches scoring below that across 3+ games are flagged",
+                      className="rep-baseline-hint"),
+        ]),
+        html.Div(className="rep-nodes", children=[
+            _tree_node(node, tree["score_pct"]) for node in tree["moves"]
+        ]),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# ECO family / top openings callbacks
 # ---------------------------------------------------------------------------
 
 @callback(Output("opening-family-bar", "figure"), FILTER_INPUTS)

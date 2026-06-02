@@ -12,6 +12,7 @@ Parsing
   load_games_df            Parse a PGN file → tidy DataFrame + player name.
   load_games_from_text     Parse PGN text (Lichess Study export) → same output.
   extract_lessons_and_tags Extract Lessons / Tags from a game's comments (ADR 0002).
+  extract_mainline_san     A game's mainline moves as SAN strings (issue #16).
   apply_filters            Apply UI filter selections to the DataFrame.
 
 Overview
@@ -63,6 +64,7 @@ __all__ = [
     "load_games_df",
     "load_games_from_text",
     "extract_lessons_and_tags",
+    "extract_mainline_san",
     "apply_filters",
     "win_draw_loss_counts",
     "termination_counts",
@@ -72,6 +74,7 @@ __all__ = [
     "lessons_table",
     "tag_counts",
     "recurring_weaknesses",
+    "repertoire_tree",
     "review_queue",
     "round_performance",
     "time_control_summary",
@@ -149,6 +152,21 @@ def compute_move_counts(game) -> tuple[int, int]:
     """Return (plies, full_moves) for a parsed PGN game node."""
     plies = sum(1 for _ in game.mainline_moves())
     return plies, (plies + 1) // 2
+
+
+def extract_mainline_san(game) -> list[str]:
+    """
+    The game's mainline moves as SAN strings (issue #16).
+
+    Variations are excluded — the repertoire tree reflects what was actually
+    played, not what was analysed afterwards.
+    """
+    board = game.board()
+    sans: list[str] = []
+    for move in game.mainline_moves():
+        sans.append(board.san(move))
+        board.push(move)
+    return sans
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +319,9 @@ def load_games_from_text(
             eco = _first_present(h, ["eco"])
             opening = _first_present(h, ["opening"])
             timecontrol = _first_present(h, ["timecontrol"])
-            plies, fullmoves = compute_move_counts(game)
+            # One mainline walk gives both the move list and the counts
+            moves_san = extract_mainline_san(game)
+            plies, fullmoves = len(moves_san), (len(moves_san) + 1) // 2
 
             # Lichess Study identity (ADR 0001): ChapterURL is the permanent
             # identity of a Game; empty for PGNs that aren't Study exports.
@@ -324,6 +344,7 @@ def load_games_from_text(
                 "BlackRatingNum": safe_int(black_rating), "BlackID": black_id,
                 "Result": result, "Winner": winner_from_result(result),
                 "Termination": termination, "Plies": plies, "FullMoves": fullmoves,
+                "Moves": moves_san,
                 "StudyName": study_name, "ChapterName": chapter_name,
                 "ChapterURL": chapter_url,
                 "Lessons": lessons, "Tags": tags,
@@ -1067,6 +1088,112 @@ def performance_rating_stats(df: pd.DataFrame) -> dict:
         "score": score,
         "score_pct": round(score_pct * 100, 1),
         "rated_games": total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Repertoire tree (issue #16)
+# ---------------------------------------------------------------------------
+
+def _score_pct(win: int, draw: int, total: int) -> float:
+    """Chess score percentage: wins count 1, draws count ½."""
+    return round((win + 0.5 * draw) / total * 100, 1) if total else 0.0
+
+
+def _move_nodes(game_list: list[tuple], ply: int, *,
+                baseline: float, min_games: int) -> list[dict]:
+    """
+    Group games by their move at *ply* (1-based) into scored tree nodes,
+    recursing into each group for the next ply.
+
+    *game_list* items are (moves, outcome, ref) tuples — plain Python so the
+    recursion never re-filters a DataFrame.  A branch stops splitting once it
+    holds a single game: drilling further would just replay that game move by
+    move, which is what its detail view is for.
+
+    A node is ``underperforming`` when it scores below *baseline* (Daniel's
+    overall score% as this color) across at least *min_games* games — a thin
+    branch proves nothing, so it never gets flagged.
+    """
+    groups: dict[str, list[tuple]] = {}
+    for moves, outcome, ref in game_list:
+        if len(moves) >= ply:
+            groups.setdefault(moves[ply - 1], []).append((moves, outcome, ref))
+
+    nodes = []
+    for san, group in groups.items():
+        outcomes = [outcome for _, outcome, _ in group]
+        win, draw, loss = (outcomes.count(o) for o in ("Win", "Draw", "Loss"))
+        score = _score_pct(win, draw, len(group))
+        nodes.append({
+            "san": san,
+            "ply": ply,
+            "games": len(group),
+            "win": win, "draw": draw, "loss": loss,
+            "score_pct": score,
+            "underperforming": len(group) >= min_games and score < baseline,
+            "game_refs": [ref for _, _, ref in group],
+            "moves": (_move_nodes(group, ply + 1, baseline=baseline, min_games=min_games)
+                      if len(group) > 1 else []),
+        })
+    # Most-played lines first; ties break alphabetically so output is stable
+    return sorted(nodes, key=lambda node: (-node["games"], node["san"]))
+
+
+def repertoire_tree(df: pd.DataFrame, color: str, *, min_games: int = 3) -> dict:
+    """
+    Daniel's personal opening explorer (issue #16): every Game as *color*,
+    arranged move by move into a tree.
+
+    Returns ``{"color", "games", "score_pct", "moves"}`` where ``moves`` is
+    the list of first-move nodes.  Each node:
+      san             : the move
+      ply             : 1-based half-move number
+      games           : how many Games continued this way
+      win/draw/loss, score_pct : how those Games went (Daniel's perspective)
+      underperforming : True when the branch scores below Daniel's overall
+                        average as this color across >= *min_games* games —
+                        "your anti-Sicilian is leaking points"
+      game_refs       : the Games that reached this position (ChapterURL,
+                        Opponent, Outcome, Date), for linking
+      moves           : the next moves, most-played first
+    """
+    empty = {"color": color, "games": 0, "score_pct": 0.0, "moves": []}
+    if df.empty or "Moves" not in df.columns:
+        return empty
+
+    games = df[
+        (df["Color"] == color)
+        & df["Outcome"].isin(["Win", "Draw", "Loss"])
+        & df["Moves"].map(bool)
+    ]
+    if games.empty:
+        return empty
+
+    game_list = [
+        (
+            game["Moves"],
+            game["Outcome"],
+            # What a node needs to render a meaningful link to this Game
+            {
+                "ChapterURL": game.get("ChapterURL", ""),
+                "Opponent": game.get("Opponent", ""),
+                "Outcome": game["Outcome"],
+                "Date": game.get("Date", ""),
+            },
+        )
+        for _, game in games.iterrows()
+    ]
+
+    total = len(games)
+    wins = int((games["Outcome"] == "Win").sum())
+    draws = int((games["Outcome"] == "Draw").sum())
+    baseline = _score_pct(wins, draws, total)
+    return {
+        "color": color,
+        "games": total,
+        "score_pct": baseline,
+        "moves": _move_nodes(game_list, ply=1, baseline=baseline, min_games=min_games),
     }
 
 
