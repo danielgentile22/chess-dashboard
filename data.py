@@ -63,7 +63,7 @@ _cached_at: datetime | None = None  # only meaningful when _source == "cache"
 # --- USCF enrichment (ADR 0003: optional, never required) ------------------
 _uscf: UscfSyncResult = UscfSyncResult()
 # USCF Game Records ↔ Games (issue #28); empty when USCF is off/unavailable
-_match_result: MatchResult = MatchResult((), (), ())
+_match_result: MatchResult = MatchResult()
 # Dismissed Reconciliation entries (issue #30): in-memory now, persisted
 # best-effort in the USCF cache so they survive restarts
 _dismissed: set[str] = set()
@@ -274,6 +274,11 @@ def get_reconciliation() -> list[ReconciliationEntry]:
     """
     if not uscf_enabled() or not _uscf.available:
         return []
+    # Mid-Sync, the store briefly holds the freshly-swapped Lichess df before
+    # USCF enrichment rebinds it.  No enrichment columns yet → nothing to
+    # reconcile yet; the next callback (post-Sync) sees the full picture.
+    if "UscfColorConflict" not in _df.columns:
+        return []
     return reconcile(
         _df, _match_result, _uscf.official_series, dismissed=frozenset(_dismissed)
     )
@@ -384,5 +389,5 @@ def reset() -> None:
     _uscf = UscfSyncResult()
     _uscf_member_id = None
     _uscf_cache_path = None
-    _match_result = MatchResult((), (), ())
+    _match_result = MatchResult()
     _dismissed = set()

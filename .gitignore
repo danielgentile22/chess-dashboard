@@ -56,3 +56,4 @@ Desktop.ini
 htmlcov/
 # Claude Code runtime artifacts
 .claude/
+.playwright-mcp/

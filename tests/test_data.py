@@ -669,3 +669,27 @@ class TestCacheFallback:
         assert outcome.status == "error"
         assert len(data.get_df()) == 7
         assert data.source() == "cache"
+
+
+class TestReconciliationDuringSync:
+    def test_reconciliation_is_empty_not_crashing_before_enrichment_lands(
+        self, uscf_profile_json
+    ):
+        """Mid-Sync race (self-review finding): after the Lichess swap but
+        before USCF enrichment rebinds the df, the store briefly holds a raw
+        (un-enriched) DataFrame.  A concurrent page load calling
+        get_reconciliation() must get [] — never a KeyError."""
+        from pgn_stats_core import load_games_from_text
+
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="32487228"
+            )
+        assert len(data.get_reconciliation()) == 1
+
+        # Simulate the mid-Sync window: the df is raw parser output again
+        raw_df, _ = load_games_from_text(MATCHED_PGN, player_name="Test Player")
+        data._df = raw_df
+
+        assert data.get_reconciliation() == []
