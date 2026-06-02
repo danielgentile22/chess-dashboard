@@ -21,10 +21,11 @@ The dashboard is a multi-page app — each page loads only its own charts, so it
 | **Openings** | **Repertoire tree** (your games arranged move by move, branches that leak points flagged) · ECO family breakdown (A/B/C/D/E) · full opening detail table |
 | **Opponents** | **Scouting Report** (search an opponent → score, rating gap, game timeline, their openings by your color, and every Lesson from facing them) · stacked W/D/L bar per opponent · outcome by rating bucket · outcome vs. rating scatter |
 | **Events** | Performance per tournament · selectable event table → per-event game list + performance rating |
-| **Games** | Every game with Open-on-Lichess links, Lesson indicators (💡), and Tags — click any row to open the game |
+| **Games** | Every game with Open-on-Lichess links, Lesson indicators (💡), Tags, and its **USCF status** (✓ matched by opponent ID · ≈ matched by name · ⚠ sources disagree · Forfeit) — click any row to open the game |
 | **Lessons** | Every `Lesson:` you've written on Lichess, filterable by Tag and opponent · recurring-weakness callouts ("#time-trouble appears in 4 of your last 5 losses") · pre-game review mode |
+| **Reconciliation** | Every disagreement between your Studies and USCF, grouped and actionable: color conflicts (both versions side by side) · USCF-rated games missing from your Studies · games USCF hasn't rated · chapters missing opponent IDs · typed ratings that don't match the Official Rating — each with fix-on-Lichess links and Dismiss |
 
-Clicking a Game anywhere opens its **detail view**: an embedded interactive Lichess board (your annotations and variations playable in place) alongside the Game's Lessons, Tags, and metadata.
+Clicking a Game anywhere opens its **detail view**: an embedded interactive Lichess board (your annotations and variations playable in place) alongside the Game's Lessons, Tags, metadata, and — when the Game is matched — its **USCF record** (Rated Event, Section, rating system, and the opponent as USCF registers them, linking to their page on ratings.uschess.org).
 
 ### Pre-game review mode
 
@@ -37,6 +38,10 @@ The Openings page leads with your personal opening explorer: every game as White
 ### USCF enrichment
 
 Configure your USCF member ID and every Sync also pulls your official record from the USCF ratings API (ratings.uschess.org): all your ratings (with provisional game counts), national and state rank, rating floor, and membership expiration — shown on a profile card on Overview with your **Official Rating and Live Rating side by side** (the published monthly integer vs. where your rating really stands after your last event).
+
+**The matching engine** pairs every USCF Game Record with its Game: by opponent member ID + result first (the `WhiteFideId`/`BlackFideId` headers you type into chapters), then by normalized opponent name + result + event date window for chapters without IDs. Repeat opponents with identical results are disambiguated by color and date — tiebreakers, never requirements, because color is itself a fact the sources can disagree on. Matched Games show their USCF half (Rated Event, Section, official opponent identity); games with at most one move and no USCF record are tagged **Forfeit** (opponent no-show) and excluded from win rate, streaks, and opening stats while still counting toward event scores.
+
+Disagreements go to the **Reconciliation page** — conflicts get a ⚠ badge on the Game everywhere it appears, and the header shows a count of open items. The dashboard always displays the Lichess version of disputed facts; nothing is silently "corrected".
 
 USCF data is enrichment, never a dependency (`docs/adr/0003`): a Sync that reaches Lichess but not USCF still succeeds, and USCF surfaces degrade to the last successful Sync's cached data with a clear "unavailable since" warning.
 
@@ -220,7 +225,7 @@ chess-stats-dashboard/
 ├── sync.py                  # Sync orchestrator: Studies → merged Games, USCF → enrichment
 ├── lichess_client.py        # Lichess API client (the only module that talks HTTP to Lichess)
 ├── uscf_client.py           # USCF ratings API client (the only module that talks HTTP to USCF)
-├── uscf_core.py             # Pure USCF interpretation: profile parsing, rating series builders
+├── uscf_core.py             # Pure USCF interpretation: profile, rating series, matching engine, reconciliation
 ├── shell.py                 # Persistent app chrome: header, nav tabs, sync machinery
 ├── filters.py               # Global filter drawer + shared FILTER_INPUTS
 ├── components.py            # Shared UI building blocks (cards, KPI tiles, form dots, …)
@@ -234,7 +239,8 @@ chess-stats-dashboard/
 │   ├── events.py            #   /events    tournament performance
 │   ├── games.py             #   /games     full games table
 │   ├── lessons.py           #   /lessons   Lessons + Tag filtering
-│   └── game_detail.py       #   /game/<id> embedded Lichess board + metadata
+│   ├── reconciliation.py    #   /reconciliation  Studies ↔ USCF disagreements
+│   └── game_detail.py       #   /game/<id> embedded Lichess board + metadata + USCF record
 ├── assets/
 │   └── custom.css           # Dark theme, typography, component styles
 ├── docs/adr/                # Architecture decision records
@@ -244,7 +250,7 @@ chess-stats-dashboard/
 │   ├── test_pgn_stats_core.py  # Parser + stats + insights function tests
 │   ├── test_lichess_client.py  # Lichess client tests (mocked HTTP)
 │   ├── test_uscf_client.py  # USCF client tests (mocked HTTP, real response shapes)
-│   ├── test_uscf_core.py    # Profile parsing + rating series builder tests
+│   ├── test_uscf_core.py    # Profile, rating series, matching engine, reconciliation tests
 │   ├── test_sync.py         # Sync orchestrator tests (stubbed clients)
 │   ├── test_config.py       # Config parsing tests
 │   ├── test_data.py         # Data store tests (stubbed clients)
@@ -268,7 +274,9 @@ chess-stats-dashboard/
 
 **Lichess Studies are the source of truth** (ADR 0001). Games are Synced from the designated Studies via the Lichess API; nothing is uploaded or exported by hand. `lichess_client.py` is the only module that talks HTTP to Lichess.
 
-**USCF data is enrichment, never a dependency** (ADR 0003). The USCF ratings API is undocumented and unofficial, so it gets a strict blast-radius cap: a Sync that reaches Lichess but not USCF succeeds, USCF surfaces degrade to cached data plus a warning, and `uscf_client.py` is the only module that talks HTTP to USCF. Pure interpretation (profile parsing, the Official/Live rating series) lives in `uscf_core.py`, mirroring the `lichess_client` / `pgn_stats_core` split.
+**USCF data is enrichment, never a dependency** (ADR 0003). The USCF ratings API is undocumented and unofficial, so it gets a strict blast-radius cap: a Sync that reaches Lichess but not USCF succeeds, USCF surfaces degrade to cached data plus a warning, and `uscf_client.py` is the only module that talks HTTP to USCF. Pure interpretation (profile parsing, the Official/Live rating series, the matching engine, reconciliation) lives in `uscf_core.py`, mirroring the `lichess_client` / `pgn_stats_core` split.
+
+**Match & enrich.** The Game (Lichess Chapter) stays the central entity; USCF Game Records attach to Games as enrichment columns. Matching never filters, hides, or restructures Games, and disputed facts always display the Lichess version with the disagreement flagged in Reconciliation — the dashboard surfaces discrepancies, it never silently resolves them.
 
 **`pgn_stats_core.py` is framework-agnostic.** Every statistics function takes a Pandas DataFrame and returns a DataFrame or dict. You can import and call them from a Jupyter notebook or any other frontend without touching any Dash code.
 

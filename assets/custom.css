@@ -1619,6 +1619,177 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   font-size: 12.5px;
   color: var(--cs-dim);
 }
+
+/* The Forfeit tag (issue #29): a Chapter with no game behind it — the
+   opponent never showed.  Muted and informational, never gold (gold is
+   reserved for achievements) and never loss-red (nothing went wrong).   */
+.forfeit-tag {
+  margin: 0 0 14px;
+  padding: 9px 14px;
+  background: var(--cs-card2);
+  border: 1px solid var(--cs-border);
+  border-left: 3px solid var(--cs-dim);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--cs-muted);
+}
+.forfeit-tag-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  color: var(--cs-text);
+}
+
+/* The USCF record card on a Game's detail view (issue #28): the opponent
+   as USCF knows them, linking to their page on the ratings site.        */
+.uscf-opponent-link {
+  color: var(--cs-text) !important;
+  text-decoration: none;
+}
+.uscf-opponent-link:hover { color: var(--cs-primary) !important; }
+.uscf-opponent-link .uscf-member-id { margin-left: 2px; }
+
+/* ── Reconciliation (issue #30) ──────────────────────────────
+   Where the Studies and USCF disagree.  Conflict ⚠ reads as
+   warning orange — visually distinct from gold (achievements)
+   and from loss-red (nothing here is a loss).                 */
+:root { --cs-warning: #db6d28; }
+
+/* The header badge: open-item count, on every page */
+.reconciliation-badge-slot { display: flex; align-items: center; }
+.reconciliation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: rgba(219, 109, 40, 0.12);
+  border: 1px solid rgba(219, 109, 40, 0.45);
+  border-radius: 20px;
+  text-decoration: none !important;
+  transition: background 0.15s ease;
+}
+.reconciliation-badge:hover { background: rgba(219, 109, 40, 0.22); }
+.reconciliation-badge-icon { font-size: 12px; line-height: 1; }
+.reconciliation-badge-count {
+  font-family: var(--cs-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cs-warning);
+}
+
+/* The page */
+.reconcile-count {
+  font-family: var(--cs-font-mono);
+  font-size: 13px;
+  color: var(--cs-muted);
+  margin-bottom: 12px;
+}
+.reconcile-explain {
+  font-size: 12.5px;
+  color: var(--cs-muted);
+  margin-bottom: 12px;
+  max-width: 72ch;
+}
+.reconcile-entries { display: flex; flex-direction: column; gap: 10px; }
+.reconcile-entry {
+  background: var(--cs-card2);
+  border: 1px solid var(--cs-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.reconcile-entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+.reconcile-opponent {
+  font-family: var(--cs-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+.reconcile-date {
+  font-family: var(--cs-font-mono);
+  font-size: 11.5px;
+  color: var(--cs-dim);
+}
+.reconcile-sources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.reconcile-sources:has(> :only-child) { grid-template-columns: 1fr; }
+.reconcile-source {
+  background: var(--cs-card);
+  border: 1px solid var(--cs-border);
+  border-radius: 6px;
+  padding: 8px 11px;
+}
+.reconcile-source-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--cs-primary);
+  margin-bottom: 3px;
+}
+.reconcile-source-uscf .reconcile-source-label { color: var(--cs-warning); }
+.reconcile-source-text {
+  font-family: var(--cs-font-mono);
+  font-size: 12px;
+  color: var(--cs-text);
+}
+.reconcile-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+.reconcile-action {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--cs-border);
+  background: transparent;
+  text-decoration: none !important;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.reconcile-fix { color: var(--cs-primary) !important; }
+.reconcile-fix:hover { border-color: var(--cs-primary); }
+.reconcile-dismiss { color: var(--cs-muted); }
+.reconcile-dismiss:hover { border-color: var(--cs-muted); background: var(--cs-card); }
+.reconcile-persistence-note {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--cs-dim);
+  font-style: italic;
+}
+
+/* The ⚠ badge on a conflicted Game's detail view */
+.uscf-conflict-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 11px;
+  background: rgba(219, 109, 40, 0.1);
+  border: 1px solid rgba(219, 109, 40, 0.4);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--cs-warning) !important;
+  text-decoration: none !important;
+}
+.uscf-conflict-badge:hover { background: rgba(219, 109, 40, 0.18); }
+.uscf-conflict-icon { font-size: 14px; }
+
+@media (max-width: 768px) {
+  .reconcile-sources { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 1100px) {
   .uscf-stats, .uscf-stats-with-live { grid-template-columns: repeat(3, 1fr); }
   .uscf-stat-regular { grid-column: 1 / -1; }

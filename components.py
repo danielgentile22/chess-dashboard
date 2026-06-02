@@ -174,6 +174,37 @@ def lichess_link(chapter_url: str) -> str:
     return f"[Open ↗]({chapter_url})" if chapter_url else ""
 
 
+def uscf_member_url(member_id: str) -> str:
+    """The USCF ratings-site page for a member ('' if no ID)."""
+    return f"https://ratings.uschess.org/members/{member_id}" if member_id else ""
+
+
+# Display names for USCF rating-system codes (issue #28).
+USCF_RATING_SYSTEM_LABELS = {
+    "R": "Regular",
+    "D": "Dual (Regular + Quick)",
+    "Q": "Quick",
+    "B": "Blitz",
+    "OR": "Online Regular",
+    "OQ": "Online Quick",
+    "OB": "Online Blitz",
+}
+
+
+def uscf_status_label(matched_by: str, forfeit: bool, conflict: bool = False) -> str:
+    """
+    A Game's USCF status, one glanceable token (issues #28/#29/#30):
+    ✓ matched by opponent ID · ≈ matched by name (eyeball these) ·
+    ⚠ matched but the sources disagree (see Reconciliation) ·
+    "Forfeit" for no-shows · blank for no USCF Game Record.
+    """
+    if forfeit:
+        return "Forfeit"
+    if conflict:
+        return "⚠"
+    return {"id": "✓", "name": "≈"}.get(matched_by, "")
+
+
 def game_detail_path(chapter_url: str) -> str:
     """The in-app detail route for a Game ('' if it has no ChapterURL)."""
     if not chapter_url:

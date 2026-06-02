@@ -453,11 +453,27 @@ def apply_filters(
 # Overview statistics
 # ---------------------------------------------------------------------------
 
+def _without_forfeits(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    The Games that were actually played: Forfeits excluded (issue #29 — a
+    forfeit win is not chess).
+
+    The Forfeit column is enrichment (uscf_core.enrich_games); a DataFrame
+    without it — raw parser output — is returned unchanged.
+    """
+    if df.empty or "Forfeit" not in df.columns:
+        return df
+    return df[~df["Forfeit"]]
+
+
 def win_draw_loss_counts(df: pd.DataFrame) -> pd.Series:
-    """Return a Series with counts for Win, Draw, Loss, Unknown outcomes."""
+    """Return a Series with counts for Win, Draw, Loss, Unknown outcomes.
+
+    Forfeits are excluded — a forfeit win is not a win over the board."""
     outcomes = ["Win", "Draw", "Loss", "Unknown"]
     if df.empty or "Outcome" not in df.columns:
         return pd.Series(0, index=pd.Index(outcomes), name="count")
+    df = _without_forfeits(df)
     return df["Outcome"].value_counts().reindex(outcomes, fill_value=0)
 
 
@@ -481,6 +497,7 @@ def streaks(df: pd.DataFrame) -> dict:
       longest_streak_no_loss, longest_streak_wins_only,
       current_streak_same_outcome, current_streak_outcome, last_20
     """
+    df = _without_forfeits(df)  # a no-show win never extends a Streak
     if df.empty:
         return {
             "longest_streak_no_loss": 0,
@@ -580,9 +597,11 @@ def kpi_stats(df: pd.DataFrame) -> dict:
     pr = performance_rating_stats(df)
     s = streaks(df)
 
-    openings = df["Opening"].replace("", pd.NA).dropna()
+    # Favourite opening/family: opening stats, so Forfeits never count (#29)
+    played = _without_forfeits(df)
+    openings = played["Opening"].replace("", pd.NA).dropna()
     fav_opening = str(openings.value_counts().index[0]) if not openings.empty else "—"
-    eco_vals = df["ECO"].replace("", pd.NA).dropna()
+    eco_vals = played["ECO"].replace("", pd.NA).dropna()
     fav_eco = str(eco_vals.value_counts().index[0])[0].upper() if not eco_vals.empty else "—"
 
     return {
@@ -608,10 +627,12 @@ def kpi_stats(df: pd.DataFrame) -> dict:
 def win_rate_over_time(df: pd.DataFrame) -> pd.DataFrame:
     """
     Cumulative win rate over time (one row per date, dated games only,
-    excluding Unknown outcomes). Columns: Date_dt, CumGames, CumWins, WinRate.
+    excluding Unknown outcomes and Forfeits). Columns: Date_dt, CumGames,
+    CumWins, WinRate.
     """
     if df.empty:
         return pd.DataFrame(columns=["Date_dt", "CumGames", "CumWins", "WinRate"])
+    df = _without_forfeits(df)
     d = df[df["Date_dt"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
     d = d.sort_values("Date_dt")
     if d.empty:
@@ -798,6 +819,7 @@ def opening_summary(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     _FC = ["ECO_Family", "FamilyName", "Games", "Win", "Draw", "Loss", "WinRate"]
     _OC = ["ECO", "Opening", "Games", "Win", "Draw", "Loss", "WinRate"]
 
+    df = _without_forfeits(df)  # one forced move is not repertoire data (#29)
     if df.empty:
         return pd.DataFrame(columns=_FC), pd.DataFrame(columns=_OC)
 
@@ -1172,6 +1194,8 @@ def repertoire_tree(df: pd.DataFrame, color: str, *, min_games: int = 3) -> dict
              "min_games": min_games, "moves": []}
     if df.empty or "Moves" not in df.columns:
         return empty
+
+    df = _without_forfeits(df)  # one forced move is not a repertoire branch (#29)
 
     # NaN-proof: a merged/hand-built frame can hold NaN where the parser
     # would put a list — that's "no moves", not a crash

@@ -40,7 +40,7 @@ def stub_studies(**study_pgns):
 
 
 @contextlib.contextmanager
-def stub_uscf(profile, supplements=None, sections=None):
+def stub_uscf(profile, supplements=None, sections=None, games=None):
     """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -53,7 +53,9 @@ def stub_uscf(profile, supplements=None, sections=None):
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(supplements or [])), \
          mock.patch.object(sync, "fetch_member_sections",
-                           side_effect=fake(sections or [])):
+                           side_effect=fake(sections or [])), \
+         mock.patch.object(sync, "fetch_member_games",
+                           side_effect=fake(games or [])):
         yield
 
 
@@ -195,6 +197,207 @@ class TestUscfInStore:
         assert outcome.status == "success"      # the Sync itself succeeded
         assert len(data.get_df()) == 7          # Lichess data is fresh
         assert "down" in data.uscf_failure()    # the USCF problem is visible
+
+
+# ---------------------------------------------------------------------------
+# The matching engine in the data layer (issue #28)
+# ---------------------------------------------------------------------------
+
+# A Game and the USCF Game Record that matches it (opponent ID + result), in
+# the store's own fixture style: the chapter is what Lichess exports, the
+# record is what the games endpoint returns.
+MATCHED_PGN = """\
+[Event "Test Open"]
+[Site "Springfield"]
+[Date "2024.01.06"]
+[Round "1"]
+[White "Test Player"]
+[Black "John Baker"]
+[Result "1-0"]
+[WhiteElo "1500"]
+[BlackElo "1465"]
+[WhiteFideId "99999999"]
+[BlackFideId "20000056"]
+[Termination "win by resignation"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - John Baker"]
+[ChapterURL "https://lichess.org/study/teststudy/matched01"]
+
+1. e4 e5 2. Nf3 Nc6 1-0
+"""
+
+MATCHED_USCF_GAME = {
+    "section": {"id": "x", "number": 1, "name": "LADDER"},
+    "event": {"id": "202401060001", "name": "TEST OPEN JANUARY",
+              "startDate": "2024-01-06", "endDate": "2024-01-06", "stateCode": "VA"},
+    "ratingSystem": "R",
+    "player": {"color": "White", "outcome": "Win"},
+    "opponent": {"id": "20000056", "firstName": "JOHN", "lastName": "BAKER",
+                 "stateRep": "VA", "color": "Black", "outcome": "Loss"},
+}
+
+
+class TestUscfMatchingInStore:
+    """A Sync matches USCF Game Records to Games and enriches the store's df."""
+
+    def test_matched_games_carry_uscf_facts_in_the_store(self, uscf_profile_json):
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[MATCHED_USCF_GAME]):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        game = data.get_df().iloc[0]
+        assert bool(game["UscfMatched"]) is True
+        assert game["UscfMatchedBy"] == "id"
+        assert game["UscfEventName"] == "TEST OPEN JANUARY"
+        assert game["UscfSection"] == "LADDER"
+        assert game["UscfOpponentName"] == "JOHN BAKER"
+        assert game["UscfOpponentId"] == "20000056"
+
+    def test_match_result_is_exposed_for_later_slices(self, uscf_profile_json):
+        """Reconciliation (issue #30) consumes the full MatchResult — both
+        leftovers included."""
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[MATCHED_USCF_GAME]):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        matches = data.get_uscf_matches()
+        assert len(matches.matches) == 1
+        assert matches.unmatched_chapter_urls == ()
+        assert matches.unmatched_records == ()
+
+    def test_lichess_only_runs_still_have_the_enrichment_columns(self, sample_pgn_text):
+        """Without USCF, pages can still reference UscfMatched — it is just
+        False everywhere (no column-existence checks anywhere)."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        df = data.get_df()
+        assert "UscfMatched" in df.columns
+        assert not df["UscfMatched"].any()
+        assert data.get_uscf_matches().matches == ()
+
+    def test_matches_survive_uscf_being_down(self, uscf_profile_json, tmp_path):
+        """ADR 0003: cached USCF Game Records keep the matching working when
+        USCF is unreachable."""
+        from uscf_client import UscfUnreachableError
+
+        cache = str(tmp_path / "uscf_cache.json")
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[MATCHED_USCF_GAME]):
+            data.initialize(["study1"], player_name="Test Player",
+                            uscf_member_id="12345678", uscf_cache_path=cache)
+        data.reset()
+
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(UscfUnreachableError("USCF is down")):
+            data.initialize(["study1"], player_name="Test Player",
+                            uscf_member_id="12345678", uscf_cache_path=cache)
+
+        game = data.get_df().iloc[0]
+        assert bool(game["UscfMatched"]) is True
+        assert data.uscf_from_cache() is True
+
+    def test_refresh_rematches_against_fresh_data(self, uscf_profile_json):
+        """A Sync that brings new USCF Game Records re-runs the matching."""
+        with stub_studies(study1=MATCHED_PGN), stub_uscf(uscf_profile_json):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+        assert not data.get_df()["UscfMatched"].any()  # no games → no matches
+
+        # USCF rates the event: the games endpoint now returns the record
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[MATCHED_USCF_GAME]):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert bool(data.get_df().iloc[0]["UscfMatched"]) is True
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation in the data layer (issue #30)
+# ---------------------------------------------------------------------------
+
+# The same matched game, but USCF disagrees about the color → a conflict entry
+CONFLICTED_USCF_GAME = {
+    **MATCHED_USCF_GAME,
+    "player": {"color": "Black", "outcome": "Win"},
+    "opponent": {**MATCHED_USCF_GAME["opponent"], "color": "White", "outcome": "Loss"},
+}
+
+
+class TestReconciliationInStore:
+    def test_open_entries_are_exposed(self, uscf_profile_json):
+        """After a Sync, every disagreement is queryable for the page and the
+        header badge."""
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        entries = data.get_reconciliation()
+        assert len(entries) == 1
+        assert entries[0].kind == "conflict"
+        assert entries[0].opponent == "John Baker"
+
+    def test_dismissing_an_entry_removes_it_immediately(self, uscf_profile_json):
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+        entry = data.get_reconciliation()[0]
+
+        data.dismiss_reconciliation_entry(entry.entry_id)
+
+        assert data.get_reconciliation() == []
+
+    def test_dismissals_survive_restarts_via_the_uscf_cache(
+        self, uscf_profile_json, tmp_path
+    ):
+        """The best-effort persistence path: dismiss, restart the app, the
+        entry stays dismissed (issue #30)."""
+        cache = str(tmp_path / "uscf_cache.json")
+
+        def boot():
+            with stub_studies(study1=MATCHED_PGN), \
+                 stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
+                data.initialize(["study1"], player_name="Test Player",
+                                uscf_member_id="12345678", uscf_cache_path=cache)
+
+        boot()
+        entry = data.get_reconciliation()[0]
+        data.dismiss_reconciliation_entry(entry.entry_id)
+
+        data.reset()
+        boot()  # the app restarts
+
+        assert data.get_reconciliation() == []
+
+    def test_no_uscf_configured_means_no_reconciliation(self, sample_pgn_text):
+        """Lichess-only runs have nothing to reconcile against."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_reconciliation() == []
+
+    def test_uscf_never_reached_means_no_reconciliation(self, sample_pgn_text):
+        """With no USCF data at all (down, no cache), claiming every Game is
+        'Lichess-only' would be noise, not insight."""
+        from uscf_client import UscfUnreachableError
+
+        with stub_studies(study1=sample_pgn_text), \
+             stub_uscf(UscfUnreachableError("USCF is down")):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        assert data.get_reconciliation() == []
 
 
 # ---------------------------------------------------------------------------
@@ -466,3 +669,27 @@ class TestCacheFallback:
         assert outcome.status == "error"
         assert len(data.get_df()) == 7
         assert data.source() == "cache"
+
+
+class TestReconciliationDuringSync:
+    def test_reconciliation_is_empty_not_crashing_before_enrichment_lands(
+        self, uscf_profile_json
+    ):
+        """Mid-Sync race (self-review finding): after the Lichess swap but
+        before USCF enrichment rebinds the df, the store briefly holds a raw
+        (un-enriched) DataFrame.  A concurrent page load calling
+        get_reconciliation() must get [] — never a KeyError."""
+        from pgn_stats_core import load_games_from_text
+
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+        assert len(data.get_reconciliation()) == 1
+
+        # Simulate the mid-Sync window: the df is raw parser output again
+        raw_df, _ = load_games_from_text(MATCHED_PGN, player_name="Test Player")
+        data._df = raw_df
+
+        assert data.get_reconciliation() == []

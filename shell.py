@@ -68,6 +68,8 @@ def _header(df, player_name: str) -> html.Header:
                 html.Div(id="header-form", className="header-form"),
             ]),
             html.Div(className="app-header-right", children=[
+                # Open Reconciliation items (issue #30) — filled by callback
+                html.Div(id="reconciliation-badge", className="reconciliation-badge-slot"),
                 html.Span(
                     [html.Strong(f"{total}"), " games"],
                     id="header-games-count", className="app-header-stat",
@@ -116,6 +118,8 @@ def make_shell() -> html.Div:
 
         # Sync machinery (invisible)
         dcc.Store(id="sync-store", data={"seq": 0, "new_games": 0}),
+        # Bumped on every Reconciliation dismissal so the badge follows (issue #30)
+        dcc.Store(id="reconciliation-store", data=0),
         dcc.Interval(id="freshness-interval", interval=30_000, n_intervals=0),
         dbc.Toast(
             id="sync-toast",
@@ -231,6 +235,30 @@ def update_form(colors, outcomes, terminations, start, end, events, moves, _sync
     """Streak fire + form dots in the header — follows filters and Syncs."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     return form_indicator(current_form(df_f))
+
+
+@callback(
+    Output("reconciliation-badge", "children"),
+    Input("sync-store", "data"),
+    Input("reconciliation-store", "data"),
+)
+def update_reconciliation_badge(_sync, _dismissals):
+    """
+    The header's open-disagreements count (issue #30), on every page,
+    linking to the Reconciliation page.  No badge when everything agrees —
+    silence is the reward.
+    """
+    count = len(data.get_reconciliation())
+    if count == 0:
+        return None
+    return dcc.Link(
+        [html.Span("⚠", className="reconciliation-badge-icon"),
+         html.Span(str(count), className="reconciliation-badge-count")],
+        href="/reconciliation",
+        className="reconciliation-badge",
+        title=f"{count} open Reconciliation item{'s' if count != 1 else ''} — "
+              "your Studies and USCF disagree",
+    )
 
 
 @callback(

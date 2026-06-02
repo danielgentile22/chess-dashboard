@@ -17,6 +17,7 @@ Public API
 fetch_member_profile       GET /members/{id} → dict (ratings, ranks, floor, membership)
 fetch_rating_supplements   GET /members/{id}/rating-supplements → list (Official series)
 fetch_member_sections      GET /members/{id}/sections → list (Live series)
+fetch_member_games         GET /members/{id}/games → list (USCF Game Records)
 UscfError                  Base class for anything that goes wrong talking to USCF.
 UscfMemberNotFoundError    The member ID does not exist.
 UscfUnreachableError       Network failure / timeout — USCF is unreachable.
@@ -29,6 +30,7 @@ __all__ = [
     "UscfError",
     "UscfMemberNotFoundError",
     "UscfUnreachableError",
+    "fetch_member_games",
     "fetch_member_profile",
     "fetch_member_sections",
     "fetch_rating_supplements",
@@ -103,6 +105,23 @@ def fetch_member_sections(
     return _get_all_pages(
         f"/members/{member_id}/sections",
         what=f"sections for member {member_id!r}",
+        timeout=timeout,
+    )
+
+
+def fetch_member_games(
+    member_id: str, *, timeout: float = _DEFAULT_TIMEOUT
+) -> list[dict]:
+    """
+    Fetch every USCF Game Record for *member_id* — opponent (with member ID),
+    color, outcome, Rated Event, Section, and rating system (issue #28).
+    Pagination is handled internally.
+
+    Raises the same typed errors as :func:`fetch_member_profile`.
+    """
+    return _get_all_pages(
+        f"/members/{member_id}/games",
+        what=f"games for member {member_id!r}",
         timeout=timeout,
     )
 
