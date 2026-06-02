@@ -27,6 +27,9 @@ flask_session/
 games.pgn
 *.pgn
 
+# Local USCF response cache (enrichment, never a source of truth — ADR 0003)
+uscf_cache.json
+
 # IDE
 .vscode/
 .idea/

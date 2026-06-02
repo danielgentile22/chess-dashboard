@@ -9,6 +9,7 @@ of the store + orchestrator through the store's public interface.
 """
 from __future__ import annotations
 
+import contextlib
 from unittest import mock
 
 import pytest
@@ -16,6 +17,7 @@ import pytest
 import data
 import sync
 from lichess_client import LichessUnreachableError, StudyNotFoundError
+from uscf_client import UscfUnreachableError
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +37,24 @@ def stub_studies(**study_pgns):
         return value
 
     return mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch)
+
+
+@contextlib.contextmanager
+def stub_uscf(profile, supplements=None, sections=None):
+    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
+    def fake(value):
+        def fetch(member_id, **kwargs):
+            if isinstance(value, Exception):
+                raise value
+            return value
+        return fetch
+
+    with mock.patch.object(sync, "fetch_member_profile", side_effect=fake(profile)), \
+         mock.patch.object(sync, "fetch_rating_supplements",
+                           side_effect=fake(supplements or [])), \
+         mock.patch.object(sync, "fetch_member_sections",
+                           side_effect=fake(sections or [])):
+        yield
 
 
 class TestInitialize:
@@ -90,6 +110,196 @@ class TestInitialize:
             data.initialize(["study1"], player_name="Test Player")
 
         assert data.synced_at() is not None
+
+
+# ---------------------------------------------------------------------------
+# USCF enrichment in the store (issue #25, ADR 0003)
+# ---------------------------------------------------------------------------
+
+class TestUscfInStore:
+    def test_initialize_with_member_id_loads_the_uscf_profile(
+        self, sample_pgn_text, uscf_profile_json
+    ):
+        """A Sync fetches the USCF record alongside the Studies."""
+        with stub_studies(study1=sample_pgn_text), stub_uscf(uscf_profile_json):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        profile = data.get_uscf_profile()
+        assert profile is not None
+        assert profile.rating("R").rating == 1545
+        assert data.uscf_synced_at() is not None
+        assert data.uscf_failure() == ""
+
+    def test_no_member_id_means_lichess_only(self, sample_pgn_text):
+        """Without a configured member ID the dashboard runs exactly as before.
+        (No USCF stub here: any USCF HTTP attempt would trip the network guard.)"""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_uscf_profile() is None
+        assert data.uscf_failure() == ""
+        assert data.uscf_synced_at() is None
+
+    def test_uscf_down_at_startup_still_boots(self, sample_pgn_text):
+        """ADR 0003: the dashboard never fails to start because USCF is down."""
+        boom = UscfUnreachableError("Could not reach USCF: connection refused")
+        with stub_studies(study1=sample_pgn_text), stub_uscf(boom):
+            df, _ = data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        # Lichess data is completely unaffected
+        assert len(df) == 7
+        assert data.is_loaded()
+        # The USCF surfaces know they're unavailable, and why
+        assert data.get_uscf_profile() is None
+        assert "Could not reach USCF" in data.uscf_failure()
+
+    def test_refresh_picks_up_uscf_changes(self, sample_pgn_text, uscf_profile_json):
+        """A rating change published by USCF appears after the next Sync."""
+        with stub_studies(study1=sample_pgn_text), stub_uscf(uscf_profile_json):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+        assert data.get_uscf_profile().rating("R").rating == 1545
+
+        # USCF publishes the June supplement: Regular becomes 1571
+        newer = dict(
+            uscf_profile_json,
+            ratings=[
+                dict(r, rating=1571) if r.get("ratingSystem") == "R" else r
+                for r in uscf_profile_json["ratings"]
+            ],
+        )
+        with stub_studies(study1=sample_pgn_text), stub_uscf(newer):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert data.get_uscf_profile().rating("R").rating == 1571
+
+    def test_uscf_failure_during_refresh_keeps_the_sync_successful(
+        self, sample_pgn_text, uscf_profile_json
+    ):
+        """ADR 0003 applies to the Sync button too: USCF down ≠ Sync failed."""
+        with stub_studies(study1=sample_pgn_text), stub_uscf(uscf_profile_json):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        boom = UscfUnreachableError("USCF is down")
+        with stub_studies(study1=sample_pgn_text), stub_uscf(boom):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"      # the Sync itself succeeded
+        assert len(data.get_df()) == 7          # Lichess data is fresh
+        assert "down" in data.uscf_failure()    # the USCF problem is visible
+
+
+# ---------------------------------------------------------------------------
+# The Official and Live rating series in the data layer (issue #27)
+# ---------------------------------------------------------------------------
+
+class TestRatingSeriesInStore:
+    def test_data_layer_exposes_both_rating_series(
+        self, sample_pgn_text, uscf_profile_json,
+        uscf_supplements_json, uscf_sections_json,
+    ):
+        """After a Sync, both series are available to every page."""
+        with stub_studies(study1=sample_pgn_text), stub_uscf(
+            uscf_profile_json,
+            supplements=uscf_supplements_json["items"],
+            sections=uscf_sections_json["items"],
+        ):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        official = data.get_official_series()
+        assert len(official) == 10
+        assert official[-1].rating == 1545          # current Official Rating
+
+        live = data.get_live_series()
+        assert len(live) == 23
+        assert live[-1].post == 1570.72             # current Live Rating, decimals kept
+
+    def test_series_are_empty_without_uscf(self, sample_pgn_text):
+        """Lichess-only runs have no series — pages get empty lists, not errors."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_official_series() == []
+        assert data.get_live_series() == []
+
+
+# ---------------------------------------------------------------------------
+# USCF cache fallback (issue #26)
+# ---------------------------------------------------------------------------
+
+class TestUscfCacheFallback:
+    def _initialize(self, pgn, uscf, cache_path):
+        with stub_studies(study1=pgn), stub_uscf(uscf):
+            return data.initialize(
+                ["study1"], player_name="Test Player",
+                uscf_member_id="12345678", uscf_cache_path=cache_path,
+            )
+
+    def test_restart_with_uscf_down_serves_cached_data(
+        self, sample_pgn_text, uscf_profile_json, tmp_path
+    ):
+        """USCF panels survive an app restart while USCF is unreachable."""
+        cache = str(tmp_path / "uscf_cache.json")
+        # A successful run caches the USCF data...
+        self._initialize(sample_pgn_text, uscf_profile_json, cache)
+        data.reset()
+
+        # ...then the app restarts while USCF is down
+        boom = UscfUnreachableError("Could not reach USCF")
+        self._initialize(sample_pgn_text, boom, cache)
+
+        profile = data.get_uscf_profile()
+        assert profile is not None                       # cached data is served
+        assert profile.rating("R").rating == 1545
+        assert data.uscf_from_cache() is True            # clearly marked stale
+        assert "Could not reach USCF" in data.uscf_failure()
+        assert data.uscf_synced_at() is not None         # "unavailable since X"
+
+    def test_failed_refresh_degrades_to_cached_data(
+        self, sample_pgn_text, uscf_profile_json, tmp_path
+    ):
+        """A Sync with USCF unreachable: Lichess fresh, USCF cached + warned."""
+        cache = str(tmp_path / "uscf_cache.json")
+        self._initialize(sample_pgn_text, uscf_profile_json, cache)
+        assert data.uscf_from_cache() is False
+
+        boom = UscfUnreachableError("USCF is down")
+        with stub_studies(study1=sample_pgn_text), stub_uscf(boom):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert data.get_uscf_profile() is not None       # still showing USCF data
+        assert data.uscf_from_cache() is True            # from the cache
+        assert "down" in data.uscf_failure()
+
+    def test_uscf_recovery_clears_the_stale_state(
+        self, sample_pgn_text, uscf_profile_json, tmp_path
+    ):
+        """Once USCF is back, the next Sync replaces cached data with live data."""
+        cache = str(tmp_path / "uscf_cache.json")
+        self._initialize(sample_pgn_text, uscf_profile_json, cache)
+        data.reset()
+        self._initialize(
+            sample_pgn_text, UscfUnreachableError("down"), cache
+        )
+        assert data.uscf_from_cache() is True
+
+        with stub_studies(study1=sample_pgn_text), stub_uscf(uscf_profile_json):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert data.uscf_from_cache() is False
+        assert data.uscf_failure() == ""
 
 
 # ---------------------------------------------------------------------------

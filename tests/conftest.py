@@ -5,12 +5,18 @@ Shared fixtures for the chess stats test suite.
 """
 from __future__ import annotations
 
+import json
 import socket
+from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
 import pandas as pd
 import pytest
+
+# Real USCF MUIR API responses captured live on 2026-06-02 (issue #25 / PRD #24).
+# These are the canonical "real response shapes" the USCF tests run against.
+USCF_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "uscf"
 
 
 @pytest.fixture(autouse=True)
@@ -21,7 +27,7 @@ def no_network(monkeypatch):
     """
     def guard(*args, **kwargs):
         raise RuntimeError(
-            "Network access attempted during tests — stub the Lichess client."
+            "Network access attempted during tests — stub the Lichess/USCF clients."
         )
 
     monkeypatch.setattr(socket, "create_connection", guard)
@@ -254,6 +260,29 @@ def sample_pgn_text() -> str:
     return SAMPLE_PGN
 
 
+# ---------------------------------------------------------------------------
+# USCF fixtures: real API response shapes (captured 2026-06-02)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="session")
+def uscf_profile_json() -> dict:
+    """A real /members/{id} response: 6 rating systems, ranks, floor, membership."""
+    return json.loads((USCF_FIXTURES_DIR / "member-profile.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def uscf_supplements_json() -> dict:
+    """A real /members/{id}/rating-supplements response (10 monthly supplements)."""
+    return json.loads((USCF_FIXTURES_DIR / "rating-supplements.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def uscf_sections_json() -> dict:
+    """A real /members/{id}/sections response: 24 Sections across 12 months,
+    including dual-rated, Online-Regular, zero-change, and same-day Sections."""
+    return json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())
+
+
 @pytest.fixture(scope="session")
 def sample_pgn_study2_text() -> str:
     """A second Study's PGN: 2 new games + 1 duplicate of SAMPLE_PGN's chap0007."""
@@ -273,33 +302,75 @@ def sample_pgn_path(tmp_path_factory) -> Path:
 #
 # Page modules call dash.register_page() at import, which Dash only allows
 # after a Dash app exists.  ``ui_app`` therefore builds the real app once per
-# session (with the Lichess client stubbed); ``ui_data`` re-initializes the
-# module-level data store before each UI test so tests stay isolated from
-# whatever other test files did to it.
+# session (with the Lichess and USCF clients stubbed); ``ui_data``
+# re-initializes the module-level data store before each UI test so tests
+# stay isolated from whatever other test files did to it.
 # ---------------------------------------------------------------------------
+
+# The same real response shapes, available without requesting the session
+# fixtures (ui_app builds the app at session scope).
+_UI_USCF_PROFILE = json.loads((USCF_FIXTURES_DIR / "member-profile.json").read_text())
+_UI_USCF_SUPPLEMENTS = json.loads(
+    (USCF_FIXTURES_DIR / "rating-supplements.json").read_text()
+)["items"]
+_UI_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())["items"]
+
+
+@contextmanager
+def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None):
+    """
+    Patch both clients at sync's module boundary for UI fixtures/tests:
+    Lichess returns *pgn_text*; USCF returns the real captured responses.
+    Pass an Exception as *uscf_profile* to simulate USCF being down
+    (every endpoint raises it).
+    """
+    import sync
+
+    if uscf_profile is None:
+        uscf_profile = _UI_USCF_PROFILE
+    uscf_down = uscf_profile if isinstance(uscf_profile, Exception) else None
+
+    def fake(value):
+        def fetch(member_id, **kwargs):
+            if uscf_down is not None:
+                raise uscf_down
+            return value
+        return fetch
+
+    with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn_text), \
+         mock.patch.object(sync, "fetch_member_profile",
+                           side_effect=fake(uscf_profile)), \
+         mock.patch.object(sync, "fetch_rating_supplements",
+                           side_effect=fake(_UI_USCF_SUPPLEMENTS)), \
+         mock.patch.object(sync, "fetch_member_sections",
+                           side_effect=fake(_UI_USCF_SECTIONS)):
+        yield
+
 
 @pytest.fixture(scope="session")
 def ui_app():
-    """The real Dash app built once with fixture data (Lichess stubbed)."""
+    """The real Dash app built once with fixture data (Lichess + USCF stubbed)."""
     import data
-    import sync
 
     data.reset()
-    with mock.patch.object(sync, "fetch_study_pgn", return_value=SAMPLE_PGN):
+    with stub_ui_sources(SAMPLE_PGN):
         from app import build_app
-        dash_app, _server = build_app(["teststudy"], player_name="Test Player")
+        dash_app, _server = build_app(
+            ["teststudy"], player_name="Test Player", uscf_member_id="12345678"
+        )
     return dash_app
 
 
 @pytest.fixture()
 def ui_data(sample_pgn_text):
-    """A freshly initialized data store for each UI test."""
+    """A freshly initialized data store for each UI test (USCF available)."""
     import data
-    import sync
 
     data.reset()
-    with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text):
-        data.initialize(["teststudy"], player_name="Test Player")
+    with stub_ui_sources(sample_pgn_text):
+        data.initialize(
+            ["teststudy"], player_name="Test Player", uscf_member_id="12345678"
+        )
     yield
     data.reset()
 

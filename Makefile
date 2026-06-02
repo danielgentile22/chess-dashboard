@@ -32,13 +32,13 @@ run-debug: install  ## Start with hot-reload debug mode
 	$(PYTHON) app.py --study $(STUDY) --debug
 
 test: install-dev  ## Run the test suite
-	$(PYTEST) tests/ -v --cov=pgn_stats_core --cov=lichess_client --cov=sync --cov=data --cov=config --cov=shell --cov=filters --cov=components --cov=pages --cov-report=term-missing
+	$(PYTEST) tests/ -v --cov=pgn_stats_core --cov=lichess_client --cov=uscf_client --cov=uscf_core --cov=sync --cov=data --cov=config --cov=shell --cov=filters --cov=components --cov=pages --cov-report=term-missing
 
 lint: install-dev  ## Lint with ruff
 	$(RUFF) check . --fix
 
 typecheck: install-dev  ## Type check with mypy
-	$(VENV)/bin/mypy pgn_stats_core.py lichess_client.py sync.py data.py config.py
+	$(VENV)/bin/mypy pgn_stats_core.py lichess_client.py uscf_client.py uscf_core.py sync.py data.py config.py
 
 clean:         ## Remove virtual environment and caches
 	rm -rf $(VENV) __pycache__ .pytest_cache .mypy_cache .ruff_cache

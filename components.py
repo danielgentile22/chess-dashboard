@@ -5,7 +5,8 @@ Shared UI building blocks for the multi-page Chess Stats Dashboard.
 
 Every page composes its layout from these helpers so the whole app keeps a
 single visual language: page headers, chart cards, KPI cards, empty states,
-form indicators, celebration banners, and the dark DataTable styles.
+form indicators, celebration banners, USCF cards, and the dark DataTable
+styles.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, State, callback, dcc, html, no_update
 
 from styles import COLORS
+from uscf_core import UscfProfile, UscfRating
 
 # ---------------------------------------------------------------------------
 # Dark DataTable styles (shared by every table in the app)
@@ -261,6 +263,142 @@ def weakness_callout(callout: dict, *, compact: bool = False) -> html.Div:
             for i, url in enumerate(linkable, start=1)
         ]))
     return html.Div(children, className="weakness-callout" + (" compact" if compact else ""))
+
+
+# ---------------------------------------------------------------------------
+# USCF profile card (issue #25)
+# ---------------------------------------------------------------------------
+
+def _uscf_rating_note(entry: UscfRating | None) -> str:
+    """The provisional/floor footnote under a rating value."""
+    if entry is None or entry.rating is None:
+        return "Unrated"
+    if entry.is_provisional:
+        games = f" · {entry.games_played} games" if entry.games_played else ""
+        return f"Provisional{games}"
+    floor = f" · floor {entry.floor}" if entry.floor else ""
+    return f"Established{floor}"
+
+
+def _uscf_rating_block(label: str, entry: UscfRating | None) -> html.Div:
+    """One rating system's tile: big mono numeral + provisional/floor note."""
+    value = str(entry.rating) if entry is not None and entry.rating is not None else "—"
+
+    return html.Div(className="uscf-stat", children=[
+        html.Div(label, className="uscf-stat-label"),
+        html.Div(value, className="uscf-stat-value"),
+        html.Div(_uscf_rating_note(entry), className="uscf-stat-note"),
+    ])
+
+
+def _uscf_regular_block(entry: UscfRating | None, live_rating: float | None) -> html.Div:
+    """
+    The Regular rating tile — the backbone rating (PRD #24).
+
+    With a Live Rating available it shows both values side by side
+    ("Official 1545 · Live 1570.7" — issue #27); without one it is a plain
+    rating tile.
+    """
+    if live_rating is None:
+        return _uscf_rating_block("Regular", entry)
+
+    official = str(entry.rating) if entry is not None and entry.rating is not None else "—"
+
+    return html.Div(className="uscf-stat uscf-stat-regular", children=[
+        html.Div("Regular", className="uscf-stat-label"),
+        html.Div(className="uscf-dual-value", children=[
+            html.Div([
+                html.Div("Official", className="uscf-dual-label"),
+                html.Div(official, className="uscf-stat-value"),
+            ]),
+            html.Div([
+                html.Div("Live", className="uscf-dual-label"),
+                html.Div(f"{live_rating:.1f}",
+                         className="uscf-stat-value uscf-live-value"),
+            ]),
+        ]),
+        html.Div(_uscf_rating_note(entry), className="uscf-stat-note"),
+    ])
+
+
+def _uscf_rank_block(label: str, rank: int | None) -> html.Div:
+    """One rank tile: '#11,719' style."""
+    value = f"#{rank:,}" if rank is not None else "—"
+    return html.Div(className="uscf-stat", children=[
+        html.Div(label, className="uscf-stat-label"),
+        html.Div(value, className="uscf-stat-value"),
+        html.Div("", className="uscf-stat-note"),
+    ])
+
+
+def uscf_profile_card(
+    profile: UscfProfile,
+    alert: str | None = None,
+    stale: str | None = None,
+    live_rating: float | None = None,
+) -> html.Div:
+    """
+    The USCF profile card: the member's official identity at a glance.
+
+    Regular / Quick / Online-Regular ratings (provisional ones labeled with
+    game counts), national and state rank, rating floor, and membership —
+    with a visible warning when the membership has lapsed or expires soon.
+
+    *stale* is the degradation notice (ADR 0003): shown when the numbers come
+    from the cache because USCF is currently unreachable.
+
+    *live_rating* is the current Live Rating (issue #27): shown next to the
+    Official Regular rating so the gap between the two is visible at a glance.
+    """
+    membership = profile.membership_status
+    if profile.membership_expires:
+        membership += f" · until {profile.membership_expires.isoformat()}"
+
+    state_label = f"{profile.state} rank" if profile.state else "State rank"
+
+    return html.Div(className="chart-card uscf-card", children=[
+        html.Div(className="uscf-card-header", children=[
+            html.Div([
+                html.Div("US Chess Federation", className="chart-title"),
+                html.Div(className="uscf-identity", children=[
+                    html.Span(profile.name, className="uscf-name"),
+                    html.Span(f"#{profile.member_id}", className="uscf-member-id"),
+                ]),
+            ]),
+            html.Div(membership, className="uscf-membership"),
+        ]),
+        html.Div(stale, className="uscf-stale") if stale else None,
+        html.Div(alert, className="uscf-alert") if alert else None,
+        html.Div(
+            className="uscf-stats" + (" uscf-stats-with-live" if live_rating else ""),
+            children=[
+                _uscf_regular_block(profile.rating("R"), live_rating),
+                _uscf_rating_block("Quick", profile.rating("Q")),
+                _uscf_rating_block("Online Regular", profile.rating("OR")),
+                _uscf_rank_block("National rank", profile.national_rank),
+                _uscf_rank_block(state_label, profile.state_rank),
+            ],
+        ),
+    ])
+
+
+def uscf_unavailable_card(reason: str) -> html.Div:
+    """
+    The USCF card's degraded state (ADR 0003): says USCF is unavailable and
+    why, without pretending to have data.
+    """
+    return html.Div(className="chart-card uscf-card uscf-unavailable", children=[
+        html.Div("US Chess Federation", className="chart-title"),
+        html.Div(className="uscf-alert", children=[
+            html.Span("USCF data unavailable", className="uscf-alert-headline"),
+            html.Span(f" — {reason}" if reason else "", className="uscf-alert-reason"),
+        ]),
+        html.Div(
+            "Your Lichess games are unaffected. The card will fill in on the next "
+            "successful Sync.",
+            className="uscf-unavailable-hint",
+        ),
+    ])
 
 
 def celebration_banner(deltas: list[dict]) -> dbc.Alert:
