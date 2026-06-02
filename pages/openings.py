@@ -178,7 +178,7 @@ def _tree_node(node: dict, baseline: float):
     FILTER_INPUTS,
 )
 def update_repertoire(color, colors, outcomes, terminations, start, end,
-                      events, moves, _sync=None):
+                      events, moves, _sync=None, _lens=None):
     """The repertoire tree for one color, honoring the global filters."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     tree = repertoire_tree(df_f, color)
@@ -212,7 +212,7 @@ def update_repertoire(color, colors, outcomes, terminations, start, end,
 # ---------------------------------------------------------------------------
 
 @callback(Output("opening-family-bar", "figure"), FILTER_INPUTS)
-def update_opening_family(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_opening_family(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     fam, _ = opening_summary(df_f)
     if fam.empty:
@@ -233,7 +233,7 @@ def update_opening_family(colors, outcomes, terminations, start, end, events, mo
 
 
 @callback(Output("opening-table", "data"), FILTER_INPUTS)
-def update_opening_table(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_opening_table(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     _, opn = opening_summary(df_f)
     return opn.head(50).to_dict("records")

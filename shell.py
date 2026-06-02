@@ -45,6 +45,34 @@ def _nav() -> html.Nav:
     ])
 
 
+def _lens_toggle() -> html.Div:
+    """
+    The Official/Live rating lens (issue #31) — a lens, not a filter: it
+    selects which rating series (CONTEXT.md: Official Rating vs Live Rating)
+    powers rating-derived numbers, and never hides Games.
+
+    It lives in the header so it exists on every page; its value rides
+    FILTER_INPUTS so every page follows it exactly like the global filters.
+    Session persistence keeps the choice across full page reloads too.
+    """
+    return html.Div(className="rating-lens", children=[
+        dcc.RadioItems(
+            id="rating-lens",
+            className="rating-lens-control",
+            options=[
+                {"label": "Official", "value": "official"},
+                {"label": "Live", "value": "live"},
+            ],
+            value="official",
+            inline=True,
+            inputClassName="rating-lens-input",
+            labelClassName="rating-lens-option",
+            persistence=True,
+            persistence_type="session",
+        ),
+    ], title="Rating lens — which rating series every rating-derived stat uses")
+
+
 def _header(df, player_name: str) -> html.Header:
     total = len(df)
     date_range = ""
@@ -78,6 +106,8 @@ def _header(df, player_name: str) -> html.Header:
                           className="app-header-stat app-header-stat-wide"),
                 html.Span("", id="sync-freshness",
                           className="app-header-stat app-header-stat-wide"),
+                # The Official/Live rating lens (issue #31)
+                _lens_toggle(),
                 make_filter_button(),
                 html.Button(
                     className="header-btn header-btn-sync", id="sync-button", children=[
@@ -231,7 +261,7 @@ def run_sync(n_clicks, store):
 
 
 @callback(Output("header-form", "children"), FILTER_INPUTS)
-def update_form(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_form(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     """Streak fire + form dots in the header — follows filters and Syncs."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     return form_indicator(current_form(df_f))

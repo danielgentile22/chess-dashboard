@@ -77,7 +77,7 @@ def layout(**kwargs) -> html.Div:
 # ---------------------------------------------------------------------------
 
 @callback(Output("event-bar", "figure"), FILTER_INPUTS)
-def update_event_bar(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_event_bar(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     ev = event_summary(df_f)
     if ev.empty:
@@ -95,7 +95,7 @@ def update_event_bar(colors, outcomes, terminations, start, end, events, moves, 
 
 
 @callback(Output("event-table", "data"), FILTER_INPUTS)
-def update_event_table(colors, outcomes, terminations, start, end, events, moves, _sync=None):
+def update_event_table(colors, outcomes, terminations, start, end, events, moves, _sync=None, _lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     return event_summary(df_f).to_dict("records")
 
@@ -107,7 +107,7 @@ def update_event_table(colors, outcomes, terminations, start, end, events, moves
     FILTER_INPUTS,
 )
 def update_tournament_detail(selected_rows, table_data, colors, outcomes,
-                             terminations, start, end, events, moves, _sync=None):
+                             terminations, start, end, events, moves, _sync=None, _lens=None):
     if not selected_rows or not table_data:
         return None
     # The selection can be stale: a filter change may have shrunk the table

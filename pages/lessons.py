@@ -148,7 +148,7 @@ def _tag_strip(df_filtered, selected_tags: list[str]) -> list:
 
 @callback(Output("weakness-callouts", "children"), FILTER_INPUTS)
 def update_weakness_callouts(colors, outcomes, terminations, start, end,
-                             events, moves, _sync=None):
+                             events, moves, _sync=None, _lens=None):
     """Recurring weaknesses (issue #18). Silent below threshold."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     callouts = recurring_weaknesses(df_f)
@@ -198,7 +198,7 @@ def toggle_lesson_tag(n_clicks_list, selected):
     FILTER_INPUTS,
 )
 def update_lessons_page(selected_tags, opponent, colors, outcomes, terminations,
-                        start, end, events, moves, _sync=None):
+                        start, end, events, moves, _sync=None, _lens=None):
     """The Lessons list + tag strip, honoring page filters and global filters."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
     selected_tags = selected_tags or []

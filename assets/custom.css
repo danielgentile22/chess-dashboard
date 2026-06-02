@@ -252,6 +252,51 @@ code {
 }
 .filter-count-badge:empty { display: none; }
 
+/* ── The Official/Live rating lens (issue #31) ─────────────
+   A segmented control, not a button: it reads as "which world view am I
+   in", never as an action.  The active segment lights up; Live speaks the
+   Live Rating's blue (.uscf-live-value vocabulary), Official stays neutral. */
+.rating-lens-control {
+  display: inline-flex;
+  background: var(--cs-bg);
+  border: 1px solid var(--cs-border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+.rating-lens-input {
+  /* the radio circle itself never shows — the segment is the control */
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+.rating-lens-option {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 11px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cs-dim);
+  cursor: pointer;
+  margin: 0;
+  user-select: none;
+  transition: background .15s, color .15s;
+}
+.rating-lens-option:hover { color: var(--cs-muted); }
+/* the active segment */
+.rating-lens-option:has(.rating-lens-input:checked) {
+  background: var(--cs-card2);
+  color: var(--cs-text);
+  box-shadow: 0 0 0 1px var(--cs-border);
+}
+/* Live, when active, wears the Live Rating's color */
+.rating-lens-option:last-child:has(.rating-lens-input:checked) {
+  color: var(--cs-primary);
+}
+
 /* ── Page navigation tabs ─────────────────────────────────── */
 .app-nav {
   display: flex;
@@ -1813,6 +1858,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .app-header-right { gap: 10px; }
   .header-btn { padding: 6px 10px; }
   .header-btn-text { display: none; }        /* icon-only buttons */
+  .rating-lens-option { padding: 3px 8px; font-size: 11px; }  /* the lens stays */
   .app-nav { padding: 0 6px; }
   .app-nav-link { padding: 9px 11px 11px !important; font-size: 12.5px; }
 

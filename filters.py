@@ -33,6 +33,9 @@ from pgn_stats_core import apply_filters
 # Every chart callback in every page listens to exactly these inputs.
 # sync-store is bumped after every successful Sync so charts re-render on
 # fresh data without any page knowing how Syncing works.
+# rating-lens is the Official/Live lens (issue #31) — not a filter (it never
+# hides Games), but it rides the same dependency list so every page follows
+# it the way it follows the global filters.
 FILTER_INPUTS = [
     Input("color-filter",       "value"),
     Input("outcome-filter",     "value"),
@@ -42,6 +45,7 @@ FILTER_INPUTS = [
     Input("event-filter",       "value"),
     Input("moves-filter",       "value"),
     Input("sync-store",         "data"),
+    Input("rating-lens",        "value"),
 ]
 
 
@@ -263,7 +267,7 @@ def apply_preset(n_all, n20, n_year, n_white, n_black, n_wins):
     FILTER_INPUTS,
 )
 def update_filter_summary(colors, outcomes, terminations, start, end,
-                          events, moves, _sync=None):
+                          events, moves, _sync=None, _lens=None):
     """The 'Showing X of Y games' line + the active-filter count badge."""
     df = data.get_df()
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
