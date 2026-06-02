@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import socket
+from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
@@ -26,7 +27,7 @@ def no_network(monkeypatch):
     """
     def guard(*args, **kwargs):
         raise RuntimeError(
-            "Network access attempted during tests — stub the Lichess client."
+            "Network access attempted during tests — stub the Lichess/USCF clients."
         )
 
     monkeypatch.setattr(socket, "create_connection", guard)
@@ -270,6 +271,19 @@ def uscf_profile_json() -> dict:
 
 
 @pytest.fixture(scope="session")
+def uscf_supplements_json() -> dict:
+    """A real /members/{id}/rating-supplements response (10 monthly supplements)."""
+    return json.loads((USCF_FIXTURES_DIR / "rating-supplements.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def uscf_sections_json() -> dict:
+    """A real /members/{id}/sections response: 24 Sections across 12 months,
+    including dual-rated, Online-Regular, zero-change, and same-day Sections."""
+    return json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())
+
+
+@pytest.fixture(scope="session")
 def sample_pgn_study2_text() -> str:
     """A second Study's PGN: 2 new games + 1 duplicate of SAMPLE_PGN's chap0007."""
     return SAMPLE_PGN_STUDY2
@@ -293,40 +307,42 @@ def sample_pgn_path(tmp_path_factory) -> Path:
 # stay isolated from whatever other test files did to it.
 # ---------------------------------------------------------------------------
 
-# The same real profile shape, available without requesting the session fixture
-# (ui_app builds the app at session scope).
+# The same real response shapes, available without requesting the session
+# fixtures (ui_app builds the app at session scope).
 _UI_USCF_PROFILE = json.loads((USCF_FIXTURES_DIR / "member-profile.json").read_text())
+_UI_USCF_SUPPLEMENTS = json.loads(
+    (USCF_FIXTURES_DIR / "rating-supplements.json").read_text()
+)["items"]
+_UI_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())["items"]
 
 
+@contextmanager
 def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None):
     """
     Patch both clients at sync's module boundary for UI fixtures/tests:
-    Lichess returns *pgn_text*; USCF returns *uscf_profile* (or raises it).
+    Lichess returns *pgn_text*; USCF returns the real captured responses,
+    or raises *uscf_profile* if it's an Exception.
     """
     import sync
 
     if uscf_profile is None:
         uscf_profile = _UI_USCF_PROFILE
 
-    def fake_uscf(member_id, **kwargs):
-        if isinstance(uscf_profile, Exception):
-            raise uscf_profile
-        return uscf_profile
+    def fake(value):
+        def fetch(member_id, **kwargs):
+            if isinstance(uscf_profile, Exception):
+                raise uscf_profile  # USCF down: every endpoint is unreachable
+            return value
+        return fetch
 
-    lichess = mock.patch.object(sync, "fetch_study_pgn", return_value=pgn_text)
-    uscf = mock.patch.object(sync, "fetch_member_profile", side_effect=fake_uscf)
-
-    class _Both:
-        def __enter__(self):
-            lichess.__enter__()
-            uscf.__enter__()
-            return self
-
-        def __exit__(self, *exc):
-            uscf.__exit__(*exc)
-            return lichess.__exit__(*exc)
-
-    return _Both()
+    with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn_text), \
+         mock.patch.object(sync, "fetch_member_profile",
+                           side_effect=fake(uscf_profile)), \
+         mock.patch.object(sync, "fetch_rating_supplements",
+                           side_effect=fake(_UI_USCF_SUPPLEMENTS)), \
+         mock.patch.object(sync, "fetch_member_sections",
+                           side_effect=fake(_UI_USCF_SECTIONS)):
+        yield
 
 
 @pytest.fixture(scope="session")

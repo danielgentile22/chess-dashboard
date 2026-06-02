@@ -153,10 +153,15 @@ def update_uscf_card(_sync):
         stale = (f"USCF unavailable since {when} — showing the last successful "
                  "Sync's data.")
 
+    # The current Live Rating: where the per-Section chain stands today (issue #27)
+    live_series = data.get_live_series()
+    live_rating = live_series[-1].post if live_series else None
+
     return uscf_profile_card(
         profile,
         alert=membership_alert(profile, today=date.today()),
         stale=stale,
+        live_rating=live_rating,
     )
 
 

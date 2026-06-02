@@ -11,6 +11,7 @@ from the @callback decorator, so they are plain functions here.
 """
 from __future__ import annotations
 
+import contextlib
 from unittest import mock
 
 import pytest
@@ -41,14 +42,22 @@ def stub_studies(**study_pgns):
     return mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch)
 
 
-def stub_uscf(profile):
-    """Stub the USCF client inside sync: raw profile JSON, or an Exception to raise."""
-    def fake_fetch(member_id, **kwargs):
-        if isinstance(profile, Exception):
-            raise profile
-        return profile
+@contextlib.contextmanager
+def stub_uscf(profile, supplements=None, sections=None):
+    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
+    def fake(value):
+        def fetch(member_id, **kwargs):
+            if isinstance(value, Exception):
+                raise value
+            return value
+        return fetch
 
-    return mock.patch.object(sync, "fetch_member_profile", side_effect=fake_fetch)
+    with mock.patch.object(sync, "fetch_member_profile", side_effect=fake(profile)), \
+         mock.patch.object(sync, "fetch_rating_supplements",
+                           side_effect=fake(supplements or [])), \
+         mock.patch.object(sync, "fetch_member_sections",
+                           side_effect=fake(sections or [])):
+        yield
 
 
 # ---------------------------------------------------------------------------

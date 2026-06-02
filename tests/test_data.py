@@ -9,6 +9,7 @@ of the store + orchestrator through the store's public interface.
 """
 from __future__ import annotations
 
+import contextlib
 from unittest import mock
 
 import pytest
@@ -38,14 +39,22 @@ def stub_studies(**study_pgns):
     return mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch)
 
 
-def stub_uscf(profile):
-    """Stub the USCF client inside sync: raw profile JSON, or an Exception to raise."""
-    def fake_fetch(member_id, **kwargs):
-        if isinstance(profile, Exception):
-            raise profile
-        return profile
+@contextlib.contextmanager
+def stub_uscf(profile, supplements=None, sections=None):
+    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
+    def fake(value):
+        def fetch(member_id, **kwargs):
+            if isinstance(value, Exception):
+                raise value
+            return value
+        return fetch
 
-    return mock.patch.object(sync, "fetch_member_profile", side_effect=fake_fetch)
+    with mock.patch.object(sync, "fetch_member_profile", side_effect=fake(profile)), \
+         mock.patch.object(sync, "fetch_rating_supplements",
+                           side_effect=fake(supplements or [])), \
+         mock.patch.object(sync, "fetch_member_sections",
+                           side_effect=fake(sections or [])):
+        yield
 
 
 class TestInitialize:
@@ -186,6 +195,42 @@ class TestUscfInStore:
         assert outcome.status == "success"      # the Sync itself succeeded
         assert len(data.get_df()) == 7          # Lichess data is fresh
         assert "down" in data.uscf_failure()    # the USCF problem is visible
+
+
+# ---------------------------------------------------------------------------
+# The Official and Live rating series in the data layer (issue #27)
+# ---------------------------------------------------------------------------
+
+class TestRatingSeriesInStore:
+    def test_data_layer_exposes_both_rating_series(
+        self, sample_pgn_text, uscf_profile_json,
+        uscf_supplements_json, uscf_sections_json,
+    ):
+        """After a Sync, both series are available to every page."""
+        with stub_studies(study1=sample_pgn_text), stub_uscf(
+            uscf_profile_json,
+            supplements=uscf_supplements_json["items"],
+            sections=uscf_sections_json["items"],
+        ):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        official = data.get_official_series()
+        assert len(official) == 10
+        assert official[-1].rating == 1545          # current Official Rating
+
+        live = data.get_live_series()
+        assert len(live) == 23
+        assert live[-1].post == 1570.72             # current Live Rating, decimals kept
+
+    def test_series_are_empty_without_uscf(self, sample_pgn_text):
+        """Lichess-only runs have no series — pages get empty lists, not errors."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_official_series() == []
+        assert data.get_live_series() == []
 
 
 # ---------------------------------------------------------------------------

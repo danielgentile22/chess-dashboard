@@ -269,23 +269,55 @@ def weakness_callout(callout: dict, *, compact: bool = False) -> html.Div:
 # USCF profile card (issue #25)
 # ---------------------------------------------------------------------------
 
+def _uscf_rating_note(entry: UscfRating | None) -> str:
+    """The provisional/floor footnote under a rating value."""
+    if entry is None or entry.rating is None:
+        return "Unrated"
+    if entry.is_provisional:
+        games = f" · {entry.games_played} games" if entry.games_played else ""
+        return f"Provisional{games}"
+    floor = f" · floor {entry.floor}" if entry.floor else ""
+    return f"Established{floor}"
+
+
 def _uscf_rating_block(label: str, entry: UscfRating | None) -> html.Div:
     """One rating system's tile: big mono numeral + provisional/floor note."""
-    if entry is None or entry.rating is None:
-        value, note = "—", "Unrated"
-    else:
-        value = str(entry.rating)
-        if entry.is_provisional:
-            games = f" · {entry.games_played} games" if entry.games_played else ""
-            note = f"Provisional{games}"
-        else:
-            floor = f" · floor {entry.floor}" if entry.floor else ""
-            note = f"Established{floor}"
+    value = str(entry.rating) if entry is not None and entry.rating is not None else "—"
 
     return html.Div(className="uscf-stat", children=[
         html.Div(label, className="uscf-stat-label"),
         html.Div(value, className="uscf-stat-value"),
-        html.Div(note, className="uscf-stat-note"),
+        html.Div(_uscf_rating_note(entry), className="uscf-stat-note"),
+    ])
+
+
+def _uscf_regular_block(entry: UscfRating | None, live_rating: float | None) -> html.Div:
+    """
+    The Regular rating tile — the backbone rating (PRD #24).
+
+    With a Live Rating available it shows both values side by side
+    ("Official 1545 · Live 1570.7" — issue #27); without one it is a plain
+    rating tile.
+    """
+    if live_rating is None:
+        return _uscf_rating_block("Regular", entry)
+
+    official = str(entry.rating) if entry is not None and entry.rating is not None else "—"
+
+    return html.Div(className="uscf-stat uscf-stat-regular", children=[
+        html.Div("Regular", className="uscf-stat-label"),
+        html.Div(className="uscf-dual-value", children=[
+            html.Div([
+                html.Div("Official", className="uscf-dual-label"),
+                html.Div(official, className="uscf-stat-value"),
+            ]),
+            html.Div([
+                html.Div("Live", className="uscf-dual-label"),
+                html.Div(f"{live_rating:.1f}",
+                         className="uscf-stat-value uscf-live-value"),
+            ]),
+        ]),
+        html.Div(_uscf_rating_note(entry), className="uscf-stat-note"),
     ])
 
 
@@ -303,6 +335,7 @@ def uscf_profile_card(
     profile: UscfProfile,
     alert: str | None = None,
     stale: str | None = None,
+    live_rating: float | None = None,
 ) -> html.Div:
     """
     The USCF profile card: the member's official identity at a glance.
@@ -313,6 +346,9 @@ def uscf_profile_card(
 
     *stale* is the degradation notice (ADR 0003): shown when the numbers come
     from the cache because USCF is currently unreachable.
+
+    *live_rating* is the current Live Rating (issue #27): shown next to the
+    Official Regular rating so the gap between the two is visible at a glance.
     """
     membership = profile.membership_status
     if profile.membership_expires:
@@ -333,13 +369,16 @@ def uscf_profile_card(
         ]),
         html.Div(stale, className="uscf-stale") if stale else None,
         html.Div(alert, className="uscf-alert") if alert else None,
-        html.Div(className="uscf-stats", children=[
-            _uscf_rating_block("Regular", profile.rating("R")),
-            _uscf_rating_block("Quick", profile.rating("Q")),
-            _uscf_rating_block("Online Regular", profile.rating("OR")),
-            _uscf_rank_block("National rank", profile.national_rank),
-            _uscf_rank_block(state_label, profile.state_rank),
-        ]),
+        html.Div(
+            className="uscf-stats" + (" uscf-stats-with-live" if live_rating else ""),
+            children=[
+                _uscf_regular_block(profile.rating("R"), live_rating),
+                _uscf_rating_block("Quick", profile.rating("Q")),
+                _uscf_rating_block("Online Regular", profile.rating("OR")),
+                _uscf_rank_block("National rank", profile.national_rank),
+                _uscf_rank_block(state_label, profile.state_rank),
+            ],
+        ),
     ])
 
 
