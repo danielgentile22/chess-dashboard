@@ -1545,6 +1545,23 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   gap: 10px;
   margin-top: 14px;
 }
+/* With a Live Rating the Regular tile is a double-width Official · Live block */
+.uscf-stats-with-live { grid-template-columns: 2fr repeat(4, 1fr); }
+.uscf-dual-value {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+.uscf-dual-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--cs-dim);
+}
+/* The Live Rating reads blue — it's the "really, right now" number.
+   Gold stays reserved for achievements. */
+.uscf-live-value { color: var(--cs-primary); }
 .uscf-stat {
   background: var(--cs-card2);
   border: 1px solid var(--cs-border);
@@ -1603,11 +1620,13 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   color: var(--cs-dim);
 }
 @media (max-width: 1100px) {
-  .uscf-stats { grid-template-columns: repeat(3, 1fr); }
+  .uscf-stats, .uscf-stats-with-live { grid-template-columns: repeat(3, 1fr); }
+  .uscf-stat-regular { grid-column: 1 / -1; }
 }
 @media (max-width: 768px) {
-  .uscf-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .uscf-stats, .uscf-stats-with-live { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .uscf-stat-value { font-size: 19px; }
+  .uscf-stat-regular { grid-column: 1 / -1; }
 }
 
 /* ── Phone (the chess-club view) ─────────────────────────── */

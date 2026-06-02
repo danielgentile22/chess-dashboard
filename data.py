@@ -38,7 +38,7 @@ from sync import (
     sync_studies,
     sync_uscf,
 )
-from uscf_core import UscfProfile
+from uscf_core import LiveRatingPoint, OfficialRatingPoint, UscfProfile
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +224,17 @@ def get_df() -> pd.DataFrame:
 def get_uscf_profile() -> UscfProfile | None:
     """The member's USCF profile, or None when unavailable / not configured."""
     return _uscf.profile
+
+
+def get_official_series() -> list[OfficialRatingPoint]:
+    """The Official Rating series: one point per supplement month, chronological."""
+    return _uscf.official_series
+
+
+def get_live_series() -> list[LiveRatingPoint]:
+    """The Live Rating series: one point per Regular-rated Section, chronological,
+    decimals preserved. Continuous: each post-rating is the next pre-rating."""
+    return _uscf.live_series
 
 
 def uscf_synced_at() -> datetime | None:

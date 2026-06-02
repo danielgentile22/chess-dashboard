@@ -40,6 +40,76 @@ class TestFetchMemberProfile:
         assert "ratings-api.uschess.org" in url
 
 
+class TestFetchRatingSupplements:
+    """The monthly Official Rating series endpoint (issue #27)."""
+
+    def test_returns_the_supplement_items(self, uscf_supplements_json):
+        with mock.patch(
+            "uscf_client.requests.get",
+            return_value=_response(json_body=uscf_supplements_json),
+        ) as get:
+            items = uscf_client.fetch_rating_supplements("32487228")
+
+        # The items come back unwrapped — pagination is the client's problem
+        assert len(items) == 10
+        assert items[0]["ratingSupplementDate"] == "2026-06-01"
+        url = get.call_args.args[0]
+        assert url.endswith("/members/32487228/rating-supplements")
+
+
+class TestFetchMemberSections:
+    """The per-Section pre/post rating endpoint — the Live series (issue #27)."""
+
+    def test_returns_the_section_items(self, uscf_sections_json):
+        with mock.patch(
+            "uscf_client.requests.get",
+            return_value=_response(json_body=uscf_sections_json),
+        ) as get:
+            items = uscf_client.fetch_member_sections("32487228")
+
+        assert len(items) == 24
+        assert items[0]["sectionName"] == "LADDER"
+        url = get.call_args.args[0]
+        assert url.endswith("/members/32487228/sections")
+
+
+class TestPagination:
+    """List endpoints paginate; the client follows hasNextPage internally.
+
+    Daniel's data fits in one page today, but a long career won't (handoff
+    API note: handle hasNextPage anyway)."""
+
+    def test_all_pages_are_fetched_and_concatenated(self):
+        page1 = {
+            "items": [{"id": "older"}],
+            "offset": 0, "pageSize": 1,
+            "hasPreviousPage": False, "hasNextPage": True,
+        }
+        page2 = {
+            "items": [{"id": "oldest"}],
+            "offset": 1, "pageSize": 1,
+            "hasPreviousPage": True, "hasNextPage": False,
+        }
+        responses = [_response(json_body=page1), _response(json_body=page2)]
+        with mock.patch("uscf_client.requests.get", side_effect=responses) as get:
+            items = uscf_client.fetch_member_sections("32487228")
+
+        assert items == [{"id": "older"}, {"id": "oldest"}]
+        # The second request asked for the next page (offset moved past page 1)
+        assert get.call_count == 2
+        second_params = get.call_args_list[1].kwargs["params"]
+        assert second_params["offset"] == 1
+
+    def test_single_page_needs_one_request(self, uscf_supplements_json):
+        with mock.patch(
+            "uscf_client.requests.get",
+            return_value=_response(json_body=uscf_supplements_json),
+        ) as get:
+            uscf_client.fetch_rating_supplements("32487228")
+
+        assert get.call_count == 1
+
+
 class TestTypedErrors:
     """Transport failures surface as typed errors the Sync can catch (ADR 0003)."""
 

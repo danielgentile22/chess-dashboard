@@ -376,6 +376,42 @@ class TestUscfProfileCard:
         finally:
             data.reset()
 
+    def test_card_shows_official_and_live_side_by_side(self, ui_app, ui_data):
+        """Issue #27's payoff: the ~26-point gap between the published Official
+        Rating and the Live Rating is visible at a glance, clearly labeled."""
+        from pages.overview import update_uscf_card
+        rendered = str(update_uscf_card({"seq": 0}))
+
+        assert "Official" in rendered
+        assert "1545" in rendered      # the June supplement's published integer
+        assert "Live" in rendered
+        assert "1570.7" in rendered    # the per-Section chain, decimals preserved
+
+    def test_card_without_live_series_shows_official_only(
+        self, ui_app, sample_pgn_text
+    ):
+        """A member with no rated Sections yet: the card still works, no Live value."""
+        import data
+        import sync
+        from pages.overview import update_uscf_card
+        from tests.conftest import _UI_USCF_PROFILE
+
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text), \
+             mock.patch.object(sync, "fetch_member_profile",
+                               return_value=_UI_USCF_PROFILE), \
+             mock.patch.object(sync, "fetch_rating_supplements", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_sections", return_value=[]):
+            data.initialize(
+                ["teststudy"], player_name="Test Player", uscf_member_id="32487228"
+            )
+        try:
+            rendered = str(update_uscf_card({"seq": 0}))
+            assert "1545" in rendered          # the Official value is still there
+            assert "Live" not in rendered      # no Live value to invent
+        finally:
+            data.reset()
+
     def test_card_keeps_cached_data_with_staleness_warning(
         self, ui_app, sample_pgn_text, tmp_path
     ):

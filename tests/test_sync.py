@@ -7,6 +7,7 @@ The Lichess and USCF clients are stubbed at the module boundary — no network.
 """
 from __future__ import annotations
 
+import contextlib
 from unittest import mock
 
 import pytest
@@ -30,17 +31,26 @@ def stub_studies(**study_pgns):
     return mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch)
 
 
-def stub_uscf(profile):
+@contextlib.contextmanager
+def stub_uscf(profile, supplements=None, sections=None):
     """
-    Patch the USCF client inside sync: *profile* is the raw profile JSON to
-    return, or an Exception to raise.
+    Patch the USCF client inside sync: each value is the raw JSON to return,
+    or an Exception to raise.  Supplements/sections default to empty lists.
     """
-    def fake_fetch(member_id, **kwargs):
-        if isinstance(profile, Exception):
-            raise profile
-        return profile
+    def fake(value):
+        def fetch(member_id, **kwargs):
+            if isinstance(value, Exception):
+                raise value
+            return value
+        return fetch
 
-    return mock.patch.object(sync, "fetch_member_profile", side_effect=fake_fetch)
+    with mock.patch.object(sync, "fetch_member_profile",
+                           side_effect=fake(profile), create=True), \
+         mock.patch.object(sync, "fetch_rating_supplements",
+                           side_effect=fake(supplements or []), create=True), \
+         mock.patch.object(sync, "fetch_member_sections",
+                           side_effect=fake(sections or []), create=True):
+        yield
 
 
 class TestSyncSingleStudy:
@@ -358,6 +368,74 @@ class TestSyncUscfWithCache:
         assert result.available
         assert result.from_cache is False
         assert result.failure == ""
+
+
+class TestSyncUscfSeries:
+    """sync_uscf also builds the Official and Live rating series (issue #27)."""
+
+    def test_successful_sync_builds_both_series(
+        self, uscf_profile_json, uscf_supplements_json, uscf_sections_json
+    ):
+        with stub_uscf(
+            uscf_profile_json,
+            supplements=uscf_supplements_json["items"],
+            sections=uscf_sections_json["items"],
+        ):
+            result = sync.sync_uscf("32487228")
+
+        # The Official series: one point per supplement month
+        assert len(result.official_series) == 10
+        assert result.official_series[-1].rating == 1545
+        # The Live series: the Regular chain with decimals
+        assert len(result.live_series) == 23
+        assert result.live_series[-1].post == 1570.72
+
+    def test_series_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_supplements_json, uscf_sections_json, tmp_path
+    ):
+        """The series degrade to cached data exactly like the profile (ADR 0003)."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(
+            uscf_profile_json,
+            supplements=uscf_supplements_json["items"],
+            sections=uscf_sections_json["items"],
+        ):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert len(degraded.official_series) == 10
+        assert len(degraded.live_series) == 23
+        assert degraded.live_series[-1].post == 1570.72
+
+    def test_any_endpoint_failing_degrades_the_whole_uscf_half(
+        self, uscf_profile_json, uscf_supplements_json, uscf_sections_json, tmp_path
+    ):
+        """Partial USCF data would be inconsistent — one endpoint failing means
+        the whole USCF half falls back to the cache."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(
+            uscf_profile_json,
+            supplements=uscf_supplements_json["items"],
+            sections=uscf_sections_json["items"],
+        ):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        # Profile fetch works, but the sections endpoint fails mid-Sync
+        with stub_uscf(
+            uscf_profile_json,
+            supplements=uscf_supplements_json["items"],
+            sections=UscfUnreachableError("sections endpoint broke"),
+        ):
+            result = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        # Everything (profile included) comes from the consistent cached snapshot
+        assert result.from_cache is True
+        assert result.available
+        assert len(result.live_series) == 23
+        assert "sections endpoint broke" in result.failure
 
 
 class TestDetectNewGames:
