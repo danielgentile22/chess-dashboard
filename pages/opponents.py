@@ -19,7 +19,7 @@ from urllib.parse import quote
 
 import dash
 import plotly.express as px
-from dash import Input, Output, State, callback, dash_table, dcc, html
+from dash import Input, Output, callback, dash_table, dcc, html
 
 import data
 from components import (
@@ -31,7 +31,7 @@ from components import (
     lesson_card,
     lichess_link,
     page_header,
-    row_click_to_game,
+    register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import (
@@ -239,16 +239,9 @@ def update_scouting_report(opponent, colors, outcomes, terminations, start, end,
     return _render_dossier(report)
 
 
-@callback(
-    Output("url", "href", allow_duplicate=True),
-    Output("scout-games-table", "active_cell"),
-    Input("scout-games-table", "active_cell"),
-    State("scout-games-table", "derived_viewport_data"),
-    prevent_initial_call=True,
-)
-def navigate_to_game_from_scout(active_cell, viewport_rows):
-    """Clicking a Game in the Scouting Report timeline opens its detail view."""
-    return row_click_to_game(active_cell, viewport_rows), None
+navigate_to_game_from_scout = register_game_navigation(
+    "scout-games-table",
+    "Clicking a Game in the Scouting Report timeline opens its detail view.")
 
 
 @callback(Output("opponent-bar", "figure"), FILTER_INPUTS)

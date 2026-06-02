@@ -47,3 +47,5 @@ Desktop.ini
 # Test coverage data
 .coverage
 htmlcov/
+# Claude Code runtime artifacts
+.claude/

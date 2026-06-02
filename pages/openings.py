@@ -123,17 +123,6 @@ def _wdl_bar(node: dict) -> html.Span:
     ])
 
 
-def _ended_here(node: dict) -> list[dict]:
-    """The Games whose move sequence stops at this node (ADR 0001: ChapterURL
-    is a Game's identity, so it's the comparison key)."""
-    continued = {
-        ref["ChapterURL"]
-        for child in node["moves"]
-        for ref in child["game_refs"]
-    }
-    return [ref for ref in node["game_refs"] if ref["ChapterURL"] not in continued]
-
-
 def _tree_node(node: dict, baseline: float):
     """
     One move of the repertoire tree.
@@ -171,7 +160,7 @@ def _tree_node(node: dict, baseline: float):
             html.Span("ended here", className="rep-ended-label"),
             _game_link(ref),
         ])
-        for ref in _ended_here(node)
+        for ref in node["ended_here"]
     ]
 
     return html.Details(className="rep-node" + flagged, children=[
@@ -208,7 +197,8 @@ def update_repertoire(color, colors, outcomes, terminations, start, end,
             html.Span(" · "),
             html.Span(f"{tree['score_pct']}% overall score",
                       className="rep-baseline-score"),
-            html.Span("  —  branches scoring below that across 3+ games are flagged",
+            html.Span(f"  —  branches scoring below that across "
+                      f"{tree['min_games']}+ games are flagged",
                       className="rep-baseline-hint"),
         ]),
         html.Div(className="rep-nodes", children=[

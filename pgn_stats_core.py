@@ -1106,25 +1106,27 @@ def _move_nodes(game_list: list[tuple], ply: int, *,
     Group games by their move at *ply* (1-based) into scored tree nodes,
     recursing into each group for the next ply.
 
-    *game_list* items are (moves, outcome, ref) tuples — plain Python so the
-    recursion never re-filters a DataFrame.  A branch stops splitting once it
-    holds a single game: drilling further would just replay that game move by
-    move, which is what its detail view is for.
+    *game_list* items are (moves, ref) tuples — plain Python so the recursion
+    never re-filters a DataFrame.  A branch stops splitting once it holds a
+    single game: drilling further would just replay that game move by move,
+    which is what its detail view is for.
 
     A node is ``underperforming`` when it scores below *baseline* (Daniel's
     overall score% as this color) across at least *min_games* games — a thin
     branch proves nothing, so it never gets flagged.
     """
     groups: dict[str, list[tuple]] = {}
-    for moves, outcome, ref in game_list:
+    for moves, ref in game_list:
         if len(moves) >= ply:
-            groups.setdefault(moves[ply - 1], []).append((moves, outcome, ref))
+            groups.setdefault(moves[ply - 1], []).append((moves, ref))
 
     nodes = []
     for san, group in groups.items():
-        outcomes = [outcome for _, outcome, _ in group]
-        win, draw, loss = (outcomes.count(o) for o in ("Win", "Draw", "Loss"))
+        counts = Counter(ref["Outcome"] for _, ref in group)
+        win, draw, loss = counts["Win"], counts["Draw"], counts["Loss"]
         score = _score_pct(win, draw, len(group))
+        children = (_move_nodes(group, ply + 1, baseline=baseline, min_games=min_games)
+                    if len(group) > 1 else [])
         nodes.append({
             "san": san,
             "ply": ply,
@@ -1132,9 +1134,12 @@ def _move_nodes(game_list: list[tuple], ply: int, *,
             "win": win, "draw": draw, "loss": loss,
             "score_pct": score,
             "underperforming": len(group) >= min_games and score < baseline,
-            "game_refs": [ref for _, _, ref in group],
-            "moves": (_move_nodes(group, ply + 1, baseline=baseline, min_games=min_games)
-                      if len(group) > 1 else []),
+            "game_refs": [ref for _, ref in group],
+            # The games whose move sequence stops at this exact position —
+            # decided here, where each game's move list is at hand, so no
+            # consumer ever has to reconstruct it (or mis-key it by URL)
+            "ended_here": [ref for moves, ref in group if len(moves) == ply],
+            "moves": children,
         })
     # Most-played lines first; ties break alphabetically so output is stable
     return sorted(nodes, key=lambda node: (-node["games"], node["san"]))
@@ -1156,33 +1161,41 @@ def repertoire_tree(df: pd.DataFrame, color: str, *, min_games: int = 3) -> dict
                         "your anti-Sicilian is leaking points"
       game_refs       : the Games that reached this position (ChapterURL,
                         Opponent, Outcome, Date), for linking
+      ended_here      : the subset of game_refs whose move sequence stops at
+                        this exact position
       moves           : the next moves, most-played first
+
+    The top level also carries ``min_games`` so UIs can explain the
+    flagging rule they're showing.
     """
-    empty = {"color": color, "games": 0, "score_pct": 0.0, "moves": []}
+    empty = {"color": color, "games": 0, "score_pct": 0.0,
+             "min_games": min_games, "moves": []}
     if df.empty or "Moves" not in df.columns:
         return empty
 
+    # NaN-proof: a merged/hand-built frame can hold NaN where the parser
+    # would put a list — that's "no moves", not a crash
+    has_moves = df["Moves"].map(lambda m: isinstance(m, list) and len(m) > 0)
     games = df[
         (df["Color"] == color)
         & df["Outcome"].isin(["Win", "Draw", "Loss"])
-        & df["Moves"].map(bool)
+        & has_moves
     ]
     if games.empty:
         return empty
 
     game_list = [
         (
-            game["Moves"],
-            game["Outcome"],
+            moves,
             # What a node needs to render a meaningful link to this Game
-            {
-                "ChapterURL": game.get("ChapterURL", ""),
-                "Opponent": game.get("Opponent", ""),
-                "Outcome": game["Outcome"],
-                "Date": game.get("Date", ""),
-            },
+            {"ChapterURL": url, "Opponent": opponent, "Outcome": outcome, "Date": date},
         )
-        for _, game in games.iterrows()
+        for moves, outcome, url, opponent, date in zip(
+            games["Moves"], games["Outcome"],
+            games.get("ChapterURL", pd.Series("", index=games.index)),
+            games.get("Opponent", pd.Series("", index=games.index)),
+            games.get("Date", pd.Series("", index=games.index)),
+        )
     ]
 
     total = len(games)
@@ -1193,6 +1206,7 @@ def repertoire_tree(df: pd.DataFrame, color: str, *, min_games: int = 3) -> dict
         "color": color,
         "games": total,
         "score_pct": baseline,
+        "min_games": min_games,
         "moves": _move_nodes(game_list, ply=1, baseline=baseline, min_games=min_games),
     }
 
@@ -1207,7 +1221,7 @@ _TC_COLS = ["TimeControl", "Speed", "Minutes", "Games", "Win", "Draw", "Loss", "
 # vary: "110+10" (minutes + increment seconds), "40/80, SD30; +30" (multi-stage
 # USCF), "60+5d" (delay), "G/30;d5" (game-in-N).
 _TC_STAGE_RE = re.compile(r"(\d+)\s*/\s*(\d+)")          # "40/80" → 80 min stage
-_TC_SD_RE = re.compile(r"SD\s*(\d+)", re.IGNORECASE)     # "SD30" → 30 min sudden death
+_TC_SD_RE = re.compile(r"SD\s*/?\s*(\d+)", re.IGNORECASE)  # "SD30" / "SD 30" / "SD/30"
 _TC_GAME_RE = re.compile(r"G\s*/\s*(\d+)", re.IGNORECASE)  # "G/30" → 30 min game
 _TC_BASE_RE = re.compile(r"^(\d+)")                       # "110+10" → 110 min base
 _TC_EXTRA_RE = re.compile(r"[+;d]\s*(\d+)\s*d?", re.IGNORECASE)  # "+30" / "d5" / "+5d" seconds
@@ -1219,6 +1233,11 @@ def _time_control_minutes(tc: str) -> float | None:
 
     Uses the standard convention that an increment/delay adds one minute of
     total time per second (a game lasting ~60 moves).
+
+    Assumes hand-written OTB headers (minutes), not the PGN-standard
+    seconds format: this dashboard's Games are over-the-board (CONTEXT.md),
+    where "30+5" means 30 minutes.  An online blitz export ("180+2" meaning
+    seconds) would be misread as 182 minutes — out of scope by design.
     """
     s = str(tc or "").strip()
     if not s:
@@ -1260,6 +1279,22 @@ def _speed_class(minutes: float | None) -> str:
     return "Blitz"
 
 
+def _wdl_pivot(d: pd.DataFrame, key) -> pd.DataFrame:
+    """
+    Group *d* by *key* (column name or Series) and pivot Outcome into
+    Win / Draw / Loss / Games / WinRate columns — the shape every
+    per-category summary in this module shares.
+    """
+    pivot = (
+        d.groupby(key)["Outcome"].value_counts()
+        .unstack(fill_value=0)
+        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
+    )
+    pivot["Games"] = pivot.sum(axis=1)
+    pivot["WinRate"] = (pivot["Win"] / pivot["Games"] * 100).round(1)
+    return pivot.reset_index()
+
+
 _ROUND_COLS = ["Round", "Games", "Win", "Draw", "Loss", "WinRate", "ScorePct", "Reliable"]
 
 
@@ -1281,16 +1316,9 @@ def round_performance(df: pd.DataFrame, *, min_games: int = 3) -> pd.DataFrame:
     if d.empty:
         return pd.DataFrame(columns=_ROUND_COLS)
 
-    pivot = (
-        d.groupby(d["RoundNum"].astype(int))["Outcome"].value_counts()
-        .unstack(fill_value=0)
-        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
-    )
-    pivot["Games"] = pivot.sum(axis=1)
-    pivot["WinRate"] = (pivot["Win"] / pivot["Games"] * 100).round(1)
-    pivot["ScorePct"] = ((pivot["Win"] + 0.5 * pivot["Draw"]) / pivot["Games"] * 100).round(1)
-    pivot["Reliable"] = pivot["Games"] >= min_games
-    out = pivot.reset_index().rename(columns={"RoundNum": "Round"})
+    out = _wdl_pivot(d, d["RoundNum"].astype(int)).rename(columns={"RoundNum": "Round"})
+    out["ScorePct"] = ((out["Win"] + 0.5 * out["Draw"]) / out["Games"] * 100).round(1)
+    out["Reliable"] = out["Games"] >= min_games
     return out.sort_values("Round").reset_index(drop=True)[_ROUND_COLS]
 
 
@@ -1309,14 +1337,7 @@ def time_control_summary(df: pd.DataFrame) -> pd.DataFrame:
     if d.empty:
         return pd.DataFrame(columns=_TC_COLS)
 
-    pivot = (
-        d.groupby(["TimeControl", "Outcome"]).size()
-        .unstack(fill_value=0)
-        .reindex(columns=["Win", "Draw", "Loss"], fill_value=0)
-    )
-    pivot["Games"] = pivot.sum(axis=1)
-    pivot["WinRate"] = (pivot["Win"] / pivot["Games"] * 100).round(1)
-    out = pivot.reset_index()
+    out = _wdl_pivot(d, "TimeControl")
     out["Minutes"] = out["TimeControl"].map(_time_control_minutes)
     out["Speed"] = out["Minutes"].map(_speed_class)
     # Slowest first; unparseable time controls go last

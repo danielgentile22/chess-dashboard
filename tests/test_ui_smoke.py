@@ -414,6 +414,9 @@ class TestTimeControlFatigueUpsets:
         assert sorted(reliable_trace.x) == [1, 2, 3]   # 2 games each
         assert list(thin_trace.x) == [4]               # 1 game
         assert "too few" in thin_trace.hovertemplate.lower()
+        # The traces overlay: grouping would shrink the bars and shift them
+        # off their integer round ticks
+        assert fig.layout.barmode == "overlay"
 
     def test_charts_survive_an_empty_filter(self, ui_app, ui_data):
         from pages.trends import update_round_performance, update_time_control
@@ -505,11 +508,13 @@ class TestRepertoireTreePage:
         assert "leaking points" in rendered
         assert "rep-flagged" in rendered
 
-    def test_above_average_branches_are_not_flagged(self, ui_app, ui_data):
+    def test_thin_branches_are_not_flagged(self, ui_app, ui_data):
+        """As Black every branch holds at most 2 games — below the 3-game
+        threshold, so nothing gets flagged no matter what it scores.
+        (The score-above-baseline side of the rule is covered by the core
+        test test_above_average_branch_with_enough_games_is_not_flagged.)"""
         from pages.openings import update_repertoire
         rendered = str(update_repertoire("Black", *_filter_args()))
-        # As Black everything scores at/above the 83.3% baseline except
-        # nothing — no branch has 3+ games below it
         assert "leaking points" not in rendered
 
     def test_nodes_link_to_their_games(self, ui_app, ui_data):
@@ -519,6 +524,14 @@ class TestRepertoireTreePage:
         assert "/game/chap0005" in rendered
         # Drilling the 1.d4 line reaches game 3's detail link too
         assert "/game/chap0003" in rendered
+
+    def test_games_that_stop_mid_line_get_an_ended_here_link(self, ui_app, ui_data):
+        """Game 7 follows game 1's moves but stops at 3...d5 — it must appear
+        right there, marked 'ended here', not vanish from the tree."""
+        from pages.openings import update_repertoire
+        rendered = str(update_repertoire("White", *_filter_args()))
+        assert "ended here" in rendered
+        assert "/game/chap0007" in rendered
 
     def test_empty_filter_shows_empty_state(self, ui_app, ui_data):
         from pages.openings import update_repertoire
@@ -632,7 +645,9 @@ class TestEventsCallbacks:
             detail = update_tournament_detail([0], rows, *_filter_args())
             table = next(c for c in _walk_components(detail)
                          if getattr(c, "id", "") == "event-games-table")
-            assert [r["Round"] for r in table.data] == ["1", "2", "10"]
+            # Numeric values under a numeric column: the browser's native
+            # re-sort stays numeric too, not just the default order
+            assert [r["RoundNum"] for r in table.data] == [1, 2, 10]
         finally:
             data.reset()
 

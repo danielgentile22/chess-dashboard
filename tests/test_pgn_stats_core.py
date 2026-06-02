@@ -1212,9 +1212,84 @@ class TestRepertoireTree:
         assert node["moves"][0]["san"] == "c3"
         assert node["moves"][0]["games"] == 1
 
+    def test_nodes_separate_games_that_ended_from_games_that_continued(self, df):
+        """Each node says which of its games stopped right there (ended_here)
+        vs continued deeper — even when games have no ChapterURL to tell
+        them apart."""
+        tree = repertoire_tree(df, "Black")
+        # Walk to 3...Bf5: game 6 ended there, game 2 continued with 4.c3
+        node = next(n for n in tree["moves"] if n["san"] == "e4")
+        for san in ("c6", "d4", "d5", "e5", "Bf5"):
+            node = next(child for child in node["moves"] if child["san"] == san)
+        assert [r["ChapterURL"][-8:] for r in node["ended_here"]] == ["chap0006"]
+        assert [child["san"] for child in node["moves"]] == ["c3"]
+
+    def test_games_without_chapter_urls_are_never_conflated(self):
+        """Two URL-less games sharing a prefix: the one that ended mid-line
+        must still appear at its final position, not vanish."""
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Opponent X"]
+[Result "1-0"]
+
+1. d4 d5 2. c4 1-0
+
+[Event "T"]
+[Site "S"]
+[Date "2024.03.08"]
+[White "Me"]
+[Black "Opponent Y"]
+[Result "0-1"]
+
+1. d4 d5 0-1
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        tree = repertoire_tree(games, "White")
+        d5 = tree["moves"][0]["moves"][0]   # the shared 1...d5 node
+        assert d5["games"] == 2
+        # Game Y ended at 1...d5; game X continued with 2.c4
+        assert [r["Opponent"] for r in d5["ended_here"]] == ["Opponent Y"]
+        assert [child["san"] for child in d5["moves"]] == ["c4"]
+
+    def test_above_average_branch_with_enough_games_is_not_flagged(self):
+        """The flag needs BOTH conditions: enough games AND a below-average
+        score.  A 3-game branch scoring above the baseline stays unflagged."""
+        pgn = "\n".join(
+            f'[Event "T"]\n[Site "S"]\n[Date "2024.0{i}.01"]\n[White "Me"]\n'
+            f'[Black "Opp {i}"]\n[Result "{result}"]\n\n1. {move} e6 {result}\n'
+            for i, (move, result) in enumerate([
+                ("e4", "1-0"), ("e4", "1-0"), ("e4", "1-0"),   # 3 wins with e4
+                ("d4", "0-1"), ("d4", "0-1"), ("d4", "0-1"),   # 3 losses with d4
+            ], start=1)
+        )
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        tree = repertoire_tree(games, "White", min_games=3)
+        moves = {node["san"]: node for node in tree["moves"]}
+        assert tree["score_pct"] == 50.0
+        assert moves["e4"]["underperforming"] is False   # 100% over 3 games
+        assert moves["d4"]["underperforming"] is True    # 0% over 3 games
+
     def test_color_without_games_gives_an_empty_tree(self, df):
         tree = repertoire_tree(df[df["Color"] == "White"], "Black")
-        assert tree == {"color": "Black", "games": 0, "score_pct": 0.0, "moves": []}
+        assert tree["games"] == 0
+        assert tree["moves"] == []
+
+    def test_a_nan_moves_cell_is_treated_as_no_moves(self, df):
+        """A hand-built or merged DataFrame can hold NaN where the parser
+        would put a list — that's 'no moves', not a crash."""
+        broken = df.copy()
+        broken.loc[broken.index[0], "Moves"] = float("nan")
+        tree = repertoire_tree(broken, "White")
+        assert tree["games"] == 3   # the NaN game is simply excluded
+
+    def test_min_games_threshold_is_part_of_the_tree(self, df):
+        """The UI explains the flagging rule, so the tree must say what
+        threshold it actually used."""
+        assert repertoire_tree(df, "White")["min_games"] == 3
+        assert repertoire_tree(df, "White", min_games=5)["min_games"] == 5
 
     def test_empty_data(self):
         tree = repertoire_tree(pd.DataFrame(), "White")
@@ -1289,6 +1364,16 @@ class TestTimeControlSummary:
         ]), player_name="Me")
         tc = time_control_summary(games)
         assert list(tc["TimeControl"]) == ["40/80, SD30; +30", "110+10", "30+5"]
+
+    def test_sudden_death_written_with_a_slash_still_parses(self):
+        """USCF TLAs write sudden death both ways: 'SD30' and 'SD/30'."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"timecontrol": "40/100, SD/30"},   # slash form
+            {"timecontrol": "SD/90"},           # sudden death only
+        ]), player_name="Me")
+        tc = time_control_summary(games).set_index("TimeControl")
+        assert tc.loc["40/100, SD/30", "Speed"] == "Classical"   # 130 min
+        assert tc.loc["SD/90", "Speed"] == "Classical"           # 90 min
 
     def test_games_without_a_time_control_header_sort_last_as_unknown(self):
         """The fixture games (no TimeControl header) still count — grouped under

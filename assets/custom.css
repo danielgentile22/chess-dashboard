@@ -1483,6 +1483,13 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 
 .rep-ended-row { cursor: default; }
 .rep-ended-row:hover { background: none; }
+.rep-ended-row::before {
+  /* same marker box as move rows, so the left edges line up */
+  content: "·";
+  color: var(--cs-dim);
+  width: 12px;
+  flex-shrink: 0;
+}
 .rep-ended-label {
   font-size: 11px;
   font-style: italic;
