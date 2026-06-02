@@ -5,10 +5,11 @@ Shared UI building blocks for the multi-page Chess Stats Dashboard.
 
 Every page composes its layout from these helpers so the whole app keeps a
 single visual language: page headers, chart cards, KPI cards, empty states,
-form indicators, and the dark DataTable styles.
+form indicators, celebration banners, and the dark DataTable styles.
 """
 from __future__ import annotations
 
+import dash_bootstrap_components as dbc
 from dash import dcc, html, no_update
 
 from styles import COLORS
@@ -128,6 +129,44 @@ def form_indicator(form: dict) -> list:
     return children
 
 
+def lesson_card(row, *, show_opponent: bool = True) -> html.Div:
+    """
+    One Lesson as a quote card: the takeaway text, its source Game's context,
+    Tags, and a link to the Game's detail view.
+
+    *row* is a ``lessons_table()`` row (Series or dict).  Used by the Lessons
+    page and inside Scouting Reports (where the opponent is implied, so
+    ``show_opponent=False``).
+    """
+    outcome = str(row["Outcome"] or "")
+    meta_bits = [
+        f"vs {row['Opponent']}" if show_opponent and row["Opponent"] else "",
+        outcome,
+        str(row["Event"] or ""),
+        str(row["Date"] or ""),
+    ]
+    detail_path = game_detail_path(row["ChapterURL"])
+
+    return html.Div(className="lesson-card", children=[
+        html.Div(className="lesson-quote", children=[
+            html.Span("💡", className="lesson-bulb"),
+            html.Span(row["Lesson"], className="lesson-text"),
+        ]),
+        html.Div(className="lesson-card-footer", children=[
+            html.Span(
+                "  ·  ".join(b for b in meta_bits if b),
+                className=f"lesson-meta outcome-{outcome.lower()}",
+            ),
+            html.Span(className="lesson-card-tags", children=[
+                html.Span(f"#{t}", className="tag-chip tag-chip-small")
+                for t in row["Tags"]
+            ]),
+            dcc.Link("View game →", href=detail_path, className="lesson-game-link")
+            if detail_path else None,
+        ]),
+    ])
+
+
 def lichess_link(chapter_url: str) -> str:
     """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
     return f"[Open ↗]({chapter_url})" if chapter_url else ""
@@ -169,3 +208,58 @@ def empty_state(glyph: str, title: str, *lines) -> html.Div:
         html.Div(title, className="empty-state-title"),
         *[html.Div(line, className="empty-state-line") for line in lines],
     ])
+
+
+def weakness_callout(callout: dict, *, compact: bool = False) -> html.Div:
+    """
+    A recurring-weakness callout (issue #18): the Tag, the stat, the time
+    window, and the Games behind it.
+
+    The full form (Lessons page) links each Game; the compact form (Overview)
+    is just the headline plus a pointer to the Lessons page.
+    """
+    children: list = [
+        html.Div(className="weakness-headline", children=[
+            html.Span("⚠", className="weakness-icon"),
+            html.Span(callout["stat"], className="weakness-stat"),
+            html.Span(callout["window"], className="weakness-window"),
+        ]),
+    ]
+    if compact:
+        children.append(
+            dcc.Link("Review these lessons →", href="/lessons",
+                     className="weakness-game-link")
+        )
+    else:
+        linkable = [url for url in callout["chapter_urls"] if url]
+        children.append(html.Div(className="weakness-games", children=[
+            dcc.Link(f"Game {i} →", href=game_detail_path(url),
+                     className="weakness-game-link")
+            for i, url in enumerate(linkable, start=1)
+        ]))
+    return html.Div(children, className="weakness-callout" + (" compact" if compact else ""))
+
+
+def celebration_banner(deltas: list[dict]) -> dbc.Alert:
+    """
+    The gold milestone celebration (issue #15): shown once after a Sync that
+    set a personal best, dismissible, and gone for good once dismissed.
+
+    Takes the ``milestone_deltas()`` list — one line per record broken.
+    """
+    headline = ("New personal best!" if len(deltas) == 1
+                else f"{len(deltas)} new personal bests!")
+    return dbc.Alert(
+        [
+            html.Div(className="celebration-headline", children=[
+                html.Span("🏆", className="celebration-trophy"),
+                html.Span(headline, className="celebration-title"),
+            ]),
+            html.Ul(className="celebration-list", children=[
+                html.Li(d["description"]) for d in deltas
+            ]),
+        ],
+        is_open=True,
+        dismissable=True,
+        className="celebration-banner",
+    )

@@ -16,12 +16,14 @@ from pgn_stats_core import (
     apply_filters,
     compute_milestones,
     current_form,
+    daily_activity,
     event_summary,
     game_length_data,
     head_to_head,
     kpi_stats,
     lessons_table,
     load_games_from_text,
+    milestone_deltas,
     opening_summary,
     opponent_rating_bucket_summary,
     opponent_summary,
@@ -29,7 +31,10 @@ from pgn_stats_core import (
     outcome_vs_rating_data,
     performance_rating_stats,
     player_rating_over_time,
+    recurring_weaknesses,
+    review_queue,
     safe_int,
+    scouting_report,
     streaks,
     tag_counts,
     termination_counts,
@@ -459,6 +464,181 @@ class TestLessonsTable:
         assert lessons.empty
 
 
+def _tagged_games(games: list[tuple[str, list[str]]]) -> pd.DataFrame:
+    """A minimal Games DataFrame from (outcome, tags) pairs, date-ordered."""
+    dates = pd.date_range("2024-01-01", periods=len(games), freq="W")
+    return pd.DataFrame({
+        "Outcome": [outcome for outcome, _ in games],
+        "Tags": [tags for _, tags in games],
+        "Lessons": [[] for _ in games],
+        "Date_dt": dates,
+        "Date": [d.strftime("%Y.%m.%d") for d in dates],
+        "Index": range(1, len(games) + 1),
+        "ChapterURL": [f"https://lichess.org/study/x/ch{i:04d}"
+                       for i in range(1, len(games) + 1)],
+        "Opponent": ["Someone"] * len(games),
+    })
+
+
+class TestRecurringWeaknesses:
+    """Tag ↔ loss correlation (issue #18): the insight that makes Tags pay off."""
+
+    def test_clear_recurring_pattern_is_called_out(self):
+        """#time-trouble on most recent losses → a callout naming the stat."""
+        games = [("Win", [])] * 4 + [
+            ("Loss", ["time-trouble"]),
+            ("Loss", ["time-trouble", "endgame"]),
+            ("Win", ["tactics"]),
+            ("Loss", ["time-trouble"]),
+            ("Loss", []),
+            ("Loss", ["time-trouble"]),
+        ]
+        callouts = recurring_weaknesses(_tagged_games(games))
+        assert len(callouts) >= 1
+        top = callouts[0]
+        assert top["tag"] == "time-trouble"
+        assert top["loss_count"] == 4
+        assert top["window_losses"] == 5
+        assert "4 of your last 5 losses" in top["stat"]
+        assert "#time-trouble" in top["stat"]
+
+    def test_callout_links_to_the_games_behind_it(self):
+        """Each callout carries the Games it's based on (clickable in the UI)."""
+        games = [("Loss", ["blunder"]), ("Loss", ["blunder"]), ("Win", []),
+                 ("Loss", ["blunder"])]
+        callouts = recurring_weaknesses(_tagged_games(games))
+        urls = callouts[0]["chapter_urls"]
+        assert len(urls) == 3
+        assert all("lichess.org" in u for u in urls)
+        assert callouts[0]["window"]   # the period is named
+
+    def test_no_pattern_when_tag_is_not_loss_associated(self):
+        """A Tag on every game (wins included) is a habit, not a weakness."""
+        games = [("Win", ["tactics"]), ("Loss", ["tactics"]), ("Win", ["tactics"]),
+                 ("Loss", ["tactics"]), ("Win", ["tactics"]), ("Loss", ["tactics"]),
+                 ("Win", ["tactics"])]
+        assert recurring_weaknesses(_tagged_games(games)) == []
+
+    def test_sparse_tags_stay_silent(self):
+        """One or two occurrences are an anecdote, not a pattern."""
+        games = [("Loss", ["endgame"]), ("Loss", ["time-trouble"]),
+                 ("Loss", ["endgame"]), ("Loss", []), ("Loss", ["opening"])]
+        assert recurring_weaknesses(_tagged_games(games)) == []
+
+    def test_all_wins_means_no_weaknesses(self):
+        games = [("Win", ["tactics"]), ("Win", ["tactics"]), ("Win", ["tactics"]),
+                 ("Win", ["tactics"])]
+        assert recurring_weaknesses(_tagged_games(games)) == []
+
+    def test_callouts_ranked_by_severity(self):
+        """The tag in more losses outranks the tag in fewer."""
+        games = [
+            ("Loss", ["time-trouble", "blunder"]),
+            ("Loss", ["time-trouble", "blunder"]),
+            ("Loss", ["time-trouble", "blunder"]),
+            ("Loss", ["time-trouble"]),
+            ("Loss", ["time-trouble"]),
+        ]
+        callouts = recurring_weaknesses(_tagged_games(games))
+        assert [c["tag"] for c in callouts] == ["time-trouble", "blunder"]
+        assert callouts[0]["severity"] >= callouts[1]["severity"]
+
+    def test_fixture_data_is_below_threshold(self, df):
+        """The 7-game fixture has one Loss → silence, not noise."""
+        assert recurring_weaknesses(df) == []
+
+    def test_empty_data(self):
+        assert recurring_weaknesses(pd.DataFrame()) == []
+
+
+def _games_with_lessons(games: list[dict]) -> pd.DataFrame:
+    """A minimal Games DataFrame where each game can carry Lessons and Tags."""
+    dates = pd.date_range("2024-01-01", periods=len(games), freq="W")
+    return pd.DataFrame({
+        "Outcome": [g.get("outcome", "Win") for g in games],
+        "Tags": [g.get("tags", []) for g in games],
+        "Lessons": [g.get("lessons", []) for g in games],
+        "Opponent": [g.get("opponent", "Someone") for g in games],
+        "Event": ["Test Event"] * len(games),
+        "Result": ["1-0"] * len(games),
+        "Date_dt": dates,
+        "Date": [d.strftime("%Y.%m.%d") for d in dates],
+        "Index": range(1, len(games) + 1),
+        "ChapterURL": [f"https://lichess.org/study/x/rch{i:04d}"
+                       for i in range(1, len(games) + 1)],
+    })
+
+
+class TestReviewQueue:
+    """Pre-game review prioritization (issue #19)."""
+
+    def test_weakness_tagged_lessons_come_first(self):
+        """Lessons tagged with a detected recurring weakness lead the queue."""
+        games = [
+            {"outcome": "Win",  "lessons": ["Oldest, no weakness"], "tags": ["opening"]},
+            {"outcome": "Loss", "lessons": ["Weakness lesson 1"], "tags": ["time-trouble"]},
+            {"outcome": "Loss", "lessons": ["Weakness lesson 2"], "tags": ["time-trouble"]},
+            {"outcome": "Loss", "lessons": ["Weakness lesson 3"], "tags": ["time-trouble"]},
+            {"outcome": "Win",  "lessons": ["Very newest lesson"], "tags": []},
+        ]
+        queue = review_queue(_games_with_lessons(games))
+        # The weakness bucket leads, newest first within it…
+        assert [c["Lesson"] for c in queue[:3]] == [
+            "Weakness lesson 3", "Weakness lesson 2", "Weakness lesson 1",
+        ]
+        # …then everything else by recency
+        assert [c["Lesson"] for c in queue[3:]] == [
+            "Very newest lesson", "Oldest, no weakness",
+        ]
+
+    def test_opponent_lessons_outrank_generic_recent_ones(self):
+        """Scouting context: lessons from facing them beat other recent lessons."""
+        games = [
+            {"lessons": ["From facing Shao"], "opponent": "Shao"},
+            {"lessons": ["From facing someone else"], "opponent": "Lopez"},
+            {"lessons": ["Newest, also someone else"], "opponent": "Lopez"},
+        ]
+        queue = review_queue(_games_with_lessons(games), opponent="Shao")
+        assert queue[0]["Lesson"] == "From facing Shao"
+        assert queue[0]["reason"] == "You're facing Shao"
+        # The rest stay in recency order
+        assert [c["Lesson"] for c in queue[1:]] == [
+            "Newest, also someone else", "From facing someone else",
+        ]
+
+    def test_weakness_outranks_opponent(self):
+        """What's costing you games beats opponent history."""
+        games = [
+            {"lessons": ["Opponent lesson"], "opponent": "Shao"},
+            {"outcome": "Loss", "lessons": ["W1"], "tags": ["blunder"]},
+            {"outcome": "Loss", "lessons": ["W2"], "tags": ["blunder"]},
+            {"outcome": "Loss", "lessons": ["W3"], "tags": ["blunder"]},
+        ]
+        queue = review_queue(_games_with_lessons(games), opponent="Shao")
+        assert [c["Lesson"] for c in queue] == ["W3", "W2", "W1", "Opponent lesson"]
+        assert queue[0]["reason"] == "Recurring weakness: #blunder"
+
+    def test_every_card_explains_why_it_is_there(self):
+        games = [{"lessons": ["Some lesson"]}, {"lessons": ["Another"]}]
+        queue = review_queue(_games_with_lessons(games))
+        assert all(c["reason"] for c in queue)
+        assert all(c["ChapterURL"] for c in queue)
+
+    def test_no_weaknesses_means_recency_order(self):
+        """Below the weakness threshold the queue is simply newest-first."""
+        games = [{"lessons": [f"Lesson {i}"]} for i in range(1, 5)]
+        queue = review_queue(_games_with_lessons(games))
+        assert [c["Lesson"] for c in queue] == [
+            "Lesson 4", "Lesson 3", "Lesson 2", "Lesson 1",
+        ]
+
+    def test_no_lessons_means_empty_queue(self, df):
+        assert review_queue(pd.DataFrame()) == []
+        no_lessons = df.copy()
+        no_lessons["Lessons"] = [[] for _ in range(len(no_lessons))]
+        assert review_queue(no_lessons) == []
+
+
 class TestTagCounts:
     def test_counts_reflect_per_game_tags(self, df):
         counts = {t["tag"]: t["count"] for t in tag_counts(df)}
@@ -560,6 +740,72 @@ class TestOpponentSummary:
     def test_opponent_b_appears(self, df):
         opp = opponent_summary(df)
         assert "Opponent B" in opp["Opponent"].values
+
+
+class TestScoutingReport:
+    """The pre-game dossier on one opponent (issue #13, CONTEXT.md glossary)."""
+
+    def test_head_to_head_score(self, df):
+        # Fixture vs Opponent A: Win (G1), Win (G4), Draw (G7)
+        report = scouting_report(df, "Opponent A")
+        assert report["total"] == 3
+        assert (report["win"], report["draw"], report["loss"]) == (2, 1, 0)
+        assert report["score"] == "2.5/3"
+
+    def test_rating_gap_uses_latest_known_ratings(self, df):
+        """Gap = their latest rating vs them − my latest rating anywhere."""
+        report = scouting_report(df, "Opponent A")
+        assert report["their_rating"] == 1925   # G7 (2024-06-16), their latest
+        assert report["my_rating"] == 1810      # Daniel's latest rated game
+        assert report["rating_gap"] == 115      # positive = they're stronger
+
+    def test_timeline_lists_every_game_with_dates(self, df):
+        """Per-game results, oldest → newest, each linkable to its Game."""
+        report = scouting_report(df, "Opponent A")
+        timeline = report["timeline"]
+        assert [g["Date"] for g in timeline] == ["2024.01.06", "2024.06.15", "2024.06.16"]
+        assert [g["Outcome"] for g in timeline] == ["Win", "Win", "Draw"]
+        assert all(g["ChapterURL"] for g in timeline)
+
+    def test_openings_split_by_my_color(self, df):
+        """What they play against me, separately for my White and Black games."""
+        report = scouting_report(df, "Opponent A")
+        as_white = report["openings_as_white"]
+        as_black = report["openings_as_black"]
+        # As White I've had two Catalans (E04) against them
+        assert {o["ECO"] for o in as_white} == {"E04"}
+        assert sum(o["Games"] for o in as_white) == 2
+        # As Black they opened into a King's Indian — and I won it
+        assert [o["Opening"] for o in as_black] == ["King's Indian Defense"]
+        assert as_black[0]["Win"] == 1
+
+    def test_how_our_games_ended(self, df):
+        """Termination breakdown for the games against this opponent only."""
+        report = scouting_report(df, "Opponent A")
+        terminations = {t["Termination"]: t["Games"] for t in report["terminations"]}
+        assert terminations == {"win by resignation": 1,
+                                "loss by checkmate": 1,
+                                "Normal": 1}
+
+    def test_lessons_from_facing_them(self, df):
+        """Every Lesson written after a game vs this opponent, with Game links."""
+        report = scouting_report(df, "Opponent A")
+        lessons = report["lessons"]
+        assert len(lessons) == 3   # 1 from G1 + 2 from G4
+        assert all(lesson["ChapterURL"] for lesson in lessons)
+        texts = " ".join(lesson["Lesson"] for lesson in lessons)
+        assert "Keep the tension" in texts
+        assert "Don't grab pawns" in texts
+
+    def test_unknown_opponent_gives_empty_dossier(self, df):
+        report = scouting_report(df, "Nobody Iknow")
+        assert report["total"] == 0
+        assert report["timeline"] == []
+        assert report["lessons"] == []
+
+    def test_empty_data(self):
+        report = scouting_report(pd.DataFrame(), "Anyone")
+        assert report["total"] == 0
 
 
 class TestHeadToHead:
@@ -681,6 +927,99 @@ class TestActivityData:
         assert indices == sorted(indices)
 
 
+class TestDailyActivity:
+    """Per-day aggregation behind the activity heatmap calendar (issue #14)."""
+
+    def test_one_row_per_day_with_games(self, df):
+        # Fixture days: 2024-01-06 (2 games), 01-07 (1), 06-15 (2), 06-16 (2)
+        daily = daily_activity(df)
+        assert len(daily) == 4
+        assert list(daily["Date_dt"]) == sorted(daily["Date_dt"])
+        assert daily["Games"].sum() == 7
+
+    def test_day_results_color_the_cell(self, df):
+        """Net = Win − Loss decides whether a day reads green or red."""
+        daily = daily_activity(df).set_index("Date_dt")
+        jan6 = daily.loc[pd.Timestamp("2024-01-06")]   # Win + Draw
+        assert (jan6["Win"], jan6["Draw"], jan6["Loss"]) == (1, 1, 0)
+        assert jan6["Net"] == 1
+
+        jan7 = daily.loc[pd.Timestamp("2024-01-07")]   # the only Loss
+        assert jan7["Net"] == -1
+
+        jun15 = daily.loc[pd.Timestamp("2024-06-15")]  # two Wins → strongest green
+        assert jun15["Net"] == 2
+
+    def test_each_day_lists_its_games_for_hover(self, df):
+        """Hovering/tapping a cell shows that day's Games: opponent + result."""
+        daily = daily_activity(df).set_index("Date_dt")
+        jan6 = daily.loc[pd.Timestamp("2024-01-06")]
+        assert "Win vs Opponent A" in jan6["Detail"]
+        assert "Draw vs Opponent B" in jan6["Detail"]
+
+        jun16 = daily.loc[pd.Timestamp("2024-06-16")]
+        assert "Win vs Opponent B" in jun16["Detail"]
+        assert "Draw vs Opponent A" in jun16["Detail"]
+
+    def test_empty_data(self):
+        daily = daily_activity(pd.DataFrame())
+        assert daily.empty
+        assert "Net" in daily.columns  # chart code can rely on the shape
+
+    def test_undated_games_are_excluded(self):
+        """A Game without a date can't sit on a calendar."""
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "????.??.??"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+
+1. e4 1-0
+
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+
+1. e4 1-0
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        daily = daily_activity(games)
+        assert len(daily) == 1
+        assert daily["Games"].sum() == 1
+
+    def test_unfinished_games_are_excluded(self):
+        """A Game with no result yet (Outcome 'Unknown') isn't a calendar day —
+        same convention as the monthly/day-of-week activity charts."""
+        pgn = """\
+[Event "T"]
+[Site "S"]
+[Date "2024.03.01"]
+[White "Me"]
+[Black "Other"]
+[Result "*"]
+
+1. e4 e5 *
+
+[Event "T"]
+[Site "S"]
+[Date "2024.03.08"]
+[White "Me"]
+[Black "Other"]
+[Result "1-0"]
+
+1. e4 1-0
+"""
+        games, _ = load_games_from_text(pgn, player_name="Me")
+        daily = daily_activity(games)
+        assert len(daily) == 1                  # only the finished game's day
+        assert daily["Games"].sum() == daily[["Win", "Draw", "Loss"]].sum().sum()
+
+
 # ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
@@ -757,6 +1096,95 @@ class TestComputeMilestones:
             assert "game_num" in m
             assert "description" in m
             assert "kind" in m
+
+
+# ---------------------------------------------------------------------------
+# Milestone celebrations (issue #15) — comparing two data snapshots
+# ---------------------------------------------------------------------------
+
+def _snapshot(games: list[dict]) -> pd.DataFrame:
+    """A minimal Games DataFrame snapshot for milestone-delta tests."""
+    return pd.DataFrame({
+        "Outcome": [g.get("outcome", "Win") for g in games],
+        "Opponent": [g.get("opponent", "Someone") for g in games],
+        "PlayerRatingNum": [float(g["my_rating"]) if g.get("my_rating") else None
+                            for g in games],
+        "OpponentRatingNum": [float(g["opp_rating"]) if g.get("opp_rating") else None
+                              for g in games],
+        "Date_dt": pd.date_range("2024-01-01", periods=len(games)),
+        "Index": range(1, len(games) + 1),
+    })
+
+
+class TestMilestoneDeltas:
+    def test_new_peak_rating_detected(self):
+        old = _snapshot([{"my_rating": 1800}, {"my_rating": 1810}])
+        new = _snapshot([{"my_rating": 1800}, {"my_rating": 1810},
+                         {"my_rating": 1850}])
+        deltas = milestone_deltas(old, new)
+        peak = next(d for d in deltas if d["kind"] == "peak_rating")
+        assert peak["old"] == 1810
+        assert peak["new"] == 1850
+        assert "1850" in peak["description"]
+
+    def test_new_longest_win_streak_detected(self):
+        old = _snapshot([{"outcome": "Win"}, {"outcome": "Win"}, {"outcome": "Loss"}])
+        new = _snapshot([{"outcome": "Win"}, {"outcome": "Win"}, {"outcome": "Loss"},
+                         {"outcome": "Win"}, {"outcome": "Win"}, {"outcome": "Win"}])
+        deltas = milestone_deltas(old, new)
+        streak = next(d for d in deltas if d["kind"] == "win_streak")
+        assert streak["old"] == 2
+        assert streak["new"] == 3
+
+    def test_win_against_new_highest_rated_opponent_detected(self):
+        old = _snapshot([{"outcome": "Win", "opp_rating": 1900, "opponent": "Old Best"},
+                         {"outcome": "Loss", "opp_rating": 2100, "opponent": "Lost To"}])
+        new = _snapshot([{"outcome": "Win", "opp_rating": 1900, "opponent": "Old Best"},
+                         {"outcome": "Loss", "opp_rating": 2100, "opponent": "Lost To"},
+                         {"outcome": "Win", "opp_rating": 2050, "opponent": "Giant"}])
+        deltas = milestone_deltas(old, new)
+        kill = next(d for d in deltas if d["kind"] == "giant_kill")
+        # Losses against strong players don't count — only beaten opponents
+        assert kill["old"] == 1900
+        assert kill["new"] == 2050
+        assert "Giant" in kill["description"]
+
+    def test_no_celebration_when_nothing_improved(self):
+        """A Sync that brings a loss (or nothing) sets no records."""
+        old = _snapshot([{"outcome": "Win", "my_rating": 1810, "opp_rating": 1900}])
+        new = _snapshot([{"outcome": "Win", "my_rating": 1810, "opp_rating": 1900},
+                         {"outcome": "Loss", "my_rating": 1805, "opp_rating": 2000}])
+        assert milestone_deltas(old, new) == []
+        assert milestone_deltas(old, old) == []
+
+    def test_no_baseline_means_no_celebration(self):
+        """An empty pre-Sync snapshot: nothing to beat → nothing to celebrate."""
+        new = _snapshot([{"outcome": "Win", "my_rating": 1850, "opp_rating": 1900}])
+        assert milestone_deltas(pd.DataFrame(), new) == []
+
+    def test_first_ever_win_streak_is_celebrated(self):
+        """Going from no streak at all (real games, zero wins in a row) to a
+        streak IS a personal best — a baseline of 0 from real games counts."""
+        old = _snapshot([{"outcome": "Loss"}, {"outcome": "Draw"}])
+        new = _snapshot([{"outcome": "Loss"}, {"outcome": "Draw"},
+                         {"outcome": "Win"}, {"outcome": "Win"}])
+        deltas = milestone_deltas(old, new)
+        streak = next(d for d in deltas if d["kind"] == "win_streak")
+        assert streak["old"] == 0
+        assert streak["new"] == 2
+
+    def test_one_sync_can_break_several_records(self, sample_pgn_text,
+                                                 sample_pgn_study2_text):
+        """The real fixture flow: Study 2's games set a new peak AND a new streak."""
+        old, _ = load_games_from_text(sample_pgn_text, player_name="Test Player")
+        new, _ = load_games_from_text(
+            sample_pgn_text + "\n\n" + sample_pgn_study2_text,
+            player_name="Test Player",
+        )
+        kinds = {d["kind"] for d in milestone_deltas(old, new)}
+        # Study 2 brings: a 1815 rating (old peak 1810) and a 4-game win
+        # streak (old longest 3); its only win is vs a 1700 (old best 1930).
+        assert kinds == {"peak_rating", "win_streak"}
 
 
 # ---------------------------------------------------------------------------
