@@ -305,7 +305,12 @@ def rating_trend_series(
 
 def _coerce_date(value: str | date | None) -> date | None:
     """An ISO string / date / None from the UI as a date (None when absent)."""
-    if value is None or isinstance(value, date):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        # datetime is-a date, but comparing it against plain dates raises
+        return value.date()
+    if isinstance(value, date):
         return value
     # The Dash date picker can send 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM:SS'
     return _parse_date(str(value)[:10])
@@ -715,11 +720,13 @@ def apply_rating_lens(
 
     out = df.copy()
     live_by_section = {(p.event_id, p.section_name): p.pre for p in live_series}
+    # Built once, not via record_for() per row — get_filtered runs this for
+    # every filter-driven callback, so per-row dict rebuilding multiplies fast.
+    records_by_url = {m.chapter_url: m.record for m in match_result.matches}
 
     values = []
     for _, game in out.iterrows():
-        record = (match_result.record_for(game["ChapterURL"])
-                  if game["ChapterURL"] else None)
+        record = records_by_url.get(game["ChapterURL"])
         official_value = _official_basis(record, game, official_series)
         if lens == LIVE_LENS:
             values.append(_live_basis(record, live_by_section,
