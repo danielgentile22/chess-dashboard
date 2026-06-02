@@ -319,12 +319,14 @@ def study_snapshot_df():
 
 
 # ---------------------------------------------------------------------------
-# USCF Game Records that pair with SAMPLE_PGN (issues #28 / #29).
+# USCF Game Records that pair with SAMPLE_PGN (issues #28 / #29 / #30).
 #
-# Records 1–5 match SAMPLE_PGN games 1–5 by opponent member ID + result
-# (games 1 and 4 are both wins against Opponent A — color disambiguates).
-# Game 6 has an ID but no record (a Game USCF hasn't rated).
-# Game 7 has no FideId typed → matches record 6 by name (the fallback pass).
+# Records 1–5 match SAMPLE_PGN games 1–5 by opponent member ID + result.
+# Record 4 disagrees about the color (the chapter says Test Player was Black,
+# USCF says White) → a Reconciliation conflict + ⚠ badge.
+# Game 6 has an ID but no record (a Game USCF hasn't rated → Lichess-only).
+# Game 7 has no FideId typed → matches record 6 by name (the fallback pass)
+# and is listed as a missing-FideId entry.
 # The last record matches no Game at all (USCF-only → Reconciliation).
 # ---------------------------------------------------------------------------
 
@@ -355,8 +357,9 @@ SAMPLE_USCF_GAMES = [
     # → game 3: lost to Opponent C with White
     _sample_uscf_game("10000003", "OPPONENT", "C", "White", "Loss",
                       "TEST OPEN JANUARY", "202401070001", "2024-01-06", "2024-01-07"),
-    # → game 4: beat Opponent A again, now with Black (color disambiguates vs game 1)
-    _sample_uscf_game("10000001", "OPPONENT", "A", "Black", "Win",
+    # → game 4: beat Opponent A again — but USCF says White where the chapter
+    #   says Black: a color conflict (matched anyway; flagged in Reconciliation)
+    _sample_uscf_game("10000001", "OPPONENT", "A", "White", "Win",
                       "SUMMER CUP 2024", "202406160002", "2024-06-15", "2024-06-16"),
     # → game 5: beat Opponent D with White
     _sample_uscf_game("10000004", "OPPONENT", "D", "White", "Win",

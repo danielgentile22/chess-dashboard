@@ -20,6 +20,7 @@ build_live_series       raw section items → the Live Rating series (continuous
 build_game_records      raw game items → typed USCF Game Records.
 match_games             USCF Game Records ↔ Games (the matching engine).
 enrich_games            Games df + MatchResult → df with USCF enrichment columns.
+reconcile               Every disagreement between the Studies and USCF.
 UscfProfile             Who the member is according to USCF.
 UscfRating              One rating system's entry (rating, provisional, floor).
 OfficialRatingPoint     One supplement month's Official Rating.
@@ -41,6 +42,7 @@ __all__ = [
     "LiveRatingPoint",
     "MatchResult",
     "OfficialRatingPoint",
+    "ReconciliationEntry",
     "UscfGameRecord",
     "UscfProfile",
     "UscfRating",
@@ -51,6 +53,7 @@ __all__ = [
     "match_games",
     "membership_alert",
     "parse_member_profile",
+    "reconcile",
 ]
 
 # Warn this many days before the membership expires — enough time to renew
@@ -549,6 +552,8 @@ _ENRICHMENT_DEFAULTS = {
     "UscfRatingSystem": "",
     "UscfOpponentName": "",
     "UscfOpponentId": "",
+    "UscfColor": "",          # the member's color according to USCF
+    "UscfColorConflict": False,
     "Forfeit": False,
 }
 
@@ -567,6 +572,10 @@ def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
 
     Forfeit detection (issue #29): an unmatched Game with at most one move is
     a Forfeit — the opponent never showed, so USCF correctly never rated it.
+
+    Conflict flagging (issue #30): a matched Game whose color disagrees with
+    USCF's record keeps displaying the Lichess version, with UscfColorConflict
+    set so the UI can badge it.
     """
     enriched = df.copy()
     if enriched.empty:
@@ -584,6 +593,7 @@ def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
             "UscfRatingSystem": m.record.rating_system,
             "UscfOpponentName": m.record.opponent_name,
             "UscfOpponentId": m.record.opponent_id,
+            "UscfColor": m.record.player_color,
         }
         for m in result.matches
     }
@@ -596,7 +606,189 @@ def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
     enriched["Forfeit"] = (
         ~enriched["UscfMatched"] & (enriched["FullMoves"] <= _FORFEIT_MAX_MOVES)
     )
+    # Disagreement between sources is flagged, never silently resolved (#30)
+    enriched["UscfColorConflict"] = (
+        enriched["UscfMatched"] & (enriched["UscfColor"] != enriched["Color"])
+    )
     return enriched
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation (issue #30)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ReconciliationEntry:
+    """
+    One disagreement between the Studies and USCF (see CONTEXT.md):
+    what each source says, side by side, plus where to go to fix it.
+    """
+
+    entry_id: str       # stable identity — what a dismissal remembers
+    kind: str           # "conflict" | "uscf_only" | "lichess_only"
+    #                     | "missing_fide_id" | "rating_mismatch"
+    opponent: str       # who the game was against
+    date: str           # when (the chapter date, or the Rated Event range)
+    lichess_says: str   # the Study's version ('' when there is no chapter)
+    uscf_says: str      # USCF's version ('' when there is no record)
+    chapter_url: str    # the fix-on-Lichess target ('' when there is no chapter)
+
+
+def reconcile(
+    df: pd.DataFrame,
+    result: MatchResult,
+    official_series: list[OfficialRatingPoint],
+    *,
+    dismissed: frozenset[str] | set[str] = frozenset(),
+) -> list[ReconciliationEntry]:
+    """
+    Every disagreement between the Studies and USCF (issue #30), as actionable
+    entries.  *df* is the enriched Games DataFrame (enrich_games output).
+
+    Dismissed entries (their entry_ids in *dismissed*) are excluded — they are
+    disagreements Daniel has already judged ("USCF is wrong" / "intentionally
+    skipped").
+    """
+    if df.empty:
+        return []
+
+    entries: list[ReconciliationEntry] = []
+    entries.extend(_conflict_entries(df, result))
+    entries.extend(_uscf_only_entries(result))
+    entries.extend(_lichess_only_entries(df, result))
+    entries.extend(_missing_fide_id_entries(df, result))
+    entries.extend(_rating_mismatch_entries(df, result, official_series))
+
+    return [e for e in entries if e.entry_id not in dismissed]
+
+
+def _conflict_entries(
+    df: pd.DataFrame, result: MatchResult
+) -> list[ReconciliationEntry]:
+    """Matched Games whose facts disagree: the chapter says one color, USCF
+    says the other.  The dashboard displays the Lichess version; the conflict
+    is flagged here with both versions."""
+    records_by_url = {m.chapter_url: m.record for m in result.matches}
+    entries = []
+    for _, game in df[df["UscfColorConflict"]].iterrows():
+        record = records_by_url[game["ChapterURL"]]
+        entries.append(ReconciliationEntry(
+            entry_id=f"conflict:{game['ChapterURL']}",
+            kind="conflict",
+            opponent=str(game["Opponent"]),
+            date=str(game["Date"]),
+            lichess_says=f"You played {game['Color']} ({game['Outcome']})",
+            uscf_says=(f"You played {record.player_color} "
+                       f"({record.player_outcome}) — {record.event_name}"),
+            chapter_url=str(game["ChapterURL"]),
+        ))
+    return entries
+
+
+def _uscf_only_entries(result: MatchResult) -> list[ReconciliationEntry]:
+    """USCF Game Records with no Game: either a Chapter Daniel forgot to add,
+    or one he skips on purpose (online-rated games) — his call via Dismiss."""
+    entries = []
+    for record in result.unmatched_records:
+        event_dates = (f"{record.event_start} – {record.event_end}"
+                       if record.event_start and record.event_end else "")
+        system = record.rating_system
+        entries.append(ReconciliationEntry(
+            entry_id=(f"uscf-only:{record.event_id}:{record.opponent_id}:"
+                      f"{record.player_color}"),
+            kind="uscf_only",
+            opponent=record.opponent_name,
+            date=event_dates,
+            lichess_says="",
+            uscf_says=(f"{record.player_outcome} with {record.player_color} — "
+                       f"{record.event_name}, {record.section_name} ({system})"),
+            chapter_url="",
+        ))
+    return entries
+
+
+def _lichess_only_entries(
+    df: pd.DataFrame, result: MatchResult
+) -> list[ReconciliationEntry]:
+    """Games with no USCF Game Record that are not Forfeits: USCF hasn't rated
+    them (yet), or rated them in a way matching couldn't find."""
+    unmatched = set(result.unmatched_chapter_urls)
+    entries = []
+    games = df[df["ChapterURL"].isin(unmatched) & ~df["Forfeit"]]
+    for _, game in games.iterrows():
+        entries.append(ReconciliationEntry(
+            entry_id=f"lichess-only:{game['ChapterURL']}",
+            kind="lichess_only",
+            opponent=str(game["Opponent"]),
+            date=str(game["Date"]),
+            lichess_says=(f"{game['Outcome']} with {game['Color']} — "
+                          f"{game['Event']}"),
+            uscf_says="",
+            chapter_url=str(game["ChapterURL"]),
+        ))
+    return entries
+
+
+def _missing_fide_id_entries(
+    df: pd.DataFrame, result: MatchResult
+) -> list[ReconciliationEntry]:
+    """Chapters without a typed opponent FideId — listed (even when the name
+    fallback matched them) so Daniel can add the ID and make the match robust."""
+    records_by_url = {m.chapter_url: m.record for m in result.matches}
+    entries = []
+    for _, game in df.iterrows():
+        if _opponent_id(game):
+            continue
+        record = records_by_url.get(game["ChapterURL"])
+        uscf_says = (
+            f"USCF knows this opponent as {record.opponent_name} "
+            f"(#{record.opponent_id}) — type that ID into the chapter"
+            if record is not None else ""
+        )
+        entries.append(ReconciliationEntry(
+            entry_id=f"missing-fide-id:{game['ChapterURL']}",
+            kind="missing_fide_id",
+            opponent=str(game["Opponent"]),
+            date=str(game["Date"]),
+            lichess_says="No opponent FideId typed in this chapter",
+            uscf_says=uscf_says,
+            chapter_url=str(game["ChapterURL"]),
+        ))
+    return entries
+
+
+def _rating_mismatch_entries(
+    df: pd.DataFrame,
+    result: MatchResult,
+    official_series: list[OfficialRatingPoint],
+) -> list[ReconciliationEntry]:
+    """Typed header ratings that disagree with the Official Rating for the
+    matched Rated Event's start month.  Typed values are validation-only —
+    they power no stats — so this is bookkeeping, not a data problem."""
+    official_by_month = {point.month: point.rating for point in official_series}
+    games_by_url = {game["ChapterURL"]: game for _, game in df.iterrows()}
+
+    entries = []
+    for match in result.matches:
+        game = games_by_url.get(match.chapter_url)
+        start = match.record.event_start
+        if game is None or start is None or pd.isna(game["PlayerRatingNum"]):
+            continue
+        official = official_by_month.get(date(start.year, start.month, 1))
+        typed = int(game["PlayerRatingNum"])
+        if official is None or typed == official:
+            continue
+        entries.append(ReconciliationEntry(
+            entry_id=f"rating-mismatch:{match.chapter_url}",
+            kind="rating_mismatch",
+            opponent=str(game["Opponent"]),
+            date=str(game["Date"]),
+            lichess_says=f"Typed rating {typed}",
+            uscf_says=(f"Official Rating for {start:%B %Y}: {official} "
+                       f"({match.record.event_name})"),
+            chapter_url=str(match.chapter_url),
+        ))
+    return entries
 
 
 def membership_alert(profile: UscfProfile, *, today: date) -> str | None:

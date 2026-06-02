@@ -32,6 +32,7 @@ import pandas as pd
 from sync import (
     SyncError,
     SyncResult,
+    UscfCache,
     UscfSyncResult,
     detect_new_games,
     load_from_cache,
@@ -42,9 +43,11 @@ from uscf_core import (
     LiveRatingPoint,
     MatchResult,
     OfficialRatingPoint,
+    ReconciliationEntry,
     UscfProfile,
     enrich_games,
     match_games,
+    reconcile,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,6 +64,9 @@ _cached_at: datetime | None = None  # only meaningful when _source == "cache"
 _uscf: UscfSyncResult = UscfSyncResult()
 # USCF Game Records ↔ Games (issue #28); empty when USCF is off/unavailable
 _match_result: MatchResult = MatchResult((), (), ())
+# Dismissed Reconciliation entries (issue #30): in-memory now, persisted
+# best-effort in the USCF cache so they survive restarts
+_dismissed: set[str] = set()
 
 # --- the designated Studies (remembered so refresh() can re-Sync) ----------
 _study_ids: list[str] = []
@@ -144,7 +150,7 @@ def _sync_uscf_into_store() -> None:
     The enrichment columns always exist afterwards — with USCF off or down,
     every Game is simply unmatched — so pages never check for their presence.
     """
-    global _uscf, _match_result, _df
+    global _uscf, _match_result, _df, _dismissed
     if not _uscf_member_id:
         _uscf = UscfSyncResult()
     else:
@@ -153,6 +159,9 @@ def _sync_uscf_into_store() -> None:
     # Match & enrich (issue #28): USCF Game Records attach to Games
     _match_result = match_games(_df, _uscf.game_records)
     _df = enrich_games(_df, _match_result)
+
+    # Dismissed Reconciliation entries survive restarts via the cache (#30)
+    _dismissed = set(UscfCache(_uscf_cache_path).dismissals()) | _dismissed
 
 
 def _boot_from_cache(sync_error: SyncError) -> tuple[pd.DataFrame, str]:
@@ -255,6 +264,33 @@ def get_uscf_matches() -> MatchResult:
     return _match_result
 
 
+def get_reconciliation() -> list[ReconciliationEntry]:
+    """
+    Every open disagreement between the Studies and USCF (issue #30),
+    dismissed entries excluded.
+
+    Empty when USCF isn't configured or has never been reached — with no
+    USCF data at all there is nothing meaningful to reconcile against.
+    """
+    if not uscf_enabled() or not _uscf.available:
+        return []
+    return reconcile(
+        _df, _match_result, _uscf.official_series, dismissed=frozenset(_dismissed)
+    )
+
+
+def dismiss_reconciliation_entry(entry_id: str) -> None:
+    """
+    Dismiss a Reconciliation entry ("USCF is wrong" / "intentionally skipped").
+
+    Takes effect immediately; persists best-effort in the USCF cache so it
+    survives Syncs and restarts (a redeploy may resurrect it — issue #30's
+    documented limitation).
+    """
+    _dismissed.add(entry_id)
+    UscfCache(_uscf_cache_path).add_dismissal(entry_id)
+
+
 def get_official_series() -> list[OfficialRatingPoint]:
     """The Official Rating series: one point per supplement month, chronological."""
     return _uscf.official_series
@@ -334,7 +370,7 @@ def reset() -> None:
     """Clear the store (used by tests)."""
     global _df, _player, _sync_failures, _synced_at, _source, _cached_at
     global _study_ids, _player_name, _token, _cache_path
-    global _uscf, _uscf_member_id, _uscf_cache_path, _match_result
+    global _uscf, _uscf_member_id, _uscf_cache_path, _match_result, _dismissed
     _df = pd.DataFrame()
     _player = ""
     _sync_failures = []
@@ -349,3 +385,4 @@ def reset() -> None:
     _uscf_member_id = None
     _uscf_cache_path = None
     _match_result = MatchResult((), (), ())
+    _dismissed = set()

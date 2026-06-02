@@ -319,6 +319,88 @@ class TestUscfMatchingInStore:
 
 
 # ---------------------------------------------------------------------------
+# Reconciliation in the data layer (issue #30)
+# ---------------------------------------------------------------------------
+
+# The same matched game, but USCF disagrees about the color → a conflict entry
+CONFLICTED_USCF_GAME = {
+    **MATCHED_USCF_GAME,
+    "player": {"color": "Black", "outcome": "Win"},
+    "opponent": {**MATCHED_USCF_GAME["opponent"], "color": "White", "outcome": "Loss"},
+}
+
+
+class TestReconciliationInStore:
+    def test_open_entries_are_exposed(self, uscf_profile_json):
+        """After a Sync, every disagreement is queryable for the page and the
+        header badge."""
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        entries = data.get_reconciliation()
+        assert len(entries) == 1
+        assert entries[0].kind == "conflict"
+        assert entries[0].opponent == "John Baker"
+
+    def test_dismissing_an_entry_removes_it_immediately(self, uscf_profile_json):
+        with stub_studies(study1=MATCHED_PGN), \
+             stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+        entry = data.get_reconciliation()[0]
+
+        data.dismiss_reconciliation_entry(entry.entry_id)
+
+        assert data.get_reconciliation() == []
+
+    def test_dismissals_survive_restarts_via_the_uscf_cache(
+        self, uscf_profile_json, tmp_path
+    ):
+        """The best-effort persistence path: dismiss, restart the app, the
+        entry stays dismissed (issue #30)."""
+        cache = str(tmp_path / "uscf_cache.json")
+
+        def boot():
+            with stub_studies(study1=MATCHED_PGN), \
+                 stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
+                data.initialize(["study1"], player_name="Test Player",
+                                uscf_member_id="12345678", uscf_cache_path=cache)
+
+        boot()
+        entry = data.get_reconciliation()[0]
+        data.dismiss_reconciliation_entry(entry.entry_id)
+
+        data.reset()
+        boot()  # the app restarts
+
+        assert data.get_reconciliation() == []
+
+    def test_no_uscf_configured_means_no_reconciliation(self, sample_pgn_text):
+        """Lichess-only runs have nothing to reconcile against."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_reconciliation() == []
+
+    def test_uscf_never_reached_means_no_reconciliation(self, sample_pgn_text):
+        """With no USCF data at all (down, no cache), claiming every Game is
+        'Lichess-only' would be noise, not insight."""
+        from uscf_client import UscfUnreachableError
+
+        with stub_studies(study1=sample_pgn_text), \
+             stub_uscf(UscfUnreachableError("USCF is down")):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        assert data.get_reconciliation() == []
+
+
+# ---------------------------------------------------------------------------
 # The Official and Live rating series in the data layer (issue #27)
 # ---------------------------------------------------------------------------
 

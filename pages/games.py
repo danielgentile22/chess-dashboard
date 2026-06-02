@@ -97,10 +97,12 @@ def update_games_table(colors, outcomes, terminations, start, end, events, moves
             lambda tags: " ".join(f"#{t}" for t in tags)
         )
     if "UscfMatched" in df_f.columns:
-        # The Game's USCF status (issues #28/#29)
+        # The Game's USCF status (issues #28/#29/#30)
         out["USCF"] = [
-            uscf_status_label(matched_by, forfeit)
-            for matched_by, forfeit in zip(df_f["UscfMatchedBy"], df_f["Forfeit"])
+            uscf_status_label(matched_by, forfeit, conflict)
+            for matched_by, forfeit, conflict in zip(
+                df_f["UscfMatchedBy"], df_f["Forfeit"], df_f["UscfColorConflict"]
+            )
         ]
     if "ChapterURL" in df_f.columns:
         out["Lichess"] = df_f["ChapterURL"].map(lichess_link)

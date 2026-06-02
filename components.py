@@ -191,14 +191,17 @@ USCF_RATING_SYSTEM_LABELS = {
 }
 
 
-def uscf_status_label(matched_by: str, forfeit: bool) -> str:
+def uscf_status_label(matched_by: str, forfeit: bool, conflict: bool = False) -> str:
     """
-    A Game's USCF status, one glanceable token (issues #28/#29):
+    A Game's USCF status, one glanceable token (issues #28/#29/#30):
     ✓ matched by opponent ID · ≈ matched by name (eyeball these) ·
+    ⚠ matched but the sources disagree (see Reconciliation) ·
     "Forfeit" for no-shows · blank for no USCF Game Record.
     """
     if forfeit:
         return "Forfeit"
+    if conflict:
+        return "⚠"
     return {"id": "✓", "name": "≈"}.get(matched_by, "")
 
 

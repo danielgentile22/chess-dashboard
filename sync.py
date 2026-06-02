@@ -154,13 +154,15 @@ class UscfCache:
     (ADR 0003).  Every filesystem misfortune — missing file, corrupt file,
     unwritable disk — degrades to "no cache", never to an error.
 
-    Two kinds of entries:
+    Three kinds of entries:
 
     * **current** — the member's current state (profile, …).  Overwritten as
       a whole on every successful Sync; ``fetched_at()`` says when.
     * **immutable** — USCF data that can never change once written (rated
       crosstables, past supplements).  Stored once, then served from the
       cache forever — ``fetch_immutable`` never re-fetches them.
+    * **dismissals** — Reconciliation entries Daniel has judged (issue #30).
+      User state, not API responses: never touched by ``replace_current``.
     """
 
     def __init__(self, path: str | None):
@@ -207,6 +209,23 @@ class UscfCache:
         immutable[key] = value
         self._write()
         return value
+
+    # -- dismissals (user judgements — survive every Sync) -------------------
+
+    def dismissals(self) -> list[str]:
+        """Entry IDs of dismissed Reconciliation entries (issue #30)."""
+        return list(self._data.get("dismissals", []))
+
+    def add_dismissal(self, entry_id: str) -> None:
+        """
+        Remember that *entry_id* was dismissed ("USCF is wrong" /
+        "intentionally skipped").  Best-effort persistence: on a host without
+        a writable disk the dismissal lasts for this run only.
+        """
+        dismissals = self._data.setdefault("dismissals", [])
+        if entry_id not in dismissals:
+            dismissals.append(entry_id)
+            self._write()
 
     # -- file I/O (failures degrade, never raise) ----------------------------
 
