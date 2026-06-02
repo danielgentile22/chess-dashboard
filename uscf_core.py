@@ -705,8 +705,8 @@ def apply_rating_lens(
     uses the supplement at its own date; Games before the first supplement
     have no value — never invented.
 
-    Live — the matched Section's pre-rating, decimals preserved; a Game with
-    no matched Section falls back to the Official basis.
+    Live — the matched Section's pre-rating, rounded to a whole number;
+    a Game with no matched Section falls back to the Official basis.
 
     The lens never hides Games: only PlayerRating / PlayerRatingNum (and the
     RatingDiff derived from them) change.
@@ -750,7 +750,9 @@ def _live_basis(
     fallback: int | None,
 ) -> float | int | None:
     """
-    A Game's Live Rating: its matched Section's pre-rating (decimals).
+    A Game's Live Rating: its matched Section's pre-rating, rounded to a
+    whole number (ratings display without decimal places; the chain itself
+    keeps its decimals in the series data).
 
     A Game with no matched Section can't have one → the Official basis.
     A matched Section whose pre is None means Daniel was unrated walking in —
@@ -761,7 +763,8 @@ def _live_basis(
     key = (record.event_id, record.section_name)
     if key not in live_by_section:
         return fallback
-    return live_by_section[key]
+    pre = live_by_section[key]
+    return None if pre is None else round(pre)
 
 
 def _official_basis(

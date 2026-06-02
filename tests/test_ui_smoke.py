@@ -410,7 +410,8 @@ class TestUscfProfileCard:
         assert "Official" in rendered
         assert "1545" in rendered      # the June supplement's published integer
         assert "Live" in rendered
-        assert "1570.7" in rendered    # the per-Section chain, decimals preserved
+        assert "1571" in rendered      # the per-Section chain, shown whole
+        assert "1570.7" not in rendered  # decimals never displayed
 
     def test_card_without_live_series_shows_official_only(
         self, ui_app, sample_pgn_text
@@ -1571,6 +1572,20 @@ class TestDualLineRatingTrend:
         hover_names = {row[0] for row in _trace(fig, "Live").customdata}
         assert "ACC Aprril 2026" in hover_names
 
+    def test_hover_ratings_display_as_whole_numbers(self, ui_app, real_career_ui):
+        """Live ratings display rounded — no decimal places anywhere the user
+        reads a number (the plotted chain keeps its precision)."""
+        from pages.trends import update_rating
+        fig = update_rating(*_filter_args())
+        live = _trace(fig, "Live")
+
+        # the hover's pre-rating values carry no decimals ("1544", not "1544.47")
+        pre_values = {row[2] for row in live.customdata}
+        assert "1544" in pre_values
+        assert not any("." in value for value in pre_values)
+        # the hover template renders the post-rating whole too
+        assert "%{y:.0f}" in live.hovertemplate
+
     def test_without_uscf_the_chart_falls_back_to_typed_ratings(
         self, ui_app, sample_pgn_text
     ):
@@ -1643,11 +1658,13 @@ class TestRatingLensAcrossStats:
         assert len(official_losses) == 4
         assert len(live_wins) == 14
         assert len(live_losses) == 2
-        # The biggest kill is a different game in each world view
+        # The biggest kill is a different game in each world view; margins
+        # are computed from the whole-number basis (1047 − 695 = 352), so
+        # they always agree with the ratings shown beside them
         assert official_wins[0]["Opponent"] == "Zane Anderson"
         assert official_wins[0]["Margin"] == "+303"
         assert live_wins[0]["Opponent"] == "Kyle Davis"
-        assert live_wins[0]["Margin"] == "+351"
+        assert live_wins[0]["Margin"] == "+352"
 
     def test_opponent_strength_buckets_follow_the_lens(self, ui_app, real_career_ui):
         """The strength-bucket distribution is built on rating-diff, so the
@@ -1663,7 +1680,8 @@ class TestRatingLensAcrossStats:
 
     def test_the_games_table_shows_the_lens_rating(self, ui_app, real_career_ui):
         """The Games table's rating column speaks the lens basis — the chapter
-        Daniel typo'd 1440 reads 1470 under Official, 1544.47 under Live."""
+        Daniel typo'd 1440 reads 1470 under Official, 1544 under Live (live
+        values display as whole numbers)."""
         from pages.games import update_games_table
         typo_chapter = "chp00015"
 
@@ -1672,7 +1690,7 @@ class TestRatingLensAcrossStats:
                         if r["ChapterURL"].endswith(typo_chapter))
 
         assert rating_of(update_games_table(*_filter_args(lens="official"))) == "1470"
-        assert rating_of(update_games_table(*_filter_args(lens="live"))) == "1544.47"
+        assert rating_of(update_games_table(*_filter_args(lens="live"))) == "1544"
 
     def test_performance_rating_stays_opponent_based(self, ui_app, real_career_ui):
         """The documented limitation, visible in numbers: performance rating

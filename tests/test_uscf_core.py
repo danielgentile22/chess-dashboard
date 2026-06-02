@@ -1585,19 +1585,20 @@ class TestOfficialLens:
 
 class TestLiveLens:
     def test_matched_games_use_their_sections_pre_rating(self, real_career):
-        """The Live basis: the matched Section's pre-rating, decimals preserved.
-        Daniel entered ACC MAY 2026 at 1544.47 — that's his Live Rating for
-        all four of its Games, whatever he typed."""
+        """The Live basis: the matched Section's pre-rating, rounded to a
+        whole number for display (Daniel's preference — the chain itself keeps
+        its decimals).  He entered ACC MAY 2026 at 1544.47 → his Games show
+        1544, whatever he typed."""
         lensed = _lensed(real_career, "live")
 
         may_games = _games_of_event(real_career, lensed, "ACC MAY 2026")
         assert len(may_games) == 4
-        assert (may_games["PlayerRatingNum"] == 1544.47).all()
-        assert (may_games["PlayerRating"] == "1544.47").all()
+        assert (may_games["PlayerRatingNum"] == 1544).all()
+        assert (may_games["PlayerRating"] == "1544").all()
 
     def test_two_sections_of_one_event_get_their_own_pre_ratings(self, real_career):
         """The join is per Section, not per Rated Event: DMV's Under 1800
-        Games entered at 1465.03, its Extra-games Game at 1468.80."""
+        Games entered at 1465.03 → 1465, its Extra-games Game at 1468.80 → 1469."""
         lensed = _lensed(real_career, "live")
 
         by_section: dict = {}
@@ -1607,8 +1608,8 @@ class TestLiveLens:
                 by_section.setdefault(m.record.section_name, set()).add(
                     row["PlayerRatingNum"]
                 )
-        assert by_section["Under 1800"] == {1465.03}
-        assert by_section["Extra games - Classical"] == {1468.8}
+        assert by_section["Under 1800"] == {1465}
+        assert by_section["Extra games - Classical"] == {1469}
 
     def test_the_first_ever_event_has_no_live_value(self, real_career):
         """Daniel was unrated entering his first Rated Event (pre is None) —
@@ -1649,8 +1650,8 @@ class TestRatingLensInvariants:
             # opponent side untouched...
             assert after["OpponentRatingNum"] == before["OpponentRatingNum"]
             assert after["OpponentRating"] == before["OpponentRating"]
-            # ...the diff rebuilt against the Live basis
-            assert after["RatingDiff"] == before["OpponentRatingNum"] - 1544.47
+            # ...the diff rebuilt against the (whole-number) Live basis
+            assert after["RatingDiff"] == before["OpponentRatingNum"] - 1544
 
     def test_the_lens_never_hides_games(self, real_career):
         """A lens, not a filter (PRD #24): every Game stays, in the same order,
