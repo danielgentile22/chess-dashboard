@@ -52,6 +52,8 @@ def layout(**kwargs) -> html.Div:
     # Lesson indicator (💡) and Tags from chapter comments (ADR 0002)
     cols.append({"name": "💡", "id": "LessonIndicator"})
     cols.append({"name": "Tags", "id": "TagsDisplay"})
+    # Matched to a USCF Game Record (issue #28) — a subtle ✓ per matched Game
+    cols.append({"name": "USCF", "id": "USCF"})
     # Open-on-Lichess link — rendered as markdown so it's clickable
     cols.append({"name": "Lichess", "id": "Lichess", "presentation": "markdown"})
 
@@ -92,6 +94,9 @@ def update_games_table(colors, outcomes, terminations, start, end, events, moves
         out["TagsDisplay"] = df_f["Tags"].map(
             lambda tags: " ".join(f"#{t}" for t in tags)
         )
+    if "UscfMatched" in df_f.columns:
+        # Matched to a USCF Game Record (issue #28)
+        out["USCF"] = df_f["UscfMatched"].map(lambda matched: "✓" if matched else "")
     if "ChapterURL" in df_f.columns:
         out["Lichess"] = df_f["ChapterURL"].map(lichess_link)
         # Not a displayed column — carried in the row data so clicking the row

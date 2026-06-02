@@ -17,23 +17,37 @@ parse_member_profile    raw /members/{id} response → UscfProfile
 membership_alert        Warning text when the membership has lapsed / expires soon.
 build_official_series   raw supplement items → the Official Rating series.
 build_live_series       raw section items → the Live Rating series (continuous chain).
+build_game_records      raw game items → typed USCF Game Records.
+match_games             USCF Game Records ↔ Games (the matching engine).
+enrich_games            Games df + MatchResult → df with USCF enrichment columns.
 UscfProfile             Who the member is according to USCF.
 UscfRating              One rating system's entry (rating, provisional, floor).
 OfficialRatingPoint     One supplement month's Official Rating.
 LiveRatingPoint         One Section's pre→post Live Rating change.
+UscfGameRecord          USCF's official record of one rated game (CONTEXT.md).
+GameMatch               One Game ↔ USCF Game Record pairing.
+MatchResult             Everything matching produced: matches + both leftovers.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
 
+import pandas as pd
+
 __all__ = [
+    "GameMatch",
     "LiveRatingPoint",
+    "MatchResult",
     "OfficialRatingPoint",
+    "UscfGameRecord",
     "UscfProfile",
     "UscfRating",
+    "build_game_records",
     "build_live_series",
     "build_official_series",
+    "enrich_games",
+    "match_games",
     "membership_alert",
     "parse_member_profile",
 ]
@@ -246,6 +260,247 @@ def _chain_group(
         chained.append(next_point)
         current = next_point.post
     return chained
+
+
+# ---------------------------------------------------------------------------
+# USCF Game Records (issue #28)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class UscfGameRecord:
+    """USCF's official record of one rated game (see CONTEXT.md)."""
+
+    event_id: str
+    event_name: str
+    event_start: date | None
+    event_end: date | None
+    section_name: str
+    rating_system: str        # "R" / "D" are over-the-board; "OR"/"OQ"/"OB" are online
+    player_color: str         # the member's color: "White" | "Black"
+    player_outcome: str       # the member's result: "Win" | "Loss" | "Draw"
+    opponent_id: str          # the opponent's USCF member ID
+    opponent_name: str        # as USCF registers it ("JOHN BAKER", "Wade Harris")
+
+
+def build_game_records(game_items: list[dict]) -> list[UscfGameRecord]:
+    """Interpret raw /members/{id}/games items as typed USCF Game Records."""
+    records = []
+    for item in game_items:
+        event = item.get("event", {})
+        player = item.get("player", {})
+        opponent = item.get("opponent", {})
+        first = str(opponent.get("firstName", "")).strip()
+        last = str(opponent.get("lastName", "")).strip()
+        records.append(UscfGameRecord(
+            event_id=str(event.get("id", "")),
+            event_name=str(event.get("name", "")),
+            event_start=_parse_date(event.get("startDate")),
+            event_end=_parse_date(event.get("endDate")),
+            section_name=str(item.get("section", {}).get("name", "")),
+            rating_system=str(item.get("ratingSystem", "")),
+            player_color=str(player.get("color", "")),
+            player_outcome=str(player.get("outcome", "")),
+            opponent_id=str(opponent.get("id", "")),
+            opponent_name=" ".join(part for part in (first, last) if part),
+        ))
+    return records
+
+
+# ---------------------------------------------------------------------------
+# The matching engine (issues #28 / #29)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class GameMatch:
+    """One Game ↔ USCF Game Record pairing."""
+
+    chapter_url: str        # the Game's permanent identity (ADR 0001)
+    record: UscfGameRecord
+    matched_by: str         # "id" | "name"
+
+
+@dataclass(frozen=True)
+class MatchResult:
+    """
+    Everything the matching engine produced.
+
+    Unmatched Games and unmatched USCF Game Records are exposed, never
+    silently dropped — Reconciliation (issue #30) is built from them.
+    """
+
+    matches: tuple[GameMatch, ...]
+    unmatched_chapter_urls: tuple[str, ...]    # Games with no USCF Game Record
+    unmatched_records: tuple[UscfGameRecord, ...]  # USCF Game Records with no Game
+
+
+# Rating systems whose games are played over the board.  Online systems
+# (OR/OQ/OB) never match chapters: the Study is OTB-only by design (PRD #24);
+# online records surface in Reconciliation as skippable USCF-only items.
+_OTB_RATING_SYSTEMS = ("R", "D")
+
+
+def match_games(df: pd.DataFrame, records: list[UscfGameRecord]) -> MatchResult:
+    """
+    Match USCF Game Records to Games (issue #28).
+
+    Primary pass — opponent USCF member ID + result.  Repeat opponents with
+    identical results are disambiguated by color, then the Rated Event date
+    window: tiebreakers only, never match requirements (color is itself a
+    fact that can conflict between sources).
+
+    Unmatched Games and unmatched records are exposed in the result, never
+    silently dropped.
+    """
+    matches: list[GameMatch] = []
+    used: set[int] = set()
+
+    matches.extend(_id_pass(df, records, used))
+
+    matched_urls = {m.chapter_url for m in matches}
+    return MatchResult(
+        matches=tuple(matches),
+        unmatched_chapter_urls=tuple(
+            url for url in df["ChapterURL"] if url not in matched_urls
+        ) if not df.empty else (),
+        unmatched_records=tuple(r for i, r in enumerate(records) if i not in used),
+    )
+
+
+def _id_pass(
+    df: pd.DataFrame, records: list[UscfGameRecord], used: set[int]
+) -> list[GameMatch]:
+    """The primary matching pass: opponent USCF member ID + result."""
+    games_by_key: dict[tuple[str, str], list[pd.Series]] = {}
+    for _, game in df.iterrows():
+        opponent_id = _opponent_id(game)
+        if opponent_id:  # absence of data is not a key ('' never matches '')
+            games_by_key.setdefault((opponent_id, game["Outcome"]), []).append(game)
+
+    records_by_key: dict[tuple[str, str], list[int]] = {}
+    for i, record in enumerate(records):
+        if record.opponent_id and record.rating_system in _OTB_RATING_SYSTEMS:
+            key = (record.opponent_id, record.player_outcome)
+            records_by_key.setdefault(key, []).append(i)
+
+    matches: list[GameMatch] = []
+    for key, games in games_by_key.items():
+        candidates = records_by_key.get(key, [])
+        matches.extend(_pair_group(games, candidates, records, used, matched_by="id"))
+    return matches
+
+
+def _pair_group(
+    games: list[pd.Series],
+    candidate_indices: list[int],
+    records: list[UscfGameRecord],
+    used: set[int],
+    *,
+    matched_by: str,
+) -> list[GameMatch]:
+    """
+    Pair Games with candidate records that all share the same match key.
+
+    Most groups are one Game ↔ one record.  When the same opponent was played
+    more than once with the same result, the pairs that agree on color and the
+    Rated Event date window win; leftovers on either side stay unmatched.
+    """
+    scored = sorted(
+        (-_tiebreak_score(game, records[i]), game_order, record_order, i)
+        for game_order, game in enumerate(games)
+        for record_order, i in enumerate(candidate_indices)
+        if i not in used
+    )
+
+    matches: list[GameMatch] = []
+    taken_games: set[int] = set()
+    for _neg_score, game_order, _record_order, i in scored:
+        if game_order in taken_games or i in used:
+            continue
+        matches.append(GameMatch(games[game_order]["ChapterURL"], records[i], matched_by))
+        taken_games.add(game_order)
+        used.add(i)
+    return matches
+
+
+def _tiebreak_score(game: pd.Series, record: UscfGameRecord) -> int:
+    """How well a candidate record agrees with a Game on the tiebreak facts.
+
+    Color outranks the date window: USCF event windows routinely fail to
+    contain the true play date (monthly ladders), while a same-color record
+    of the same result against the same opponent is almost always the game."""
+    score = 0
+    if record.player_color == game["Color"]:
+        score += 2
+    if _within_event_window(game["Date_dt"], record):
+        score += 1
+    return score
+
+
+def _within_event_window(date_dt, record: UscfGameRecord) -> bool:
+    """True when the Game's (authoritative) date falls inside the record's
+    Rated Event date range."""
+    if pd.isna(date_dt) or record.event_start is None or record.event_end is None:
+        return False
+    played = date_dt.date()
+    return record.event_start <= played <= record.event_end
+
+
+def _opponent_id(game: pd.Series) -> str:
+    """The opponent's USCF member ID from a Game row ('' when not typed)."""
+    return str(game["BlackID"] if game["Color"] == "White" else game["WhiteID"])
+
+
+# ---------------------------------------------------------------------------
+# Enrichment (issue #28): matched Games gain their USCF facts as columns
+# ---------------------------------------------------------------------------
+
+# Enrichment columns and their unmatched-Game values.  Always present after
+# enrich_games so pages never have to check whether a column exists.
+_ENRICHMENT_DEFAULTS = {
+    "UscfMatched": False,
+    "UscfMatchedBy": "",
+    "UscfEventName": "",
+    "UscfSection": "",
+    "UscfRatingSystem": "",
+    "UscfOpponentName": "",
+    "UscfOpponentId": "",
+}
+
+
+def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
+    """
+    Return a copy of *df* with USCF enrichment columns (issue #28).
+
+    Match & enrich (PRD #24): the Game stays the central entity; its USCF Game
+    Record's facts ride along as columns.  Unmatched Games get the defaults —
+    enrichment never filters, hides, or restructures Games (ADR 0003).
+    """
+    enriched = df.copy()
+    if enriched.empty:
+        return enriched
+
+    for column, default in _ENRICHMENT_DEFAULTS.items():
+        enriched[column] = default
+
+    facts_by_url = {
+        m.chapter_url: {
+            "UscfMatched": True,
+            "UscfMatchedBy": m.matched_by,
+            "UscfEventName": m.record.event_name,
+            "UscfSection": m.record.section_name,
+            "UscfRatingSystem": m.record.rating_system,
+            "UscfOpponentName": m.record.opponent_name,
+            "UscfOpponentId": m.record.opponent_id,
+        }
+        for m in result.matches
+    }
+    for index, url in enriched["ChapterURL"].items():
+        facts = facts_by_url.get(url)
+        if facts:
+            for column, value in facts.items():
+                enriched.loc[index, column] = value
+
+    return enriched
 
 
 def membership_alert(profile: UscfProfile, *, today: date) -> str | None:

@@ -73,6 +73,24 @@ class TestFetchMemberSections:
         assert url.endswith("/members/12345678/sections")
 
 
+class TestFetchMemberGames:
+    """The games endpoint — every rated game with opponent and outcome (issue #28)."""
+
+    def test_returns_the_game_record_items(self, uscf_games_json):
+        with mock.patch(
+            "uscf_client.requests.get",
+            return_value=_response(json_body=uscf_games_json),
+        ) as get:
+            items = uscf_client.fetch_member_games("12345678")
+
+        # All 63 USCF Game Records come back unwrapped, raw, for uscf_core to match
+        assert len(items) == 63
+        assert items[0]["opponent"]["id"] == "20000056"
+        assert items[0]["player"]["outcome"] == "Win"
+        url = get.call_args.args[0]
+        assert url.endswith("/members/12345678/games")
+
+
 class TestPagination:
     """List endpoints paginate; the client follows hasNextPage internally.
 

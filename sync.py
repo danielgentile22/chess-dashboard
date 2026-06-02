@@ -42,6 +42,7 @@ from lichess_client import LichessError, fetch_study_pgn
 from pgn_stats_core import load_games_from_text
 from uscf_client import (
     UscfError,
+    fetch_member_games,
     fetch_member_profile,
     fetch_member_sections,
     fetch_rating_supplements,
@@ -49,7 +50,9 @@ from uscf_client import (
 from uscf_core import (
     LiveRatingPoint,
     OfficialRatingPoint,
+    UscfGameRecord,
     UscfProfile,
+    build_game_records,
     build_live_series,
     build_official_series,
     parse_member_profile,
@@ -241,6 +244,8 @@ class UscfSyncResult:
     official_series: list[OfficialRatingPoint] = field(default_factory=list)
     # The Live Rating series (one point per Regular-rated Section) — issue #27
     live_series: list[LiveRatingPoint] = field(default_factory=list)
+    # Every USCF Game Record — the matching engine's input (issue #28)
+    game_records: list[UscfGameRecord] = field(default_factory=list)
     # When USCF was last successfully reached: the fetch time for live data,
     # the cached data's age when degraded (None if USCF has never been reached)
     synced_at: datetime | None = None
@@ -258,7 +263,8 @@ class UscfSyncResult:
 def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
     """
     Fetch the USCF record for *member_id*: profile, rating supplements
-    (the Official series), and sections (the Live series).
+    (the Official series), sections (the Live series), and USCF Game Records
+    (the matching engine's input).
 
     Never raises: USCF data is enrichment, never a dependency (ADR 0003).
     A successful fetch refreshes the local cache at *cache_path*; any failure
@@ -271,6 +277,7 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         raw_profile = fetch_member_profile(member_id)
         raw_supplements = fetch_rating_supplements(member_id)
         raw_sections = fetch_member_sections(member_id)
+        raw_games = fetch_member_games(member_id)
     except UscfError as exc:
         logger.warning("USCF unavailable — continuing without it (ADR 0003): %s", exc)
         return _uscf_from_cache(cache, failure=str(exc))
@@ -279,11 +286,13 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         "profile": raw_profile,
         "supplements": raw_supplements,
         "sections": raw_sections,
+        "games": raw_games,
     })
     return UscfSyncResult(
         profile=parse_member_profile(raw_profile),
         official_series=build_official_series(raw_supplements),
         live_series=build_live_series(raw_sections),
+        game_records=build_game_records(raw_games),
         synced_at=datetime.now(timezone.utc),
     )
 
@@ -299,6 +308,7 @@ def _uscf_from_cache(cache: UscfCache, failure: str) -> UscfSyncResult:
         profile=parse_member_profile(raw_profile),
         official_series=build_official_series(cache.get_current("supplements") or []),
         live_series=build_live_series(cache.get_current("sections") or []),
+        game_records=build_game_records(cache.get_current("games") or []),
         synced_at=cache.fetched_at(),
         failure=failure,
         from_cache=True,

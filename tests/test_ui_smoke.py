@@ -401,7 +401,8 @@ class TestUscfProfileCard:
              mock.patch.object(sync, "fetch_member_profile",
                                return_value=_UI_USCF_PROFILE), \
              mock.patch.object(sync, "fetch_rating_supplements", return_value=[]), \
-             mock.patch.object(sync, "fetch_member_sections", return_value=[]):
+             mock.patch.object(sync, "fetch_member_sections", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_games", return_value=[]):
             data.initialize(
                 ["teststudy"], player_name="Test Player", uscf_member_id="12345678"
             )
@@ -1155,6 +1156,50 @@ class TestGameNavigation:
         for fn in (navigate_to_game, navigate_to_game_from_scout, navigate_to_game_from_event):
             href, _reset = fn({"row": 0, "column_id": "Date"}, self.ROWS)
             assert href == "/game/chap0003"
+
+
+# ---------------------------------------------------------------------------
+# USCF matching in the UI (issue #28)
+#
+# The ui fixtures pair SAMPLE_PGN with SAMPLE_USCF_GAMES: games 1–5 match by
+# opponent ID + result, game 6 has an ID but no record, game 7 has no FideId.
+# ---------------------------------------------------------------------------
+
+class TestUscfMatchUI:
+    def test_game_detail_shows_the_uscf_half_of_a_matched_game(self, ui_app, ui_data):
+        """#28: Rated Event, Section, rating system, official opponent name and
+        member ID, and a link to the opponent's USCF page."""
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0001"))
+
+        assert "TEST OPEN JANUARY" in rendered          # Rated Event
+        assert "OPEN" in rendered                       # Section
+        assert "Regular" in rendered                    # rating system, spelled out
+        assert "OPPONENT A" in rendered                 # official (USCF) opponent name
+        assert "10000001" in rendered                   # opponent member ID
+        # Deep link to the opponent's page on the USCF ratings site
+        assert "ratings.uschess.org/members/10000001" in rendered
+
+    def test_game_detail_of_an_unmatched_game_invents_nothing(self, ui_app, ui_data):
+        """Game 7 has no USCF Game Record: its detail view shows no USCF facts
+        (and certainly no link to a member page that isn't its opponent's)."""
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0007"))
+
+        assert "ratings.uschess.org" not in rendered
+        assert "Rated Event" not in rendered
+
+    def test_games_table_indicates_which_games_are_matched(self, ui_app, ui_data):
+        """#28: the Games page shows a subtle matched indicator per Game."""
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        by_chapter = {r["ChapterURL"].rsplit("/", 1)[-1]: r for r in rows}
+
+        # Games 1–5 are matched; games 6 and 7 are not
+        for chapter_id in ("chap0001", "chap0002", "chap0003", "chap0004", "chap0005"):
+            assert by_chapter[chapter_id]["USCF"] == "✓", f"{chapter_id} should be matched"
+        for chapter_id in ("chap0006", "chap0007"):
+            assert by_chapter[chapter_id]["USCF"] == "", f"{chapter_id} should be unmatched"
 
 
 # ---------------------------------------------------------------------------
