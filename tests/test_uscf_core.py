@@ -394,9 +394,10 @@ class TestMatchGamesById:
         assert result.unmatched_chapter_urls == (df.iloc[0]["ChapterURL"],)
         assert len(result.unmatched_records) == 1
 
-    def test_chapter_without_fide_id_is_not_matched_by_this_pass(self):
+    def test_chapter_without_fide_id_never_matches_by_id(self):
         """A chapter where Daniel never typed the opponent's member ID cannot
-        match by ID — it waits for the name-fallback pass (issue #29)."""
+        match by ID — only the name-fallback pass (issue #29) can claim it,
+        and it says so."""
         df = games_df(chapter(opponent="Vera Clark", opponent_id="",
                               color="White", result="1-0"))
         records = uscf_core.build_game_records([
@@ -406,15 +407,16 @@ class TestMatchGamesById:
 
         result = uscf_core.match_games(df, records)
 
-        assert result.matches == ()
-        assert len(result.unmatched_chapter_urls) == 1
-        assert len(result.unmatched_records) == 1
+        assert all(m.matched_by == "name" for m in result.matches)
 
     def test_two_missing_ids_never_match_each_other(self):
-        """'' == '' is not an ID match — absence of data is not a key."""
-        df = games_df(chapter(opponent_id="", color="White", result="1-0"))
+        """'' == '' is not an ID match — absence of data is not a key.
+        (Different names, so the name fallback can't claim them either.)"""
+        df = games_df(chapter(opponent="John Baker", opponent_id="",
+                              color="White", result="1-0"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="", player_outcome="Win"),
+            uscf_game(opponent_id="", opponent_first="MARY",
+                      opponent_last="DIFFERENT", player_outcome="Win"),
         ])
 
         result = uscf_core.match_games(df, records)
@@ -563,12 +565,154 @@ class TestMatchingPolicies:
 
 
 # ---------------------------------------------------------------------------
+# The matching engine — fallback pass: normalized name + result + date window
+# (issue #29).  Only for chapters without a typed opponent FideId.
+# ---------------------------------------------------------------------------
+
+class TestMatchGamesByName:
+    def test_a_chapter_without_fide_id_matches_by_name_result_and_window(self):
+        """The fallback pass: same opponent name, same result, the chapter's
+        date inside the Rated Event's window → matched (marked as a name
+        match so it can be eyeballed)."""
+        df = games_df(chapter(opponent="Jonah Baker", opponent_id="",
+                              color="White", result="1-0", date="2026.04.17"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000051", opponent_first="Christian",
+                      opponent_last="Baker", player_color="Black",
+                      player_outcome="Win", event="ACC Aprril 2026",
+                      start="2026-04-03", end="2026-04-24"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+        assert result.matches[0].matched_by == "name"
+        assert result.matches[0].record.opponent_id == "20000051"
+
+    def test_name_matching_ignores_case(self):
+        """The real Baker case: USCF registers 'JOHN BAKER', the chapter
+        says 'John Baker'."""
+        df = games_df(chapter(opponent="John Baker", opponent_id="",
+                              color="White", result="1-0", date="2026.05.01"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000056", opponent_first="JOHN",
+                      opponent_last="BAKER", player_color="White",
+                      player_outcome="Win"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+
+    def test_name_matching_ignores_punctuation(self):
+        """The real Williams case: 'Vera Clark' (chapter) vs
+        'JAMES K' + 'WILLIAMS' (USCF) — the middle-initial dot must not matter."""
+        df = games_df(chapter(opponent="Vera Clark", opponent_id="",
+                              color="White", result="1-0", date="2026.04.03"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000009", opponent_first="JAMES K",
+                      opponent_last="WILLIAMS", player_color="White",
+                      player_outcome="Win", event="ACC Aprril 2026",
+                      start="2026-04-03", end="2026-04-24"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+
+    def test_first_name_spelling_variant_with_exact_last_name(self):
+        """The real Clark case: Daniel typed 'Carter', USCF has 'Carver'.
+        Last name matches exactly + same first initial → still a match."""
+        df = games_df(chapter(opponent="Carter Clark", opponent_id="",
+                              color="Black", result="1-0", date="2026.05.22"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000144", opponent_first="Carver",
+                      opponent_last="Clark", player_color="Black",
+                      player_outcome="Loss"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+        assert result.matches[0].matched_by == "name"
+
+    def test_a_different_last_name_never_matches(self):
+        """Spelling tolerance never crosses last names: 'Carter Clark'
+        is not 'Carter Kaplan'."""
+        df = games_df(chapter(opponent="Carter Clark", opponent_id="",
+                              color="Black", result="1-0", date="2026.05.22"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="11111111", opponent_first="Carter",
+                      opponent_last="Kaplan", player_color="Black",
+                      player_outcome="Loss"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+
+    def test_name_match_requires_the_date_window(self):
+        """The same opponent name + result in an event months away is a
+        different game — the window is part of the fallback key, so that the
+        weaker name key can never reach across events."""
+        df = games_df(chapter(opponent="John Baker", opponent_id="",
+                              color="White", result="1-0", date="2026.05.01"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000056", opponent_first="JOHN",
+                      opponent_last="BAKER", player_color="White",
+                      player_outcome="Win", event="ACC JANUARY 2026",
+                      start="2026-01-02", end="2026-01-30"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+
+    def test_ambiguous_name_candidates_match_nothing(self):
+        """Two records with the same name, result, and window: a guess could
+        attach the wrong Rated Event to the Game — no match, not a guess
+        (both go to Reconciliation instead)."""
+        df = games_df(chapter(opponent="John Smith", opponent_id="",
+                              color="White", result="1-0", date="2026.05.10"))
+        smith = dict(opponent_first="John", opponent_last="Smith",
+                     player_color="White", player_outcome="Win",
+                     start="2026-05-01", end="2026-05-29")
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="22222221", event="EVENT ONE",
+                      event_id="1", **smith),
+            uscf_game(opponent_id="22222222", event="EVENT TWO",
+                      event_id="2", **smith),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+        assert len(result.unmatched_records) == 2
+
+    def test_chapters_with_typed_ids_never_fall_back_to_names(self):
+        """A chapter whose typed FideId matched nothing stays unmatched — the
+        wrong ID is a discrepancy to surface (Reconciliation), not to paper
+        over with a name guess."""
+        df = games_df(chapter(opponent="John Baker", opponent_id="99999990",
+                              color="White", result="1-0", date="2026.05.01"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000056", opponent_first="JOHN",
+                      opponent_last="BAKER", player_color="White",
+                      player_outcome="Win"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+
+
+# ---------------------------------------------------------------------------
 # The matching engine against the real fixture pair: Daniel's full Study
 # (63 chapters) ↔ his full USCF record (63 USCF Game Records), captured the
 # same day (2026-06-02).  This is the engine's ground truth.
 # ---------------------------------------------------------------------------
 
-class TestIdPassAgainstRealData:
+class TestMatchingAgainstRealData:
     def test_the_id_pass_matches_55_of_63_games(
         self, study_snapshot_df, uscf_games_json
     ):
@@ -580,37 +724,48 @@ class TestIdPassAgainstRealData:
         id_matches = [m for m in result.matches if m.matched_by == "id"]
         assert len(id_matches) == 55
 
-    def test_unmatched_chapters_are_the_seven_id_less_ones_plus_the_forfeit(
+    def test_the_name_pass_matches_the_seven_id_less_chapters(
         self, study_snapshot_df, uscf_games_json
     ):
-        """After the ID pass: the 7 chapters Daniel never typed FideIds into
-        (Apr–May 2026) plus the Forfeit (Baker no-show) remain unmatched."""
+        """The 7 chapters Daniel never typed FideIds into (Apr–May 2026) all
+        match by name — including the Williams punctuation case and the
+        Carter/Carver spelling variant."""
         records = uscf_core.build_game_records(uscf_games_json["items"])
         result = uscf_core.match_games(study_snapshot_df, records)
 
+        name_matches = [m for m in result.matches if m.matched_by == "name"]
+        assert len(name_matches) == 7
+        matched_opponents = {m.record.opponent_name for m in name_matches}
+        assert "VERA CLARK" in matched_opponents     # punctuation + case
+        assert "Carver Clark" in matched_opponents    # spelling variant
+
+    def test_both_passes_together_match_62_of_63_games(
+        self, study_snapshot_df, uscf_games_json
+    ):
+        """The full engine on the full real career: 62 of 63 chapters match.
+        The only unmatched chapter is the Forfeit (Baker no-show — USCF
+        correctly never rated it)."""
+        records = uscf_core.build_game_records(uscf_games_json["items"])
+        result = uscf_core.match_games(study_snapshot_df, records)
+
+        assert len(result.matches) == 62
         unmatched = study_snapshot_df[
             study_snapshot_df["ChapterURL"].isin(result.unmatched_chapter_urls)
         ]
-        assert len(unmatched) == 8
-        # The Forfeit: Uma Baker never showed; USCF never rated it
-        assert "Uma Baker" in set(unmatched["Opponent"])
-        # The other 7 are exactly the chapters with no typed opponent FideId
-        with_ids = unmatched[unmatched["Opponent"] != "Uma Baker"]
-        for _, game in with_ids.iterrows():
-            opponent_id = game["BlackID"] if game["Color"] == "White" else game["WhiteID"]
-            assert opponent_id == "", f"{game['Opponent']} has an ID but didn't match"
+        assert list(unmatched["Opponent"]) == ["Uma Baker"]
 
-    def test_unmatched_records_include_the_online_game(
+    def test_unmatched_records_are_exactly_the_online_game(
         self, study_snapshot_df, uscf_games_json
     ):
         """The online-rated (OR) game Daniel deliberately keeps out of his OTB
-        Study is exposed as an unmatched record, never silently dropped."""
+        Study is the only USCF Game Record with no Game — exposed, never
+        silently dropped."""
         records = uscf_core.build_game_records(uscf_games_json["items"])
         result = uscf_core.match_games(study_snapshot_df, records)
 
-        online = [r for r in result.unmatched_records if r.rating_system == "OR"]
-        assert len(online) == 1
-        assert online[0].opponent_name == "Will Harris"
+        assert len(result.unmatched_records) == 1
+        assert result.unmatched_records[0].rating_system == "OR"
+        assert result.unmatched_records[0].opponent_name == "Will Harris"
 
     def test_every_match_agrees_on_opponent_and_result(
         self, study_snapshot_df, uscf_games_json
@@ -699,3 +854,54 @@ class TestEnrichGames:
             pd.DataFrame(), uscf_core.match_games(pd.DataFrame(), [])
         )
         assert enriched.empty
+
+
+# ---------------------------------------------------------------------------
+# Forfeit detection (issue #29)
+#
+# A Game with no USCF Game Record after both passes AND at most one move is a
+# Forfeit: the opponent never showed, so USCF correctly never rated it
+# (CONTEXT.md).
+# ---------------------------------------------------------------------------
+
+class TestForfeitDetection:
+    def test_unmatched_one_move_game_is_a_forfeit(self):
+        """The real Baker case: the chapter is literally '1. e4 1-0'."""
+        df = games_df(chapter(opponent="Uma Baker", opponent_id="20000071",
+                              color="White", result="1-0", moves="1. e4"))
+        enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, []))
+
+        assert bool(enriched.iloc[0]["Forfeit"]) is True
+
+    def test_unmatched_full_game_is_not_a_forfeit(self):
+        """A real game USCF just hasn't rated yet is unmatched, not a Forfeit
+        — it belongs in Reconciliation, not excluded from stats."""
+        df = games_df(chapter(opponent_id="20000056", color="White", result="1-0",
+                              moves="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6"))
+        enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, []))
+
+        assert bool(enriched.iloc[0]["Forfeit"]) is False
+
+    def test_matched_game_is_never_a_forfeit(self):
+        """If USCF rated it, a game was played — however short the chapter."""
+        df = games_df(chapter(opponent_id="20000056", color="White",
+                              result="1-0", moves="1. e4"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000056", player_color="White",
+                      player_outcome="Win"),
+        ])
+        enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, records))
+
+        assert bool(enriched.iloc[0]["Forfeit"]) is False
+
+    def test_the_real_career_has_exactly_one_forfeit(
+        self, study_snapshot_df, uscf_games_json
+    ):
+        """Against the full fixture pair: only the Thanksgiving Open no-show."""
+        records = uscf_core.build_game_records(uscf_games_json["items"])
+        enriched = uscf_core.enrich_games(
+            study_snapshot_df, uscf_core.match_games(study_snapshot_df, records)
+        )
+
+        forfeits = enriched[enriched["Forfeit"]]
+        assert list(forfeits["Opponent"]) == ["Uma Baker"]

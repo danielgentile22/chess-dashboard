@@ -1159,10 +1159,11 @@ class TestGameNavigation:
 
 
 # ---------------------------------------------------------------------------
-# USCF matching in the UI (issue #28)
+# USCF matching in the UI (issues #28 / #29)
 #
 # The ui fixtures pair SAMPLE_PGN with SAMPLE_USCF_GAMES: games 1–5 match by
-# opponent ID + result, game 6 has an ID but no record, game 7 has no FideId.
+# opponent ID + result, game 6 has an ID but no record (unmatched), game 7
+# has no FideId and matches by name.
 # ---------------------------------------------------------------------------
 
 class TestUscfMatchUI:
@@ -1181,25 +1182,109 @@ class TestUscfMatchUI:
         assert "ratings.uschess.org/members/10000001" in rendered
 
     def test_game_detail_of_an_unmatched_game_invents_nothing(self, ui_app, ui_data):
-        """Game 7 has no USCF Game Record: its detail view shows no USCF facts
+        """Game 6 has no USCF Game Record: its detail view shows no USCF facts
         (and certainly no link to a member page that isn't its opponent's)."""
         from pages.game_detail import layout
-        rendered = str(layout(chapter_id="chap0007"))
+        rendered = str(layout(chapter_id="chap0006"))
 
         assert "ratings.uschess.org" not in rendered
         assert "Rated Event" not in rendered
 
-    def test_games_table_indicates_which_games_are_matched(self, ui_app, ui_data):
-        """#28: the Games page shows a subtle matched indicator per Game."""
+    def test_games_table_distinguishes_id_matches_name_matches_and_unmatched(
+        self, ui_app, ui_data
+    ):
+        """#28/#29: ✓ = matched by opponent ID, ≈ = matched by name (so name
+        matches can be eyeballed), blank = no USCF Game Record."""
         from pages.games import update_games_table
         rows = update_games_table(*_filter_args())
         by_chapter = {r["ChapterURL"].rsplit("/", 1)[-1]: r for r in rows}
 
-        # Games 1–5 are matched; games 6 and 7 are not
         for chapter_id in ("chap0001", "chap0002", "chap0003", "chap0004", "chap0005"):
-            assert by_chapter[chapter_id]["USCF"] == "✓", f"{chapter_id} should be matched"
-        for chapter_id in ("chap0006", "chap0007"):
-            assert by_chapter[chapter_id]["USCF"] == "", f"{chapter_id} should be unmatched"
+            assert by_chapter[chapter_id]["USCF"] == "✓", f"{chapter_id}: ID match"
+        assert by_chapter["chap0007"]["USCF"] == "≈"      # matched by name
+        assert by_chapter["chap0006"]["USCF"] == ""       # no record
+
+    def test_game_detail_says_how_a_name_match_was_made(self, ui_app, ui_data):
+        """A name-matched Game says so in its USCF card, so Daniel can eyeball
+        whether the fallback got it right (issue #29)."""
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0007"))
+
+        assert "name" in str(rendered)
+        assert "ratings.uschess.org/members/10000001" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Forfeit in the UI (issue #29): a visible tag wherever the Game appears
+# ---------------------------------------------------------------------------
+
+_FORFEIT_UI_PGN = """\
+[Event "Test Open"]
+[Site "Springfield"]
+[Date "2024.01.06"]
+[Round "1"]
+[White "Test Player"]
+[Black "Opponent A"]
+[WhiteElo "1800"]
+[BlackElo "1920"]
+[ECO "E04"]
+[Opening "Catalan Opening"]
+[Result "1-0"]
+[Termination "win by resignation"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - Opponent A"]
+[ChapterURL "https://lichess.org/study/forfstudy/real0001"]
+
+1. d4 Nf6 2. c4 e6 3. g3 d5 1-0
+
+[Event "Test Open"]
+[Site "Springfield"]
+[Date "2024.01.07"]
+[Round "2"]
+[White "Test Player"]
+[Black "No Show"]
+[WhiteElo "1800"]
+[BlackElo "1700"]
+[Result "1-0"]
+[Termination "win by forfeit"]
+[StudyName "Test Study"]
+[ChapterName "Test Player - No Show"]
+[ChapterURL "https://lichess.org/study/forfstudy/forf0002"]
+
+1. e4 1-0
+"""
+
+
+@pytest.fixture()
+def forfeit_ui_data(ui_app):
+    """A data store whose archive holds one real game and one Forfeit."""
+    import data
+    from tests.conftest import stub_ui_sources
+
+    data.reset()
+    with stub_ui_sources(_FORFEIT_UI_PGN, uscf_games=[]):
+        data.initialize(["forfstudy"], player_name="Test Player",
+                        uscf_member_id="12345678")
+    yield
+    data.reset()
+
+
+class TestForfeitUI:
+    def test_games_table_tags_the_forfeit(self, ui_app, forfeit_ui_data):
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        by_chapter = {r["ChapterURL"].rsplit("/", 1)[-1]: r for r in rows}
+
+        assert by_chapter["forf0002"]["USCF"] == "Forfeit"
+        # The forfeit still appears in the Games list (it counts for the score)
+        assert len(rows) == 2
+
+    def test_game_detail_tags_the_forfeit(self, ui_app, forfeit_ui_data):
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="forf0002"))
+
+        assert "Forfeit" in rendered
+        assert "never rated" in rendered or "no-show" in rendered.lower()
 
 
 # ---------------------------------------------------------------------------

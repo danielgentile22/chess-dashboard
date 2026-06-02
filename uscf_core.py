@@ -30,6 +30,7 @@ MatchResult             Everything matching produced: matches + both leftovers.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -339,14 +340,26 @@ class MatchResult:
 _OTB_RATING_SYSTEMS = ("R", "D")
 
 
+# How far outside a Rated Event's official date range a chapter date may fall
+# and still count as "inside the window" for name-fallback matching.  USCF's
+# windows don't always contain the true play dates (monthly ladders).
+_WINDOW_GRACE = pd.Timedelta(days=7)
+
+
 def match_games(df: pd.DataFrame, records: list[UscfGameRecord]) -> MatchResult:
     """
-    Match USCF Game Records to Games (issue #28).
+    Match USCF Game Records to Games (issues #28 / #29).
 
     Primary pass — opponent USCF member ID + result.  Repeat opponents with
     identical results are disambiguated by color, then the Rated Event date
     window: tiebreakers only, never match requirements (color is itself a
     fact that can conflict between sources).
+
+    Fallback pass — for chapters without a typed FideId only: normalized
+    opponent name + result + the Rated Event date window.  Any ambiguity
+    means no match (a guess could attach the wrong Rated Event); chapters
+    whose typed ID matched nothing never fall back to names (a wrong ID is
+    a discrepancy to surface, not to paper over).
 
     Unmatched Games and unmatched records are exposed in the result, never
     silently dropped.
@@ -355,6 +368,8 @@ def match_games(df: pd.DataFrame, records: list[UscfGameRecord]) -> MatchResult:
     used: set[int] = set()
 
     matches.extend(_id_pass(df, records, used))
+    matches.extend(_name_pass(df, records, used,
+                              matched_urls={m.chapter_url for m in matches}))
 
     matched_urls = {m.chapter_url for m in matches}
     return MatchResult(
@@ -387,6 +402,73 @@ def _id_pass(
         candidates = records_by_key.get(key, [])
         matches.extend(_pair_group(games, candidates, records, used, matched_by="id"))
     return matches
+
+
+def _name_pass(
+    df: pd.DataFrame,
+    records: list[UscfGameRecord],
+    used: set[int],
+    matched_urls: set[str],
+) -> list[GameMatch]:
+    """
+    The fallback matching pass (issue #29): normalized opponent name + result
+    + Rated Event date window, for chapters without a typed FideId.
+
+    Strictly unambiguous: a chapter matches only when exactly one record fits
+    it AND no other chapter fits that record.  Everything else stays unmatched.
+    """
+    # Which records each eligible chapter could mean, and vice versa
+    chapter_candidates: dict[str, list[int]] = {}
+    record_claimants: dict[int, list[str]] = {}
+
+    for _, game in df.iterrows():
+        url = game["ChapterURL"]
+        if url in matched_urls or _opponent_id(game):
+            continue
+        for i, record in enumerate(records):
+            if i in used or record.rating_system not in _OTB_RATING_SYSTEMS:
+                continue
+            if (_names_match(str(game["Opponent"]), record)
+                    and record.player_outcome == game["Outcome"]
+                    and _within_event_window(game["Date_dt"], record,
+                                             grace=_WINDOW_GRACE)):
+                chapter_candidates.setdefault(url, []).append(i)
+                record_claimants.setdefault(i, []).append(url)
+
+    matches: list[GameMatch] = []
+    for url, candidates in chapter_candidates.items():
+        if len(candidates) != 1 or len(record_claimants[candidates[0]]) != 1:
+            continue  # ambiguity in either direction → no match, not a guess
+        record_index = candidates[0]
+        matches.append(GameMatch(url, records[record_index], "name"))
+        used.add(record_index)
+    return matches
+
+
+def _names_match(chapter_opponent: str, record: UscfGameRecord) -> bool:
+    """
+    Whether a chapter's opponent name and a record's opponent are the same
+    person, per the PRD's normalization rules: case- and punctuation-
+    insensitive; first-name spelling variants tolerated only when the last
+    name matches exactly ('Carter Clark' ↔ 'Carver Clark').
+    """
+    chapter_name = _normalize_name(chapter_opponent)
+    record_name = _normalize_name(record.opponent_name)
+    if not chapter_name or not record_name:
+        return False
+    if chapter_name == record_name:
+        return True
+
+    # Spelling-variant tolerance: exact last name + same first initial
+    chapter_parts, record_parts = chapter_name.split(), record_name.split()
+    return (chapter_parts[-1] == record_parts[-1]
+            and chapter_parts[0][0] == record_parts[0][0])
+
+
+def _normalize_name(name: str) -> str:
+    """Lowercase, punctuation stripped, whitespace collapsed."""
+    cleaned = re.sub(r"[^\w\s]", "", name.lower())
+    return " ".join(cleaned.split())
 
 
 def _pair_group(
@@ -436,13 +518,16 @@ def _tiebreak_score(game: pd.Series, record: UscfGameRecord) -> int:
     return score
 
 
-def _within_event_window(date_dt, record: UscfGameRecord) -> bool:
+def _within_event_window(date_dt, record: UscfGameRecord, grace=None) -> bool:
     """True when the Game's (authoritative) date falls inside the record's
-    Rated Event date range."""
+    Rated Event date range, optionally widened by *grace* on both sides."""
     if pd.isna(date_dt) or record.event_start is None or record.event_end is None:
         return False
     played = date_dt.date()
-    return record.event_start <= played <= record.event_end
+    start, end = record.event_start, record.event_end
+    if grace is not None:
+        start, end = start - grace, end + grace
+    return start <= played <= end
 
 
 def _opponent_id(game: pd.Series) -> str:
@@ -464,16 +549,24 @@ _ENRICHMENT_DEFAULTS = {
     "UscfRatingSystem": "",
     "UscfOpponentName": "",
     "UscfOpponentId": "",
+    "Forfeit": False,
 }
+
+# "At most one move" (CONTEXT.md / issue #29): the threshold below which an
+# unmatched Game is a Forfeit rather than a game USCF hasn't rated yet.
+_FORFEIT_MAX_MOVES = 1
 
 
 def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
     """
-    Return a copy of *df* with USCF enrichment columns (issue #28).
+    Return a copy of *df* with USCF enrichment columns (issues #28 / #29).
 
     Match & enrich (PRD #24): the Game stays the central entity; its USCF Game
     Record's facts ride along as columns.  Unmatched Games get the defaults —
     enrichment never filters, hides, or restructures Games (ADR 0003).
+
+    Forfeit detection (issue #29): an unmatched Game with at most one move is
+    a Forfeit — the opponent never showed, so USCF correctly never rated it.
     """
     enriched = df.copy()
     if enriched.empty:
@@ -500,6 +593,9 @@ def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
             for column, value in facts.items():
                 enriched.loc[index, column] = value
 
+    enriched["Forfeit"] = (
+        ~enriched["UscfMatched"] & (enriched["FullMoves"] <= _FORFEIT_MAX_MOVES)
+    )
     return enriched
 
 

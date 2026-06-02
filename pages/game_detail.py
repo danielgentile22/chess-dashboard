@@ -100,11 +100,16 @@ def _uscf_facts_card(game: pd.Series) -> html.Div | None:
 
     system_code = str(game.get("UscfRatingSystem") or "")
     opponent_id = str(game.get("UscfOpponentId") or "")
+    # How the match was made (issue #29): name matches deserve an eyeball
+    matched_by = {"id": "opponent ID", "name": "opponent name"}.get(
+        str(game.get("UscfMatchedBy") or ""), ""
+    )
     rows = [
         _meta_row("Rated Event", game.get("UscfEventName")),
         _meta_row("Section", game.get("UscfSection")),
         _meta_row("Rating system",
                   USCF_RATING_SYSTEM_LABELS.get(system_code, system_code)),
+        _meta_row("Matched by", matched_by),
     ]
 
     return content_card(
@@ -122,6 +127,23 @@ def _uscf_facts_card(game: pd.Series) -> html.Div | None:
             ]),
         ]),
     )
+
+
+def _forfeit_tag(game: pd.Series) -> html.Div | None:
+    """
+    The visible Forfeit tag (issue #29): this Chapter exists, but no game was
+    played — the opponent never showed, so USCF never rated it.
+    """
+    if not game.get("Forfeit"):
+        return None
+    return html.Div(className="forfeit-tag", children=[
+        html.Span("Forfeit", className="forfeit-tag-label"),
+        html.Span(
+            " — opponent no-show; USCF never rated this game. It counts toward "
+            "the event score but not toward win rate, streaks, or opening stats.",
+            className="forfeit-tag-hint",
+        ),
+    ])
 
 
 def _lessons_card(game: pd.Series) -> html.Div:
@@ -185,6 +207,9 @@ def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
             page_header(f"vs {opponent}", subtitle),
             html.Div(outcome, className=f"outcome-badge {outcome.lower()}"),
         ]),
+
+        # No game was actually played (issue #29) — say so prominently
+        _forfeit_tag(game),
 
         html.Div(className="game-detail-grid", children=[
             # The Chapter's interactive board — annotations and variations
