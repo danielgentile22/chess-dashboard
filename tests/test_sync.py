@@ -3,7 +3,7 @@ tests/test_sync.py
 ==================
 Tests for the Sync orchestrator (sync.py).
 
-The Lichess client is stubbed at the module boundary — no network.
+The Lichess and USCF clients are stubbed at the module boundary — no network.
 """
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ import pytest
 
 import sync
 from lichess_client import LichessUnreachableError
+from uscf_client import UscfUnreachableError
 
 
 def stub_studies(**study_pgns):
@@ -27,6 +28,19 @@ def stub_studies(**study_pgns):
         return value
 
     return mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch)
+
+
+def stub_uscf(profile):
+    """
+    Patch the USCF client inside sync: *profile* is the raw profile JSON to
+    return, or an Exception to raise.
+    """
+    def fake_fetch(member_id, **kwargs):
+        if isinstance(profile, Exception):
+            raise profile
+        return profile
+
+    return mock.patch.object(sync, "fetch_member_profile", side_effect=fake_fetch)
 
 
 class TestSyncSingleStudy:
@@ -156,6 +170,33 @@ class TestCache:
 
         # Sync still succeeded; the cache write failure was only logged
         assert len(result.df) == 7
+
+
+class TestSyncUscf:
+    """The USCF half of a Sync (issue #25, ADR 0003)."""
+
+    def test_successful_sync_returns_the_profile(self, uscf_profile_json):
+        with stub_uscf(uscf_profile_json):
+            result = sync.sync_uscf("12345678")
+
+        assert result.available
+        assert result.profile.name == "Daniel Gentile"
+        assert result.profile.rating("R").rating == 1545
+        # The UI can report when USCF data was last fetched
+        assert result.synced_at is not None
+        assert result.failure == ""
+
+    def test_uscf_failure_never_raises(self):
+        """ADR 0003: a Sync that reaches Lichess but not USCF is a successful Sync.
+        The USCF half degrades to 'unavailable' — it never throws."""
+        with stub_uscf(UscfUnreachableError("Could not reach USCF: connection refused")):
+            result = sync.sync_uscf("12345678")
+
+        assert not result.available
+        assert result.profile is None
+        assert result.synced_at is None
+        # The reason is recorded so the UI can say why USCF panels are empty
+        assert "Could not reach USCF" in result.failure
 
 
 class TestDetectNewGames:

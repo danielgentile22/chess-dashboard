@@ -3,17 +3,30 @@ pages/overview.py
 =================
 The Overview page — the "how am I doing?" snapshot.
 
-KPI bar, last-20 streak badges, W/D/L donut, termination breakdown, and the
-milestone timeline.  Everything responds to the global filter drawer.
+KPI bar, USCF profile card, last-20 streak badges, W/D/L donut, termination
+breakdown, and the milestone timeline.  Everything responds to the global
+filter drawer; the USCF card follows Syncs instead (official data has no
+filters).
 """
 from __future__ import annotations
+
+from datetime import date
 
 import dash
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Output, callback, html
+from dash import Input, Output, callback, html
 
-from components import chart_card, content_card, kpi_card, page_header, weakness_callout
+import data
+from components import (
+    chart_card,
+    content_card,
+    kpi_card,
+    page_header,
+    uscf_profile_card,
+    uscf_unavailable_card,
+    weakness_callout,
+)
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import (
     compute_milestones,
@@ -24,6 +37,7 @@ from pgn_stats_core import (
     win_draw_loss_counts,
 )
 from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
+from uscf_core import membership_alert
 
 dash.register_page(
     __name__, path="/", name="Overview", title="Overview — Chess Stats", order=0,
@@ -51,6 +65,9 @@ def layout(**kwargs) -> html.Div:
             kpi_card("Unique Opponents",   "kpi-opps"),
             kpi_card("Favourite Opening",  "kpi-fav-opn"),
         ]),
+
+        # The USCF profile card (issue #25) — official identity, follows Syncs
+        html.Div(id="uscf-profile-card"),
 
         # The most severe recurring weakness, if any (issue #18)
         html.Div(id="top-weakness"),
@@ -111,6 +128,25 @@ def update_kpis(colors, outcomes, terminations, start, end, events, moves, _sync
         str(k["longest_win_streak"]),
         str(k["unique_opponents"]),
         fav_short,
+    )
+
+
+@callback(Output("uscf-profile-card", "children"), Input("sync-store", "data"))
+def update_uscf_card(_sync):
+    """
+    The USCF profile card (issue #25).
+
+    Follows Syncs (not filters — official data is never filtered).  Degrades
+    to an unavailable notice when USCF can't be reached (ADR 0003), and to
+    nothing at all when no USCF member ID is configured.
+    """
+    if not data.uscf_enabled():
+        return None
+    profile = data.get_uscf_profile()
+    if profile is None:
+        return uscf_unavailable_card(data.uscf_failure())
+    return uscf_profile_card(
+        profile, alert=membership_alert(profile, today=date.today())
     )
 
 
