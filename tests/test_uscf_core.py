@@ -1257,3 +1257,90 @@ class TestReconcileAgainstRealData:
         assert "1440" in mismatches[0].lichess_says
         assert "1470" in mismatches[0].uscf_says
         assert mismatches[0].opponent == "John Baker"
+
+
+# ---------------------------------------------------------------------------
+# Edge cases found by the Phase B self-review
+# ---------------------------------------------------------------------------
+
+class TestMatchingEdgeCases:
+    def test_games_without_chapter_urls_are_invisible_to_matching(self):
+        """A Game with no ChapterURL has no identity (ADR 0001): it can never
+        be matched, and it is not reported as an unmatched leftover either —
+        there is nothing to link a Reconciliation entry to."""
+        no_url_chapter = (
+            '[Event "Test"]\n[Date "2026.05.01"]\n'
+            '[White "Test Player"]\n[Black "John Baker"]\n[Result "1-0"]\n'
+            '[WhiteFideId "99999999"]\n[BlackFideId "20000056"]\n'
+            "\n1. e4 e5 2. Nf3 1-0\n"
+        )
+        df = games_df(no_url_chapter)
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000056", player_color="White",
+                      player_outcome="Win"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+        assert result.unmatched_chapter_urls == ()        # no identity → not listed
+        assert len(result.unmatched_records) == 1          # the record IS listed
+
+    def test_record_without_a_color_never_flags_a_conflict(self):
+        """A USCF record missing player.color (API quirk) is not a color
+        disagreement — '' is absence of data, not a color."""
+        df = games_df(chapter(opponent_id="20000056", color="White", result="1-0"))
+        raw = uscf_game(opponent_id="20000056", player_outcome="Win")
+        raw["player"].pop("color")
+
+        records = uscf_core.build_game_records([raw])
+        enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, records))
+
+        assert bool(enriched.iloc[0]["UscfMatched"]) is True
+        assert bool(enriched.iloc[0]["UscfColorConflict"]) is False
+
+
+class TestReconcileEdgeCases:
+    def test_identical_uscf_only_records_get_distinct_entry_ids(self):
+        """Two unmatched records against the same opponent in the same event
+        with the same color and result (a double round-robin) must get
+        distinct entry_ids — dismissing one never dismisses the other, and
+        the page never renders duplicate component ids."""
+
+        same = dict(opponent_id="22222222", opponent_first="Round", opponent_last="Robin",
+                    player_color="White", player_outcome="Win",
+                    event="DOUBLE RR", event_id="777", start="2026-05-01",
+                    end="2026-05-29")
+        records = uscf_core.build_game_records([uscf_game(**same), uscf_game(**same)])
+        empty_df = games_df(chapter(opponent_id="11111111", color="White",
+                                    result="1-0"))
+
+        result = uscf_core.match_games(empty_df, records)
+        enriched = uscf_core.enrich_games(empty_df, result)
+        entries = uscf_core.reconcile(enriched, result, [])
+
+        uscf_only_ids = [e.entry_id for e in entries if e.kind == "uscf_only"]
+        assert len(uscf_only_ids) == 2
+        assert len(set(uscf_only_ids)) == 2, "entry_ids must be unique"
+
+    def test_rating_mismatch_found_even_when_supplement_is_not_dated_the_first(self):
+        """The Official series is keyed by month, not by exact date — a
+        supplement dated mid-month still covers its month."""
+        df = games_df(chapter(opponent_id="20000056", color="White",
+                              result="1-0", date="2026.05.01",
+                              player_rating="1440"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000056", player_color="White",
+                      player_outcome="Win", event="ACC MAY 2026",
+                      start="2026-05-01", end="2026-05-29"),
+        ])
+        official = uscf_core.build_official_series([
+            {"ratingSupplementDate": "2026-05-15",   # not the 1st
+             "ratings": [{"source": "R", "rating": 1470}]},
+        ])
+        result = uscf_core.match_games(df, records)
+
+        entries = uscf_core.reconcile(uscf_core.enrich_games(df, result), result, official)
+
+        mismatches = [e for e in entries if e.kind == "rating_mismatch"]
+        assert len(mismatches) == 1

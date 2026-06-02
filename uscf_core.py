@@ -332,9 +332,19 @@ class MatchResult:
     silently dropped — Reconciliation (issue #30) is built from them.
     """
 
-    matches: tuple[GameMatch, ...]
-    unmatched_chapter_urls: tuple[str, ...]    # Games with no USCF Game Record
-    unmatched_records: tuple[UscfGameRecord, ...]  # USCF Game Records with no Game
+    matches: tuple[GameMatch, ...] = ()
+    unmatched_chapter_urls: tuple[str, ...] = ()   # Games with no USCF Game Record
+    unmatched_records: tuple[UscfGameRecord, ...] = ()  # records with no Game
+
+    def record_for(self, chapter_url: str) -> UscfGameRecord | None:
+        """The USCF Game Record matched to *chapter_url*, or None."""
+        return self._records_by_url().get(chapter_url)
+
+    def _records_by_url(self) -> dict[str, UscfGameRecord]:
+        # Built lazily once per MatchResult (frozen dataclass → cached via __dict__
+        # is unavailable; a tuple this small makes rebuilding negligible, but the
+        # single accessor keeps every consumer reading one index, not four).
+        return {m.chapter_url: m.record for m in self.matches}
 
 
 # Rating systems whose games are played over the board.  Online systems
@@ -371,14 +381,15 @@ def match_games(df: pd.DataFrame, records: list[UscfGameRecord]) -> MatchResult:
     used: set[int] = set()
 
     matches.extend(_id_pass(df, records, used))
-    matches.extend(_name_pass(df, records, used,
-                              matched_urls={m.chapter_url for m in matches}))
-
     matched_urls = {m.chapter_url for m in matches}
+    name_matches = _name_pass(df, records, used, matched_urls=matched_urls)
+    matches.extend(name_matches)
+    matched_urls |= {m.chapter_url for m in name_matches}
+
     return MatchResult(
         matches=tuple(matches),
         unmatched_chapter_urls=tuple(
-            url for url in df["ChapterURL"] if url not in matched_urls
+            url for url in df["ChapterURL"] if url and url not in matched_urls
         ) if not df.empty else (),
         unmatched_records=tuple(r for i, r in enumerate(records) if i not in used),
     )
@@ -390,6 +401,8 @@ def _id_pass(
     """The primary matching pass: opponent USCF member ID + result."""
     games_by_key: dict[tuple[str, str], list[pd.Series]] = {}
     for _, game in df.iterrows():
+        if not game["ChapterURL"]:
+            continue  # no identity (ADR 0001) → nothing to attach a match to
         opponent_id = _opponent_id(game)
         if opponent_id:  # absence of data is not a key ('' never matches '')
             games_by_key.setdefault((opponent_id, game["Outcome"]), []).append(game)
@@ -426,7 +439,7 @@ def _name_pass(
 
     for _, game in df.iterrows():
         url = game["ChapterURL"]
-        if url in matched_urls or _opponent_id(game):
+        if not url or url in matched_urls or _opponent_id(game):
             continue
         for i, record in enumerate(records):
             if i in used or record.rating_system not in _OTB_RATING_SYSTEMS:
@@ -606,9 +619,12 @@ def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
     enriched["Forfeit"] = (
         ~enriched["UscfMatched"] & (enriched["FullMoves"] <= _FORFEIT_MAX_MOVES)
     )
-    # Disagreement between sources is flagged, never silently resolved (#30)
+    # Disagreement between sources is flagged, never silently resolved (#30).
+    # A record missing its color ('') is absence of data, not a disagreement.
     enriched["UscfColorConflict"] = (
-        enriched["UscfMatched"] & (enriched["UscfColor"] != enriched["Color"])
+        enriched["UscfMatched"]
+        & (enriched["UscfColor"] != "")
+        & (enriched["UscfColor"] != enriched["Color"])
     )
     return enriched
 
@@ -668,10 +684,11 @@ def _conflict_entries(
     """Matched Games whose facts disagree: the chapter says one color, USCF
     says the other.  The dashboard displays the Lichess version; the conflict
     is flagged here with both versions."""
-    records_by_url = {m.chapter_url: m.record for m in result.matches}
     entries = []
     for _, game in df[df["UscfColorConflict"]].iterrows():
-        record = records_by_url[game["ChapterURL"]]
+        record = result.record_for(game["ChapterURL"])
+        if record is None:
+            continue  # a conflict flag without a match cannot happen, but never crash
         entries.append(ReconciliationEntry(
             entry_id=f"conflict:{game['ChapterURL']}",
             kind="conflict",
@@ -689,13 +706,22 @@ def _uscf_only_entries(result: MatchResult) -> list[ReconciliationEntry]:
     """USCF Game Records with no Game: either a Chapter Daniel forgot to add,
     or one he skips on purpose (online-rated games) — his call via Dismiss."""
     entries = []
+    seen_ids: dict[str, int] = {}
     for record in result.unmatched_records:
         event_dates = (f"{record.event_start} – {record.event_end}"
                        if record.event_start and record.event_end else "")
         system = record.rating_system
+        entry_id = (f"uscf-only:{record.event_id}:{record.opponent_id}:"
+                    f"{record.player_color}:{record.player_outcome}")
+        # Identical records (a double round-robin: same opponent, same event,
+        # same color, same result twice) still get distinct ids — dismissing
+        # one must never dismiss the other.
+        occurrence = seen_ids.get(entry_id, 0)
+        seen_ids[entry_id] = occurrence + 1
+        if occurrence:
+            entry_id += f":{occurrence + 1}"
         entries.append(ReconciliationEntry(
-            entry_id=(f"uscf-only:{record.event_id}:{record.opponent_id}:"
-                      f"{record.player_color}"),
+            entry_id=entry_id,
             kind="uscf_only",
             opponent=record.opponent_name,
             date=event_dates,
@@ -734,12 +760,11 @@ def _missing_fide_id_entries(
 ) -> list[ReconciliationEntry]:
     """Chapters without a typed opponent FideId — listed (even when the name
     fallback matched them) so Daniel can add the ID and make the match robust."""
-    records_by_url = {m.chapter_url: m.record for m in result.matches}
     entries = []
     for _, game in df.iterrows():
-        if _opponent_id(game):
+        if not game["ChapterURL"] or _opponent_id(game):
             continue
-        record = records_by_url.get(game["ChapterURL"])
+        record = result.record_for(game["ChapterURL"])
         uscf_says = (
             f"USCF knows this opponent as {record.opponent_name} "
             f"(#{record.opponent_id}) — type that ID into the chapter"
@@ -765,7 +790,12 @@ def _rating_mismatch_entries(
     """Typed header ratings that disagree with the Official Rating for the
     matched Rated Event's start month.  Typed values are validation-only —
     they power no stats — so this is bookkeeping, not a data problem."""
-    official_by_month = {point.month: point.rating for point in official_series}
+    # Keyed by (year, month): a supplement covers its month whatever day it
+    # carries, and the lookup must never miss on a date quirk.
+    official_by_month = {
+        (point.month.year, point.month.month): point.rating
+        for point in official_series
+    }
     games_by_url = {game["ChapterURL"]: game for _, game in df.iterrows()}
 
     entries = []
@@ -774,7 +804,7 @@ def _rating_mismatch_entries(
         start = match.record.event_start
         if game is None or start is None or pd.isna(game["PlayerRatingNum"]):
             continue
-        official = official_by_month.get(date(start.year, start.month, 1))
+        official = official_by_month.get((start.year, start.month))
         typed = int(game["PlayerRatingNum"])
         if official is None or typed == official:
             continue
