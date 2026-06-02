@@ -189,6 +189,75 @@ class TestUscfInStore:
 
 
 # ---------------------------------------------------------------------------
+# USCF cache fallback (issue #26)
+# ---------------------------------------------------------------------------
+
+class TestUscfCacheFallback:
+    def _initialize(self, pgn, uscf, cache_path):
+        with stub_studies(study1=pgn), stub_uscf(uscf):
+            return data.initialize(
+                ["study1"], player_name="Test Player",
+                uscf_member_id="32487228", uscf_cache_path=cache_path,
+            )
+
+    def test_restart_with_uscf_down_serves_cached_data(
+        self, sample_pgn_text, uscf_profile_json, tmp_path
+    ):
+        """USCF panels survive an app restart while USCF is unreachable."""
+        cache = str(tmp_path / "uscf_cache.json")
+        # A successful run caches the USCF data...
+        self._initialize(sample_pgn_text, uscf_profile_json, cache)
+        data.reset()
+
+        # ...then the app restarts while USCF is down
+        boom = UscfUnreachableError("Could not reach USCF")
+        self._initialize(sample_pgn_text, boom, cache)
+
+        profile = data.get_uscf_profile()
+        assert profile is not None                       # cached data is served
+        assert profile.rating("R").rating == 1545
+        assert data.uscf_from_cache() is True            # clearly marked stale
+        assert "Could not reach USCF" in data.uscf_failure()
+        assert data.uscf_synced_at() is not None         # "unavailable since X"
+
+    def test_failed_refresh_degrades_to_cached_data(
+        self, sample_pgn_text, uscf_profile_json, tmp_path
+    ):
+        """A Sync with USCF unreachable: Lichess fresh, USCF cached + warned."""
+        cache = str(tmp_path / "uscf_cache.json")
+        self._initialize(sample_pgn_text, uscf_profile_json, cache)
+        assert data.uscf_from_cache() is False
+
+        boom = UscfUnreachableError("USCF is down")
+        with stub_studies(study1=sample_pgn_text), stub_uscf(boom):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert data.get_uscf_profile() is not None       # still showing USCF data
+        assert data.uscf_from_cache() is True            # from the cache
+        assert "down" in data.uscf_failure()
+
+    def test_uscf_recovery_clears_the_stale_state(
+        self, sample_pgn_text, uscf_profile_json, tmp_path
+    ):
+        """Once USCF is back, the next Sync replaces cached data with live data."""
+        cache = str(tmp_path / "uscf_cache.json")
+        self._initialize(sample_pgn_text, uscf_profile_json, cache)
+        data.reset()
+        self._initialize(
+            sample_pgn_text, UscfUnreachableError("down"), cache
+        )
+        assert data.uscf_from_cache() is True
+
+        with stub_studies(study1=sample_pgn_text), stub_uscf(uscf_profile_json):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert data.uscf_from_cache() is False
+        assert data.uscf_failure() == ""
+
+
+# ---------------------------------------------------------------------------
 # refresh() — the Sync button path (issue #6)
 # ---------------------------------------------------------------------------
 

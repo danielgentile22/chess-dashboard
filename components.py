@@ -299,13 +299,20 @@ def _uscf_rank_block(label: str, rank: int | None) -> html.Div:
     ])
 
 
-def uscf_profile_card(profile: UscfProfile, alert: str | None = None) -> html.Div:
+def uscf_profile_card(
+    profile: UscfProfile,
+    alert: str | None = None,
+    stale: str | None = None,
+) -> html.Div:
     """
     The USCF profile card: the member's official identity at a glance.
 
     Regular / Quick / Online-Regular ratings (provisional ones labeled with
     game counts), national and state rank, rating floor, and membership —
     with a visible warning when the membership has lapsed or expires soon.
+
+    *stale* is the degradation notice (ADR 0003): shown when the numbers come
+    from the cache because USCF is currently unreachable.
     """
     membership = profile.membership_status
     if profile.membership_expires:
@@ -324,6 +331,7 @@ def uscf_profile_card(profile: UscfProfile, alert: str | None = None) -> html.Di
             ]),
             html.Div(membership, className="uscf-membership"),
         ]),
+        html.Div(stale, className="uscf-stale") if stale else None,
         html.Div(alert, className="uscf-alert") if alert else None,
         html.Div(className="uscf-stats", children=[
             _uscf_rating_block("Regular", profile.rating("R")),
