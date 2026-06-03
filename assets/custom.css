@@ -146,9 +146,13 @@ code {
   color: var(--cs-accent);
 }
 .streak-cold .streak-count { color: var(--cs-primary); }
+/* A blazing streak (≥5 wins) draws the eye with a few pulses on load, then
+   settles to a steady glow — nothing keeps moving once the page has settled
+   (issue #51).  The static drop-shadow below is the resting state; the finite
+   `blaze` runs three times and stops. */
 .streak-fire.blazing {
-  animation: blaze 1.6s ease-in-out infinite;
-  filter: drop-shadow(0 0 6px var(--cs-fire-glow));
+  animation: blaze 1.6s ease-in-out 3;
+  filter: drop-shadow(0 0 8px var(--cs-fire-glow));
 }
 @keyframes blaze {
   0%, 100% { filter: drop-shadow(0 0 5px var(--cs-fire-glow-2)); transform: scale(1); }
@@ -268,7 +272,12 @@ code {
   color: var(--cs-muted) !important;
   font-size: 13px;
   font-weight: 500;
-  padding: 10px 14px 12px !important;
+  /* ≥44px touch target (issue #51): the 18px line-height plus 13+13 padding
+     clears 44px so taps land on the first try at the chess club. */
+  padding: 13px 14px !important;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   position: relative;
   text-decoration: none;
   white-space: nowrap;
@@ -279,7 +288,12 @@ code {
   color: var(--cs-text) !important;
   font-weight: 600;
 }
-.app-nav-link.active::after {
+/* The active-tab underline slides between tabs (issue #51).  Every link owns
+   an underline that sits scaled to nothing; the active one scales up.  As the
+   active class moves from one tab to the next, the old underline collapses and
+   the new one grows along the same baseline — a continuous slide, all CSS, and
+   it settles the instant navigation does (no looping animation). */
+.app-nav-link::after {
   content: "";
   position: absolute;
   bottom: -1px;
@@ -289,7 +303,11 @@ code {
   background: var(--cs-accent);
   border-radius: 2px 2px 0 0;
   box-shadow: 0 0 12px var(--cs-accent-glow);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform .3s cubic-bezier(.32, .72, 0, 1);
 }
+.app-nav-link.active::after { transform: scaleX(1); }
 
 /* ── Page scaffolding ────────────────────────────────────── */
 .app-main {
@@ -306,6 +324,32 @@ code {
   from { opacity: 0; transform: translateY(7px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* ── Page-load card stagger (issue #51) ───────────────────────
+   Each card fades up as the page opens, with a small per-card delay so the
+   page assembles top-to-bottom rather than all at once — "considered without
+   being showy" (PRD).  Pure CSS, runs once (`both` holds the end state), and
+   settles the moment the last card lands: nothing keeps moving afterwards.
+   The delay is applied with nth-of-type so it never compounds across grids. */
+.page .kpi-card,
+.page .chart-card { animation: cardIn .35s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+/* ~40ms stagger, capped at six steps so a long page never feels slow. */
+.page .kpi-card:nth-of-type(1),
+.page .chart-card:nth-of-type(1) { animation-delay: 0ms; }
+.page .kpi-card:nth-of-type(2),
+.page .chart-card:nth-of-type(2) { animation-delay: 40ms; }
+.page .kpi-card:nth-of-type(3),
+.page .chart-card:nth-of-type(3) { animation-delay: 80ms; }
+.page .kpi-card:nth-of-type(4),
+.page .chart-card:nth-of-type(4) { animation-delay: 120ms; }
+.page .kpi-card:nth-of-type(5),
+.page .chart-card:nth-of-type(5) { animation-delay: 160ms; }
+.page .kpi-card:nth-of-type(n+6),
+.page .chart-card:nth-of-type(n+6) { animation-delay: 200ms; }
 .page-header { margin-bottom: 20px; }
 .page-title {
   /* iOS large-title: system font, bold, large, tight tracking. */
@@ -404,9 +448,12 @@ code {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-  transition: background .15s;
+  transition: background .15s, transform .2s;
 }
-.chart-card:hover { background: var(--cs-card2); }
+/* Cards lift slightly on hover (issue #51) so what's interactive is
+   discoverable.  −1px, 200ms — interruptible and settled the moment the
+   pointer leaves. */
+.chart-card:hover { background: var(--cs-card2); transform: translateY(-1px); }
 .chart-title {
   font-size: 10px;
   font-weight: 600;
@@ -457,6 +504,14 @@ code {
   border-left: 1px solid var(--cs-border);
   width: 380px !important;
   color: var(--cs-text);
+  /* The drawer slides on Apple's sheet curve (issue #51) — it eases in fast
+     and settles soft, the way an iOS sheet does, instead of Bootstrap's linear
+     default.  Overrides the framework's own transition timing. */
+  transition: transform .42s cubic-bezier(.32, .72, 0, 1) !important;
+}
+/* The backdrop fades on the same curve so the scrim and the sheet move as one. */
+.offcanvas-backdrop {
+  transition: opacity .42s cubic-bezier(.32, .72, 0, 1) !important;
 }
 .filter-drawer .offcanvas-header {
   border-bottom: 1px solid var(--cs-border);
@@ -510,7 +565,12 @@ code {
   border: 1px solid var(--cs-border);
   border-radius: 20px;
   color: var(--cs-muted);
-  padding: 4px 13px;
+  /* ≥44px touch target (issue #51): the chip stays visually compact (the
+     border-radius pill) but its hit area clears 44px so taps land. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 4px 15px;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -1365,6 +1425,24 @@ a.game-card:hover { background: var(--cs-hover); }
 @media (max-width: 1100px) { .g3 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 760px)  { .g3, .g2 { grid-template-columns: 1fr; } }
 
+/* A vertical stack of cards (Reconciliation's per-kind sections, and any page
+   that lists cards outside a grid) carries the same 14px rhythm a grid row
+   would — so standalone cards never touch each other (spacing polish, #51). */
+.card-stack { display: flex; flex-direction: column; gap: 14px; }
+/* The flex gap already spaces the stack; drop the children's own vertical
+   margins so spacing never doubles up. */
+.card-stack > .reconcile-count,
+.card-stack > .reconcile-persistence-note { margin: 0; }
+
+/* A standalone card placed directly on a page (Openings' Repertoire card above
+   its .g2 grid, a single Reconciliation/Lessons list) carries the grid rhythm
+   below it, so it never butts against the next block (spacing polish, #51).
+   Grids own their own margin, so only loose cards need this. */
+.page > .chart-card,
+.page > .content-card { margin-bottom: 14px; }
+.page > .chart-card:last-child,
+.page > .content-card:last-child { margin-bottom: 0; }
+
 /* ── Utility ──────────────────────────────────────────────── */
 .mb-12 { margin-bottom: 12px; }
 .text-muted { color: var(--cs-muted) !important; }
@@ -1651,6 +1729,9 @@ a.game-card:hover { background: var(--cs-hover); }
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 12px;
+  /* ≥44px touch target (issue #51): tree rows are tappable branches, so each
+     row clears 44px even when its content is a single short move label. */
+  min-height: 44px;
   padding: 7px 10px;
   border-radius: 6px;
   cursor: pointer;
@@ -2341,6 +2422,19 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .kpi-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .kpi-value { font-size: 19px; }
 
+  /* Charts sized for a phone (issue #51): the desktop pages set tall inline
+     heights (a 620px opponents chart, 420px ECO/performance charts) that read
+     as giant half-empty plots at 390px.  Cap a real chart card's height on a
+     phone so a plot fills its frame instead of stranding empty space.  Content
+     cards keep sizing to their content (a long table must not be clipped), so
+     the cap targets chart cards that are NOT content cards. */
+  .chart-card:not(.content-card) { height: 56vh !important; max-height: 420px; }
+  .chart-body { min-height: 0; }
+  /* The Plotly graph already renders at width:100% / responsive:true, so it
+     reflows to the phone's width; pin it so nothing forces a sideways scroll. */
+  .chart-card .js-plotly-plot,
+  .chart-card .plot-container { max-width: 100% !important; }
+
   /* Games page: the table gives way to the tappable card list (issue #48). */
   .games-table-view { display: none; }
   .games-cards-view { display: block; }
@@ -2417,4 +2511,28 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .rep-node-children { margin-left: 6px; padding-left: 8px; }
   .rep-node-flag { font-size: 10px; padding: 2px 7px; }
   .rep-node-row { gap: 6px 8px; padding: 7px 6px; }
+}
+
+/* ── Reduced motion (issue #51) ───────────────────────────────
+   When the system asks for reduced motion, no animation plays anywhere and no
+   transition moves — accessibility over polish.  Everything still works: the
+   filter drawer still opens, the nav underline still marks the active tab, the
+   cards still appear — they just arrive instantly instead of sliding.
+
+   The blanket near-zero override catches every current and future animation /
+   transition (page fade-up, card stagger, nav-underline slide, hover lift,
+   drawer sheet curve, celebration, review cards, the streak-fire pulse) so
+   nothing moves, and nothing keeps moving after the page settles. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* The blazing fire's drop-shadow pulse and scale are decorative motion — drop
+     them entirely so the streak count sits still. */
+  .streak-fire.blazing { animation: none !important; }
 }
