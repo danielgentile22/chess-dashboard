@@ -128,20 +128,42 @@ def chart_card(title: str, graph_id: str, *, height: int = 380) -> html.Div:
 
 
 def content_card(title: str, *children, height: int | None = None) -> html.Div:
-    """A dark card holding arbitrary content (tables, stat grids, …)."""
+    """A dark card holding arbitrary content (tables, stat grids, …).
+
+    Carries the ``content-card`` marker in addition to the shared ``chart-card``
+    surface styling.  Unlike a chart card (which holds a fixed-height Plotly
+    graph), a content card sizes to its content — so "Last 20 games" and
+    "Average game length" lose the dead zones they used to inherit from being
+    stretched to a chart neighbour's height in a grid row.
+    """
     style = {"height": f"{height}px"} if height else {}
     return html.Div(
-        className="chart-card",
+        className="chart-card content-card",
         style=style,
         children=[html.Div(title, className="chart-title"), *children],
     )
 
 
-def kpi_card(label: str, value_id: str, value_class: str = "") -> html.Div:
-    """One KPI tile: uppercase label over a big mono numeral."""
+def kpi_card(
+    label: str, value_id: str, value_class: str = "", *, text: bool = False
+) -> html.Div:
+    """One KPI tile: an uppercase label over a big value with tabular figures.
+
+    KPI values are neutral white by default — colour survives only where it is
+    semantic (the win % is green, the loss % is red), passed via *value_class*.
+
+    *text* opts the value into the text variant: a long string value (the
+    favourite opening, "Italian Game: Scotch Gambit") wraps to two lines and
+    shrinks slightly instead of truncating to "Italian Game: Scot…".
+    """
+    classes = ["kpi-value"]
+    if value_class:
+        classes.append(value_class)
+    if text:
+        classes.append("kpi-value-text")
     return html.Div(className="kpi-card", children=[
         html.Div(label, className="kpi-label"),
-        html.Div("—", id=value_id, className=f"kpi-value {value_class}"),
+        html.Div("—", id=value_id, className=" ".join(classes)),
     ])
 
 
