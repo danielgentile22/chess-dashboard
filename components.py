@@ -205,6 +205,20 @@ def uscf_status_label(matched_by: str, forfeit: bool, conflict: bool = False) ->
     return {"id": "✓", "name": "≈"}.get(matched_by, "")
 
 
+def rating_basis_note() -> html.Div:
+    """
+    The opponent-rating limitation (issue #32), shown wherever rating-diff
+    appears: your rating follows the Official/Live lens, but opponent ratings
+    stay the typed values from your chapters until crosstable enrichment
+    (Phase D) supplies their live ratings.
+    """
+    return html.Div(
+        "Your rating follows the Official/Live lens; opponent ratings are the "
+        "typed values from your chapters until crosstable enrichment lands.",
+        className="rating-basis-note",
+    )
+
+
 def game_detail_path(chapter_url: str) -> str:
     """The in-app detail route for a Game ('' if it has no ChapterURL)."""
     if not chapter_url:
@@ -327,8 +341,8 @@ def _uscf_regular_block(entry: UscfRating | None, live_rating: float | None) -> 
     The Regular rating tile — the backbone rating (PRD #24).
 
     With a Live Rating available it shows both values side by side
-    ("Official 1545 · Live 1570.7" — issue #27); without one it is a plain
-    rating tile.
+    ("Official 1545 · Live 1571" — issue #27); without one it is a plain
+    rating tile.  Ratings display as whole numbers — no decimal places.
     """
     if live_rating is None:
         return _uscf_rating_block("Regular", entry)
@@ -344,7 +358,7 @@ def _uscf_regular_block(entry: UscfRating | None, live_rating: float | None) -> 
             ]),
             html.Div([
                 html.Div("Live", className="uscf-dual-label"),
-                html.Div(f"{live_rating:.1f}",
+                html.Div(f"{live_rating:.0f}",
                          className="uscf-stat-value uscf-live-value"),
             ]),
         ]),

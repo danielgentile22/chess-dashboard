@@ -25,6 +25,7 @@ from dash import Input, Output, State, callback, callback_context, dcc, html, no
 
 import data
 from pgn_stats_core import apply_filters
+from uscf_core import OFFICIAL_LENS, apply_rating_lens
 
 # ---------------------------------------------------------------------------
 # Shared filter dependencies
@@ -33,6 +34,9 @@ from pgn_stats_core import apply_filters
 # Every chart callback in every page listens to exactly these inputs.
 # sync-store is bumped after every successful Sync so charts re-render on
 # fresh data without any page knowing how Syncing works.
+# rating-lens is the Official/Live lens (issue #31) — not a filter (it never
+# hides Games), but it rides the same dependency list so every page follows
+# it the way it follows the global filters.
 FILTER_INPUTS = [
     Input("color-filter",       "value"),
     Input("outcome-filter",     "value"),
@@ -42,17 +46,25 @@ FILTER_INPUTS = [
     Input("event-filter",       "value"),
     Input("moves-filter",       "value"),
     Input("sync-store",         "data"),
+    Input("rating-lens",        "value"),
 ]
 
 
 def get_filtered(colors, outcomes, terminations, start_date, end_date,
-                 events, moves) -> pd.DataFrame:
-    """Apply all filter inputs to the data store and return the filtered Games."""
+                 events, moves, lens=None) -> pd.DataFrame:
+    """
+    Apply all filter inputs and the rating lens to the data store and return
+    the Games every chart should show.
+
+    The lens (issue #32) is applied here, in exactly one place, so every page
+    and every stat function follows it without knowing it exists: the returned
+    Games carry the lens basis in their player-rating columns.
+    """
     df = data.get_df()
     min_mv = max_mv = None
     if moves and len(moves) == 2:
         min_mv, max_mv = moves
-    return apply_filters(
+    filtered = apply_filters(
         df,
         colors=colors or [],
         outcomes=outcomes or [],
@@ -62,6 +74,13 @@ def get_filtered(colors, outcomes, terminations, start_date, end_date,
         events=events or [],
         min_moves=min_mv,
         max_moves=max_mv,
+    )
+    return apply_rating_lens(
+        filtered,
+        lens or OFFICIAL_LENS,
+        data.get_official_series(),
+        data.get_live_series(),
+        data.get_uscf_matches(),
     )
 
 
@@ -263,10 +282,10 @@ def apply_preset(n_all, n20, n_year, n_white, n_black, n_wins):
     FILTER_INPUTS,
 )
 def update_filter_summary(colors, outcomes, terminations, start, end,
-                          events, moves, _sync=None):
+                          events, moves, _sync=None, lens=None):
     """The 'Showing X of Y games' line + the active-filter count badge."""
     df = data.get_df()
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     total, filtered = len(df), len(df_f)
 
     summary = (f"Showing all {total} games" if filtered == total

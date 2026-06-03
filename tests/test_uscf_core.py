@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import itertools
 from datetime import date
+from types import SimpleNamespace
+
+import pytest
 
 import uscf_core
 from pgn_stats_core import load_games_from_text
@@ -351,6 +354,120 @@ class TestBuildLiveSeries:
         assert dmv[0].section_name == "Under 1800"               # rated first
         assert dmv[1].section_name == "Extra games - Classical"  # rated second
         assert dmv[1].pre == dmv[0].post                          # and they chain
+
+
+# ---------------------------------------------------------------------------
+# The dual-line rating trend (issue #31)
+#
+# rating_trend_series feeds the Trends chart: both rating series, trimmed to
+# the global date-range filter.  The chart is the one place the lens hides
+# nothing — both lines always render.
+# ---------------------------------------------------------------------------
+
+class TestRatingTrendSeries:
+    def test_without_a_date_range_both_series_pass_through_whole(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """The tracer bullet: no date filter → the chart gets Daniel's whole
+        career, both series untouched."""
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        trend_official, trend_live = uscf_core.rating_trend_series(official, live)
+
+        assert trend_official == official    # all 10 supplement points
+        assert trend_live == live            # all 23 chain points
+
+    def test_the_date_filter_trims_both_series(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """The chart respects the global date filter (issue #31).  Dash sends
+        the range as ISO strings; Q1 2026 keeps 3 supplements and 7 Sections."""
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        trend_official, trend_live = uscf_core.rating_trend_series(
+            official, live, date_start="2026-01-01", date_end="2026-03-31",
+        )
+
+        assert [p.month for p in trend_official] == [
+            date(2026, 1, 1), date(2026, 2, 1), date(2026, 3, 1),
+        ]
+        # Newcomb, ACC Jan, ACC Feb, Army-Navy, ACC March, both DMV Sections
+        assert len(trend_live) == 7
+        assert all(date(2026, 1, 1) <= p.end_date <= date(2026, 3, 31)
+                   for p in trend_live)
+
+    def test_a_one_sided_range_trims_only_that_side(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """The date picker often has only one side set — the other side stays open."""
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        trend_official, trend_live = uscf_core.rating_trend_series(
+            official, live, date_start="2026-04-01",
+        )
+
+        # April, May, June supplements; ACC Aprril + ACC MAY Sections
+        assert [p.rating for p in trend_official] == [1440, 1470, 1545]
+        assert [p.event_name for p in trend_live] == ["ACC Aprril 2026", "ACC MAY 2026"]
+
+    def test_datetime_range_bounds_work_like_dates(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """A datetime is-a date in Python, so it must be accepted — and not
+        blow up when compared against the series' plain dates."""
+        from datetime import datetime
+
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        trend_official, _trend_live = uscf_core.rating_trend_series(
+            official, live, date_start=datetime(2026, 4, 1, 10, 30),
+        )
+
+        assert [p.rating for p in trend_official] == [1440, 1470, 1545]
+
+    def test_the_divergence_the_chart_exists_to_show(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        """The payoff (PRD #24): the June supplement (1545) reflects ACC April;
+        ACC May missed its cutoff — so Official and Live visibly diverge today."""
+        trend_official, trend_live = uscf_core.rating_trend_series(
+            uscf_core.build_official_series(uscf_supplements_json["items"]),
+            uscf_core.build_live_series(uscf_sections_json["items"]),
+        )
+
+        assert trend_official[-1].rating == 1545
+        assert trend_live[-1].post == 1570.72
+
+
+# ---------------------------------------------------------------------------
+# The supplement ↔ chain property (issue #31)
+#
+# The two series describe one career, so they must agree: every published
+# supplement value is (within USCF's own rounding) the post-rating of the
+# last Section rated before that supplement's cutoff.  A free cross-series
+# regression guard — it breaks loudly if either builder picks wrong fields
+# or orders the chain wrong.
+# ---------------------------------------------------------------------------
+
+class TestSupplementChainProperty:
+    def test_every_supplement_matches_an_earlier_live_post_rating(
+        self, uscf_supplements_json, uscf_sections_json
+    ):
+        official = uscf_core.build_official_series(uscf_supplements_json["items"])
+        live = uscf_core.build_live_series(uscf_sections_json["items"])
+
+        for supplement in official:
+            earlier_posts = [p.post for p in live if p.end_date < supplement.month]
+            assert earlier_posts, f"no Sections rated before {supplement.month}"
+            closest = min(abs(supplement.rating - post) for post in earlier_posts)
+            assert closest <= 1.0, (
+                f"the {supplement.month} supplement ({supplement.rating}) matches "
+                f"no earlier Section's post-rating (closest is {closest} away)"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1344,3 +1461,234 @@ class TestReconcileEdgeCases:
 
         mismatches = [e for e in entries if e.kind == "rating_mismatch"]
         assert len(mismatches) == 1
+
+
+
+# ---------------------------------------------------------------------------
+# The rating lens (issue #32)
+#
+# apply_rating_lens rewrites a Games DataFrame's player-rating columns per
+# the chosen basis, so that every rating-derived stat downstream follows the
+# lens without knowing it exists.
+#
+#   Official — the supplement in effect at the matched Rated Event's start
+#              date (Daniel's long-standing convention); unmatched Games use
+#              the supplement at their own date; Games before the first
+#              supplement have no value — never invented.
+#   Live     — the matched Section's pre-rating, decimals preserved;
+#              unmatched Games fall back to the Official basis.
+#
+# Opponent ratings stay typed under both lenses (the documented Phase D
+# limitation); the lens never hides Games.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def real_career(study_snapshot_df, uscf_games_json, uscf_supplements_json,
+                uscf_sections_json):
+    """Daniel's real matched career: the Games df, both series, the matches."""
+    records = uscf_core.build_game_records(uscf_games_json["items"])
+    return SimpleNamespace(
+        df=study_snapshot_df,
+        official=uscf_core.build_official_series(uscf_supplements_json["items"]),
+        live=uscf_core.build_live_series(uscf_sections_json["items"]),
+        matches=uscf_core.match_games(study_snapshot_df, records),
+    )
+
+
+def _lensed(career, lens: str):
+    return uscf_core.apply_rating_lens(
+        career.df, lens, career.official, career.live, career.matches,
+    )
+
+
+def _games_of_event(career, lensed, event_name: str):
+    """The lensed rows of every Game matched to *event_name*."""
+    urls = {m.chapter_url for m in career.matches.matches
+            if m.record.event_name == event_name}
+    return lensed[lensed["ChapterURL"].isin(urls)]
+
+
+class TestOfficialLens:
+    def test_matched_games_use_the_supplement_at_event_start(self, real_career):
+        """The tracer bullet, on the real career: every ACC MAY 2026 Game gets
+        the May supplement (1470) — including the chapter Daniel typo'd 1440."""
+        lensed = _lensed(real_career, "official")
+
+        may_games = _games_of_event(real_career, lensed, "ACC MAY 2026")
+        assert len(may_games) == 4
+        assert (may_games["PlayerRatingNum"] == 1470).all()
+        assert (may_games["PlayerRating"] == "1470").all()
+
+    def test_the_event_start_date_convention(self, real_career):
+        """Issue #32's own example: the Thanksgiving Open started Oct 31, so
+        even its games played Nov 1–2 use the October supplement (1005) —
+        never November's (1133)."""
+        lensed = _lensed(real_career, "official")
+
+        thanksgiving = _games_of_event(
+            real_career, lensed, "2nd Annual Thankgiving Day Open",
+        )
+        assert len(thanksgiving) == 4
+        assert (thanksgiving["PlayerRatingNum"] == 1005).all()
+
+    def test_the_pre_supplement_era_has_no_official_value(self, real_career):
+        """Daniel played 14 games before the first supplement (2025-09-01).
+        Under the Official lens they have no rating — '—', never a fake number."""
+        lensed = _lensed(real_career, "official")
+
+        pre_supplement_urls = {
+            m.chapter_url for m in real_career.matches.matches
+            if m.record.event_start < date(2025, 9, 1)
+        }
+        era = lensed[lensed["ChapterURL"].isin(pre_supplement_urls)]
+        assert len(era) == 14
+        assert era["PlayerRatingNum"].isna().all()
+        assert (era["PlayerRating"] == "").all()
+
+    def test_unmatched_games_use_the_supplement_at_their_own_date(self, real_career):
+        """A Game with no USCF Game Record still gets an Official value — from
+        the supplement in effect on the day it was played.  The real career's
+        one unmatched Game (the Forfeit, 2025-11-02) → November's 1133."""
+        lensed = _lensed(real_career, "official")
+
+        forfeit_url = real_career.matches.unmatched_chapter_urls[0]
+        forfeit = lensed[lensed["ChapterURL"] == forfeit_url].iloc[0]
+        assert forfeit["PlayerRatingNum"] == 1133
+        assert forfeit["PlayerRating"] == "1133"
+
+    def test_a_gap_month_uses_the_latest_supplement_before_it(self):
+        """USCF skips a month → the previous supplement stays in effect (this
+        is how USCF ratings actually work).  Real data has no gaps, so this is
+        pinned synthetically: no October supplement → an October event uses
+        September's value."""
+        df = games_df(chapter(opponent_id="16441708", color="White",
+                              result="1-0", date="2025.10.15"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_color="White",
+                      player_outcome="Win", event="OCTOBER OPEN",
+                      event_id="202510150001",
+                      start="2025-10-15", end="2025-10-15"),
+        ])
+        official = uscf_core.build_official_series([
+            {"ratingSupplementDate": "2025-09-01",
+             "ratings": [{"source": "R", "rating": 1038}]},
+            {"ratingSupplementDate": "2025-11-01",
+             "ratings": [{"source": "R", "rating": 1133}]},
+        ])
+
+        lensed = uscf_core.apply_rating_lens(
+            df, "official", official, [], uscf_core.match_games(df, records),
+        )
+
+        assert lensed.iloc[0]["PlayerRatingNum"] == 1038  # September, still in effect
+
+
+class TestLiveLens:
+    def test_matched_games_use_their_sections_pre_rating(self, real_career):
+        """The Live basis: the matched Section's pre-rating, rounded to a
+        whole number for display (Daniel's preference — the chain itself keeps
+        its decimals).  He entered ACC MAY 2026 at 1544.47 → his Games show
+        1544, whatever he typed."""
+        lensed = _lensed(real_career, "live")
+
+        may_games = _games_of_event(real_career, lensed, "ACC MAY 2026")
+        assert len(may_games) == 4
+        assert (may_games["PlayerRatingNum"] == 1544).all()
+        assert (may_games["PlayerRating"] == "1544").all()
+
+    def test_two_sections_of_one_event_get_their_own_pre_ratings(self, real_career):
+        """The join is per Section, not per Rated Event: DMV's Under 1800
+        Games entered at 1465.03 → 1465, its Extra-games Game at 1468.80 → 1469."""
+        lensed = _lensed(real_career, "live")
+
+        by_section: dict = {}
+        for m in real_career.matches.matches:
+            if "DMV Chess Second Annual" in m.record.event_name:
+                row = lensed[lensed["ChapterURL"] == m.chapter_url].iloc[0]
+                by_section.setdefault(m.record.section_name, set()).add(
+                    row["PlayerRatingNum"]
+                )
+        assert by_section["Under 1800"] == {1465}
+        assert by_section["Extra games - Classical"] == {1469}
+
+    def test_the_first_ever_event_has_no_live_value(self, real_career):
+        """Daniel was unrated entering his first Rated Event (pre is None) —
+        under the Live lens those Games honestly have no rating."""
+        lensed = _lensed(real_career, "live")
+
+        first_event = _games_of_event(real_career, lensed, "ACC JUNE 2025")
+        assert len(first_event) == 2
+        assert first_event["PlayerRatingNum"].isna().all()
+        assert (first_event["PlayerRating"] == "").all()
+
+    def test_unmatched_games_fall_back_to_the_official_basis(self, real_career):
+        """A Game with no USCF Game Record has no Section to take a pre-rating
+        from → it falls back to the Official basis (issue #32).  The Forfeit
+        (2025-11-02) → November's supplement, 1133."""
+        lensed = _lensed(real_career, "live")
+
+        forfeit_url = real_career.matches.unmatched_chapter_urls[0]
+        forfeit = lensed[lensed["ChapterURL"] == forfeit_url].iloc[0]
+        assert forfeit["PlayerRatingNum"] == 1133
+        assert forfeit["PlayerRating"] == "1133"
+
+
+class TestRatingLensInvariants:
+    def test_rating_diff_follows_the_lens_but_opponents_stay_typed(self, real_career):
+        """Rating-diff (and so upsets and strength buckets) is recomputed from
+        the lensed player rating, while opponent ratings keep Daniel's typed
+        values until Phase D's crosstable enrichment — the documented
+        limitation in issue #32."""
+        typed = real_career.df
+        lensed = _lensed(real_career, "live")
+
+        may_urls = {m.chapter_url for m in real_career.matches.matches
+                    if m.record.event_name == "ACC MAY 2026"}
+        for url in may_urls:
+            before = typed[typed["ChapterURL"] == url].iloc[0]
+            after = lensed[lensed["ChapterURL"] == url].iloc[0]
+            # opponent side untouched...
+            assert after["OpponentRatingNum"] == before["OpponentRatingNum"]
+            assert after["OpponentRating"] == before["OpponentRating"]
+            # ...the diff rebuilt against the (whole-number) Live basis
+            assert after["RatingDiff"] == before["OpponentRatingNum"] - 1544
+
+    def test_the_lens_never_hides_games(self, real_career):
+        """A lens, not a filter (PRD #24): every Game stays, in the same order,
+        with everything except the player-rating columns untouched."""
+        lensed = _lensed(real_career, "official")
+
+        assert list(lensed["ChapterURL"]) == list(real_career.df["ChapterURL"])
+        for column in ("Opponent", "Outcome", "Date", "Event", "FullMoves"):
+            assert list(lensed[column]) == list(real_career.df[column])
+
+    def test_the_input_df_is_never_mutated(self, real_career):
+        """The store's df is shared by every callback — the lens works on a copy."""
+        typed_before = list(real_career.df["PlayerRatingNum"])
+
+        _lensed(real_career, "official")
+        _lensed(real_career, "live")
+
+        assert list(real_career.df["PlayerRatingNum"]) == typed_before
+
+    def test_with_no_uscf_data_typed_values_stay(self, real_career):
+        """ADR 0003: USCF never reached → both series empty → the lens changes
+        nothing.  Typed values are all there is; wiping them would turn an
+        outage into data loss."""
+        lensed = uscf_core.apply_rating_lens(
+            real_career.df, "official", [], [], uscf_core.MatchResult(),
+        )
+
+        assert (list(lensed["PlayerRatingNum"])
+                == list(real_career.df["PlayerRatingNum"]))
+        assert list(lensed["PlayerRating"]) == list(real_career.df["PlayerRating"])
+
+    def test_an_empty_df_passes_through(self):
+        """No Games at all → no crash, nothing invented."""
+        import pandas as pd
+
+        result = uscf_core.apply_rating_lens(
+            pd.DataFrame(), "official", [], [], uscf_core.MatchResult(),
+        )
+        assert result.empty
+
