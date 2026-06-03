@@ -990,6 +990,17 @@ class TestEventsSeriesGroups:
         from pages.events import update_event_bar
         assert update_event_bar(*_filter_args()).data
 
+    def test_the_event_bar_is_horizontal(self, ui_app, ui_data):
+        """E6: tournament names read down the y-axis (horizontal bars), so the
+        labels never rotate into an overlapping diagonal."""
+        from pages.events import update_event_bar
+        fig = update_event_bar(*_filter_args())
+        # Every W/D/L trace is a horizontal bar with Series names on y.
+        assert fig.data
+        for trace in fig.data:
+            assert trace.orientation == "h"
+            assert _axis_vals(trace.y)        # Series names live on the y-axis
+
     def test_the_real_club_ladder_renders_with_its_monthly_events(
         self, ui_app, real_career_ui
     ):
@@ -2329,3 +2340,73 @@ class TestQuietTableTreatment:
         """The Games table sits inside a .quiet-table wrapper."""
         from pages.games import layout
         assert "quiet-table" in str(layout())
+
+
+class TestEventsGoldDiscipline:
+    """E6: the Events crosstables apply the gold-discipline decision — the
+    'Finished Nth of M' placement stays gold (it's an achievement); the sticky
+    headers, Series/crosstable expand markers, and the own-row highlight are
+    chrome and go neutral.  Every surviving gold tint derives from the token."""
+
+    @staticmethod
+    def _rule(css: str, selector: str) -> str:
+        """The declaration block for a single CSS *selector* (first match)."""
+        start = css.index(selector)
+        open_brace = css.index("{", start)
+        close_brace = css.index("}", open_brace)
+        return css[open_brace + 1:close_brace]
+
+    @property
+    def css(self) -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parent.parent
+                / "assets" / "custom.css").read_text()
+
+    def test_placement_line_stays_gold(self):
+        """The achievement keeps the gold token."""
+        assert "var(--cs-accent)" in self._rule(self.css, ".crosstable-placement")
+
+    def test_crosstable_header_is_neutral_not_gold(self):
+        """The sticky header is chrome — neutral, no gold, no uppercase shout."""
+        block = self._rule(self.css, ".crosstable-header {")
+        assert "var(--cs-accent)" not in block
+        assert "var(--cs-muted)" in block
+        assert "text-transform: uppercase" not in block
+
+    def test_own_row_highlight_is_a_subtle_neutral_fill(self):
+        """Daniel's row stays distinguishable, but with a neutral fill — the
+        gold wash is gone."""
+        block = self._rule(self.css, ".crosstable-row-me {")
+        assert "var(--cs-accent-wash)" not in block
+        assert "background" in block          # still visually distinguishable
+
+    def test_own_row_ordinal_is_neutral(self):
+        block = self._rule(self.css, ".crosstable-row-me .crosstable-ordinal")
+        assert "var(--cs-accent)" not in block
+
+    def test_series_expand_marker_is_neutral(self):
+        block = self._rule(self.css, ".series-summary::marker")
+        assert "var(--cs-accent)" not in block
+
+    def test_crosstable_expand_marker_is_neutral(self):
+        block = self._rule(self.css, ".crosstable-summary::marker")
+        assert "var(--cs-accent)" not in block
+
+    def test_placement_is_the_only_gold_in_the_crosstable_region(self):
+        """Across the whole crosstable block, the placement line is the only
+        use of the gold token — chrome carries none."""
+        css = self.css
+        region = css[css.index(".crosstable {"):css.index(".unplayed-events-list")]
+        gold_lines = [ln for ln in region.splitlines() if "--cs-accent" in ln]
+        assert gold_lines, "expected the placement line to keep gold"
+        assert all("placement" in ln for ln in gold_lines), gold_lines
+
+    def test_forfeit_tag_and_round_chips_re_tint_from_tokens(self, ui_app, real_career_ui):
+        """Forfeit tags and round-result chips carry no hardcoded colors — they
+        re-tint from the theme tokens."""
+        css = self.css
+        forfeit = self._rule(css, ".event-game-forfeit-tag {")
+        assert "var(--cs-warning)" in forfeit
+        for chip in (".crosstable-round.w", ".crosstable-round.l",
+                     ".crosstable-round.d"):
+            assert "var(--cs-" in self._rule(css, chip)
