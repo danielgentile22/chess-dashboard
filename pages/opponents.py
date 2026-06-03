@@ -41,7 +41,13 @@ from pgn_stats_core import (
     outcome_vs_rating_data,
     scouting_report,
 )
-from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
+from styles import (
+    COLORS,
+    WDL_COLOR_MAP,
+    apply_dark_theme,
+    apply_wdl_hover,
+    empty_fig,
+)
 
 dash.register_page(
     __name__, path="/opponents", name="Opponents", title="Opponents — Chess Stats", order=3,
@@ -317,6 +323,8 @@ def update_opponents(colors, outcomes, terminations, start, end, events, moves, 
         long, x="Count", y="Opponent", color="Outcome",
         orientation="h", barmode="stack", color_discrete_map=WDL_COLOR_MAP,
     )
+    # The y-axis already names the opponent; the hover shows only "<b>N</b> wins".
+    apply_wdl_hover(fig, value_axis="x")
     apply_dark_theme(fig, xaxis_title="Games", legend_title="Outcome")
     # Most-played opponent on top; let names claim whatever width they need.
     fig.update_yaxes(autorange="reversed", automargin=True)
@@ -338,6 +346,8 @@ def update_bucket(colors, outcomes, terminations, start, end, events, moves, _sy
         long, x="Bucket", y="Count", color="Outcome",
         barmode="stack", color_discrete_map=WDL_COLOR_MAP,
     )
+    # The x-axis already names the rating bucket; hover shows only "<b>N</b> wins".
+    apply_wdl_hover(fig, value_axis="y")
     apply_dark_theme(fig, xaxis_title="Opponent rating difference",
                      yaxis_title="Games", legend_title="Outcome")
     return fig
@@ -352,12 +362,16 @@ def update_scatter(colors, outcomes, terminations, start, end, events, moves, _s
     fig = px.scatter(
         sc, x="OpponentRatingNum", y="OutcomeNum",
         color="Outcome", color_discrete_map=WDL_COLOR_MAP,
-        hover_data={"Opponent": True, "Date": True,
-                    "OutcomeNum": False, "OpponentRatingNum": True},
+        custom_data=["Opponent", "Date"],
         labels={"OpponentRatingNum": "Opponent Rating", "OutcomeNum": "Outcome"},
     )
+    # The y position + color already say the outcome; the hover leads with the
+    # opponent's rating (bold) then quietly names them and the date.
     fig.update_traces(
         marker=dict(size=8, opacity=0.8, line=dict(width=1, color=COLORS["border"])),
+        hovertemplate=(
+            "<b>%{x:.0f}</b> · vs %{customdata[0]} · %{customdata[1]}<extra></extra>"
+        ),
     )
     fig.update_yaxes(
         tickvals=[0, 0.5, 1],

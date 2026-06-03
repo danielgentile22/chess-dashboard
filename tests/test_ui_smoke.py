@@ -646,12 +646,16 @@ class TestTrendsCallbacks:
         assert labels == ["2024"]
 
     def test_activity_calendar_cells_carry_the_days_games(self, ui_app, ui_data):
-        """Hovering a cell shows that day's Games (opponent, result)."""
+        """Hovering a played day leads with the game count, then that day's
+        Games (opponent, result).  Days without Games carry no hover at all."""
         from pages.trends import update_activity_calendar
         hover = self._calendar_hover_text(update_activity_calendar(*_filter_args()))
         assert "Win vs Opponent A" in hover
         assert "Draw vs Opponent B" in hover
-        assert "No games" in hover  # days without Games are visibly empty
+        # The pretty hover leads with a bold count: "<b>1</b> game · …".
+        assert "</b> game" in hover
+        # Empty days are blank (no "No games" popup) — they carry no hover text.
+        assert "No games" not in hover
 
     def test_activity_calendar_responds_to_filters(self, ui_app, ui_data):
         """Filtering to wins-only removes the loss day's games from the calendar."""
