@@ -197,13 +197,13 @@ code {
   outline: none;
 }
 .header-btn-sync:hover, .header-btn-sync:focus-visible {
-  border-color: var(--cs-accent);
-  color: var(--cs-accent);
+  border-color: var(--cs-primary);  /* interactive chrome — systemBlue, not gold */
+  color: var(--cs-primary);
 }
 .header-btn i { font-size: 13px; line-height: 1; }
 .filter-count-badge {
-  background: var(--cs-accent);
-  color: var(--cs-bg);
+  background: var(--cs-primary);  /* interactive chrome — systemBlue, not gold */
+  color: var(--cs-text);
   font-family: var(--cs-font-body);
   font-variant-numeric: tabular-nums;
   font-size: 10px;
@@ -392,7 +392,7 @@ code {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 2px;
-  background: var(--cs-accent);
+  background: var(--cs-muted);  /* hover affordance is chrome — neutral, not gold */
   opacity: 0;
   transition: opacity .2s;
 }
@@ -1540,7 +1540,7 @@ a.game-card:hover { background: var(--cs-hover); }
   gap: 10px;
   align-items: flex-start;
   background: var(--cs-card2);
-  border-left: 3px solid var(--cs-accent);
+  border-left: 3px solid var(--cs-border);  /* a quote rail is chrome — hairline, not gold */
   border-radius: 0 6px 6px 0;
   padding: 12px 14px;
   margin-bottom: 10px;
@@ -1560,7 +1560,7 @@ a.game-card:hover { background: var(--cs-hover); }
   border: 1px solid var(--cs-border);
   border-radius: 4px;
   padding: 1px 5px;
-  color: var(--cs-accent);
+  color: var(--cs-muted);
   font-family: var(--cs-font-data);
   font-size: 11px;
 }
@@ -1584,9 +1584,9 @@ a.game-card:hover { background: var(--cs-hover); }
   justify-content: center;
   gap: 8px;
   background: var(--cs-card);
-  border: 1px solid var(--cs-accent);
+  border: 1px solid var(--cs-primary);  /* interactive chrome — systemBlue, not gold */
   border-radius: 8px;
-  color: var(--cs-accent) !important;
+  color: var(--cs-primary) !important;
   font-size: 14px;
   font-weight: 600;
   padding: 12px;
@@ -1594,7 +1594,7 @@ a.game-card:hover { background: var(--cs-hover); }
   transition: background .15s, transform .15s;
 }
 .lichess-open-btn:hover {
-  background: var(--cs-accent-wash);
+  background: var(--cs-primary-wash);
   transform: translateY(-1px);
 }
 
@@ -1646,7 +1646,7 @@ a.game-card:hover { background: var(--cs-hover); }
 .lesson-count {
   font-family: var(--cs-font-data);
   font-size: 12px;
-  color: var(--cs-accent);
+  color: var(--cs-muted);
   margin-bottom: 12px;
 }
 .lesson-card {
@@ -1709,11 +1709,11 @@ a.game-card:hover { background: var(--cs-hover); }
 }
 .repertoire-color-toggle label:hover { border-color: var(--cs-border); color: var(--cs-text); }
 .repertoire-color-toggle label:has(input:checked) {
-  border-color: var(--cs-accent);
+  border-color: var(--cs-primary);  /* a form control is interactive chrome — systemBlue */
   color: var(--cs-text);
-  background: var(--cs-accent-wash);
+  background: var(--cs-primary-wash);
 }
-.repertoire-color-toggle input { accent-color: var(--cs-accent); }
+.repertoire-color-toggle input { accent-color: var(--cs-primary); }
 
 .rep-baseline {
   font-size: 12.5px;
