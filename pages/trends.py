@@ -42,7 +42,17 @@ from pgn_stats_core import (
     upset_tracker,
     win_rate_over_time,
 )
-from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
+from styles import (
+    COLORS,
+    DRAW_FILL,
+    FONT_SYSTEM,
+    LOSS_FILL,
+    WDL_COLOR_MAP,
+    WIN_AREA,
+    WIN_FILL,
+    apply_dark_theme,
+    empty_fig,
+)
 from uscf_core import LIVE_LENS, OFFICIAL_LENS, rating_trend_series
 
 dash.register_page(
@@ -133,13 +143,14 @@ def layout(**kwargs) -> html.Div:
 
 # Cell color scale: losing days → red, winning days → green, mixed → gray.
 # Intensity follows |Net| (a 2-win day is brighter than a 1-win day).
+# Every stop derives from a theme token so the calendar can't drift.
 _NET_CLAMP = 3
 _CAL_COLORSCALE = [
-    [0.0,  "#7d2a26"],            # net −3 or worse: deep red
-    [0.33, "rgba(248,81,73,.55)"],  # losing day
-    [0.5,  "#3a4048"],            # even day (games, no net result)
-    [0.67, "rgba(63,185,80,.55)"],  # winning day
-    [1.0,  "#39d353"],            # net +3 or better: bright green
+    [0.0,  COLORS["loss"]],     # net −3 or worse: full loss-red
+    [0.33, LOSS_FILL],          # losing day (reduced opacity)
+    [0.5,  DRAW_FILL],          # even day (games, no net result) — neutral gray
+    [0.67, WIN_FILL],           # winning day (reduced opacity)
+    [1.0,  COLORS["win"]],      # net +3 or better: full win-green
 ]
 _WEEKDAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"]
 
@@ -368,7 +379,7 @@ def update_winrate(colors, outcomes, terminations, start, end, events, moves, _s
         line=dict(color=COLORS["win"], width=2),
         marker=dict(size=5, color=COLORS["win"]),
         fill="tozeroy",
-        fillcolor="rgba(63,185,80,.10)",
+        fillcolor=WIN_AREA,
         hovertemplate="%{x|%Y-%m-%d}<br>Win rate: %{y:.1f}%<br>(%{customdata[0]}W / %{customdata[1]} games)<extra></extra>",
         customdata=wr[["CumWins", "CumGames"]].values,
         name="Win rate",
@@ -607,7 +618,8 @@ def update_length_stats(colors, outcomes, terminations, start, end, events, move
                 html.Span(label, style={"color": COLORS["muted"], "fontSize": "13px"}),
                 html.Span(f"{val} moves", className=cls,
                           style={"fontWeight": "700", "fontSize": "16px",
-                                 "fontFamily": "'IBM Plex Mono', monospace"}),
+                                 "fontFamily": FONT_SYSTEM,
+                                 "fontVariantNumeric": "tabular-nums"}),
             ],
         )
 

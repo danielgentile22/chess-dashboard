@@ -13,31 +13,35 @@ from __future__ import annotations
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, callback, dcc, html, no_update
 
-from styles import COLORS
+from styles import COLORS, FONT_SYSTEM, LOSS_WASH, WIN_WASH
 from uscf_core import UscfProfile, UscfRating
 
 # ---------------------------------------------------------------------------
 # Dark DataTable styles (shared by every table in the app)
+#
+# Fonts and colors derive from the theme tokens in styles.py.  Numbers use
+# the system font with tabular numerals (set in CSS) instead of a mono face;
+# headers stay neutral (chrome never carries gold).
 # ---------------------------------------------------------------------------
 
 TABLE_CELL = dict(
-    fontFamily="'IBM Plex Mono', ui-monospace, monospace", fontSize="12px",
+    fontFamily=FONT_SYSTEM, fontSize="12px",
     padding="7px 10px", whiteSpace="normal", height="auto",
     minWidth="70px", maxWidth="200px",
     backgroundColor=COLORS["card"], color=COLORS["text"],
     border=f"1px solid {COLORS['border']}",
 )
 TABLE_HEADER = dict(
-    fontFamily="Inter, system-ui, sans-serif",
+    fontFamily=FONT_SYSTEM,
     fontWeight="700", backgroundColor=COLORS["card2"],
-    color=COLORS["accent"], border=f"1px solid {COLORS['border']}",
+    color=COLORS["muted"], border=f"1px solid {COLORS['border']}",
     fontSize="10px", letterSpacing="0.07em", textTransform="uppercase",
 )
 TABLE_DATA_COND = [
     {"if": {"filter_query": '{Outcome} = "Win"'},
-     "backgroundColor": "rgba(63,185,80,.13)", "color": COLORS["text"]},
+     "backgroundColor": WIN_WASH, "color": COLORS["text"]},
     {"if": {"filter_query": '{Outcome} = "Loss"'},
-     "backgroundColor": "rgba(248,81,73,.11)", "color": COLORS["text"]},
+     "backgroundColor": LOSS_WASH, "color": COLORS["text"]},
     {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]},
 ]
 
@@ -47,7 +51,7 @@ TABLE_DATA_COND = [
 # ---------------------------------------------------------------------------
 
 def page_header(title: str, subtitle: str = "") -> html.Div:
-    """The serif title block at the top of every page."""
+    """The iOS large-title block at the top of every page."""
     children: list = [html.H1(title, className="page-title")]
     if subtitle:
         children.append(html.Div(subtitle, className="page-subtitle"))
