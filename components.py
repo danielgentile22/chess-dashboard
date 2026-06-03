@@ -47,6 +47,57 @@ TABLE_DATA_COND = [
 
 
 # ---------------------------------------------------------------------------
+# Quiet-table treatment (shared — Games now, Events crosstables and Trends
+# upset tables later).  Apple-calm tables: neutral headers (no gold, no
+# uppercase shouting), left-aligned text, hairline row separators instead of a
+# full grid, and the white "focused row" glitch fixed.
+#
+# A DataTable opts in by (1) wrapping it in a `.quiet-table` element and (2)
+# passing these style dicts so the inline Dash styles agree with the CSS.  The
+# visual rules that Dash can't express inline — the per-row hairline, the
+# focused/selected-cell fix — live in the `.quiet-table` block in
+# assets/custom.css so every page that adopts the class gets them for free.
+# ---------------------------------------------------------------------------
+
+QUIET_TABLE_CELL = dict(
+    fontFamily=FONT_SYSTEM, fontSize="12px",
+    padding="9px 12px", whiteSpace="normal", height="auto",
+    minWidth="70px", maxWidth="240px",
+    backgroundColor=COLORS["card"], color=COLORS["text"],
+    textAlign="left", border="none",
+)
+QUIET_TABLE_HEADER = dict(
+    fontFamily=FONT_SYSTEM,
+    fontWeight="600", backgroundColor=COLORS["card"],
+    color=COLORS["muted"], border="none",
+    fontSize="12px", letterSpacing="normal", textTransform="none",
+    textAlign="left",
+)
+# Outcome washes only — no zebra striping.  Hairline separators (in the CSS)
+# carry the row rhythm so alternating fills aren't needed.
+QUIET_TABLE_DATA_COND = [
+    {"if": {"filter_query": '{Outcome} = "Win"'},
+     "backgroundColor": WIN_WASH, "color": COLORS["text"]},
+    {"if": {"filter_query": '{Outcome} = "Loss"'},
+     "backgroundColor": LOSS_WASH, "color": COLORS["text"]},
+]
+
+
+def quiet_table(table, *, clickable: bool = False, scroll: bool = True) -> html.Div:
+    """Wrap a DataTable in the shared quiet-table treatment.
+
+    The returned ``Div`` carries the ``quiet-table`` class (neutral headers,
+    left-aligned text, hairline row separators, focused-row fix) so any page —
+    Games here, Events crosstables and Trends upset tables later — gets the
+    same Apple-calm table by composing this helper.  ``clickable`` adds the
+    row-pointer / hover treatment used by tables whose rows open a Game.
+    """
+    classes = "quiet-table" + (" clickable-rows" if clickable else "")
+    style = {"flex": "1", "overflow": "auto"} if scroll else {}
+    return html.Div(table, className=classes, style=style)
+
+
+# ---------------------------------------------------------------------------
 # Page scaffolding
 # ---------------------------------------------------------------------------
 

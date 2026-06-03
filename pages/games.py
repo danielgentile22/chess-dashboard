@@ -12,12 +12,13 @@ import dash
 from dash import Output, callback, dash_table, html
 
 from components import (
-    TABLE_CELL,
-    TABLE_DATA_COND,
-    TABLE_HEADER,
+    QUIET_TABLE_CELL,
+    QUIET_TABLE_DATA_COND,
+    QUIET_TABLE_HEADER,
     content_card,
     lichess_link,
     page_header,
+    quiet_table,
     register_game_navigation,
     uscf_status_label,
 )
@@ -27,17 +28,23 @@ dash.register_page(
     __name__, path="/games", name="Games", title="Games — Chess Stats", order=5,
 )
 
-# Columns shown in the games table, in display order.  Round is the numeric
-# RoundNum so the browser's native sort puts round 10 after round 9, not
-# after round 1.
+# Columns shown in the games table, in display order.  The table is built
+# around the player — opponent, opponent rating, my rating, my color, outcome
+# — not the raw PGN: the redundant White/Black name + rating pairs, the raw
+# Result, and the synthetic Index are dropped (the player-centric columns
+# already say who I played and whether I won).  Round is the numeric RoundNum
+# so the browser's native sort puts round 10 after round 9, not after round 1.
 _DISPLAY_COLS = [
-    "Index", "Date", "Event", "RoundNum", "White", "WhiteRating",
-    "Black", "BlackRating", "Result", "Outcome", "Color",
-    "PlayerRating", "OpponentRating", "Termination",
+    "Date", "Event", "RoundNum", "Opponent", "OpponentRating",
+    "Color", "PlayerRating", "Outcome", "Termination",
     "FullMoves", "ECO", "Opening",
 ]
-_COL_LABELS = {"RoundNum": "Round"}
-_NUMERIC_COLS = {"Index", "RoundNum", "FullMoves"}
+_COL_LABELS = {
+    "RoundNum": "Round",
+    "OpponentRating": "Opp Rating",
+    "PlayerRating": "My Rating",
+}
+_NUMERIC_COLS = {"RoundNum", "FullMoves"}
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +71,7 @@ def layout(**kwargs) -> html.Div:
 
         content_card(
             "All games (filtered) — click a row to open the game",
-            html.Div(style={"flex": "1", "overflow": "auto"}, className="clickable-rows", children=[
+            quiet_table(
                 dash_table.DataTable(
                     id="games-table",
                     columns=cols, data=[],
@@ -72,11 +79,12 @@ def layout(**kwargs) -> html.Div:
                     filter_action="native",
                     markdown_options={"link_target": "_blank"},
                     style_table={"overflowX": "auto"},
-                    style_cell=TABLE_CELL,
-                    style_header=TABLE_HEADER,
-                    style_data_conditional=TABLE_DATA_COND,
+                    style_cell=QUIET_TABLE_CELL,
+                    style_header=QUIET_TABLE_HEADER,
+                    style_data_conditional=QUIET_TABLE_DATA_COND,
                 ),
-            ]),
+                clickable=True,
+            ),
         ),
     ])
 
