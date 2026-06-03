@@ -33,7 +33,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
@@ -171,6 +171,9 @@ class UscfCache:
     * **immutable** — USCF data that can never change once written (rated
       crosstables, past supplements).  Stored once, then served from the
       cache forever — ``fetch_immutable`` never re-fetches them.
+    * **aged** — data that changes slowly (opponent current ratings —
+      issue #35).  Served from the cache within a freshness window,
+      re-fetched only after it; never touched by ``replace_current``.
     * **dismissals** — Reconciliation entries Daniel has judged (issue #30).
       User state, not API responses: never touched by ``replace_current``.
     * **seen achievements** — which norms/awards previous Syncs have already
@@ -227,6 +230,38 @@ class UscfCache:
         """The immutable entry for *key* if already stored, else None — never
         fetches.  The degraded path (USCF down) reads crosstables this way."""
         return self._data.get("immutable", {}).get(key)
+
+    # -- aged entries (refreshed only past a freshness window) ---------------
+
+    def fetch_aged(self, key: str, fetcher, *, max_age: timedelta) -> Any:
+        """
+        The aged entry for *key*, re-fetching only when it is older than
+        *max_age* (issue #35: opponent current ratings refresh at most weekly).
+
+        A fetch failure propagates — callers decide whether stale data beats
+        nothing (``get_aged``).
+        """
+        aged = self._data.setdefault("aged", {})
+        entry = aged.get(key)
+        now = datetime.now(timezone.utc)
+        if entry is not None:
+            try:
+                fetched_at = datetime.fromisoformat(entry["fetched_at"])
+                if now - fetched_at <= max_age:
+                    return entry["value"]
+            except (KeyError, TypeError, ValueError):
+                pass  # malformed entry → treat as stale
+
+        value = fetcher()
+        aged[key] = {"value": value, "fetched_at": now.isoformat()}
+        self._write()
+        return value
+
+    def get_aged(self, key: str) -> Any | None:
+        """The aged entry for *key* at any age, or None — never fetches.
+        Stale data beats nothing when USCF is unreachable."""
+        entry = self._data.get("aged", {}).get(key)
+        return entry.get("value") if isinstance(entry, dict) else None
 
     # -- dismissals (user judgements — survive every Sync) -------------------
 
@@ -308,6 +343,9 @@ class UscfSyncResult:
     # Crosstables of played OTB Sections, keyed by (event_id, section name) —
     # standings, placements, and real round numbers (issue #34)
     standings: dict[tuple[str, str], list[StandingEntry]] = field(default_factory=dict)
+    # Opponents' current profiles, keyed by member ID — the "they're 1580 now"
+    # half of the then-vs-now insight (issue #35)
+    opponent_profiles: dict[str, UscfProfile] = field(default_factory=dict)
     # Official achievements: norms and awards, chronological (issue #36)
     achievements: list[UscfAchievement] = field(default_factory=list)
     # When USCF was last successfully reached: the fetch time for live data,
@@ -358,16 +396,60 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         "norms": raw_norms,
         "awards": raw_awards,
     })
+    game_records = build_game_records(raw_games)
     return UscfSyncResult(
         profile=parse_member_profile(raw_profile),
         official_series=build_official_series(raw_supplements),
         live_series=build_live_series(raw_sections),
-        game_records=build_game_records(raw_games),
+        game_records=game_records,
         member_events=build_member_events(raw_events),
         standings=_fetch_standings(cache, raw_sections),
+        opponent_profiles=_fetch_opponent_profiles(cache, game_records),
         achievements=build_achievements(raw_norms, raw_awards),
         synced_at=datetime.now(timezone.utc),
     )
+
+
+# Opponent current ratings refresh at most this often (issue #35) — they only
+# change when the opponent plays, and "roughly current" is all the then-vs-now
+# insight needs.
+_OPPONENT_REFRESH_AGE = timedelta(days=7)
+
+
+def _fetch_opponent_profiles(
+    cache: UscfCache, game_records: list[UscfGameRecord], *, allow_fetch: bool = True
+) -> dict[str, UscfProfile]:
+    """
+    The current profile of every unique opponent (issue #35), politely:
+    one call per opponent, served from the cache for a week before
+    re-fetching, and failures degrade per opponent — stale data (or no data)
+    for one opponent never costs the others or the Sync.
+
+    With *allow_fetch* False (the USCF-down path), only cached profiles are
+    served, at any age — stale beats nothing.
+    """
+    profiles: dict[str, UscfProfile] = {}
+    opponent_ids = sorted({r.opponent_id for r in game_records if r.opponent_id})
+    for opponent_id in opponent_ids:
+        key = f"opponent:{opponent_id}"
+        raw = None
+        if allow_fetch:
+            try:
+                raw = cache.fetch_aged(
+                    key,
+                    lambda oid=opponent_id: fetch_member_profile(oid),
+                    max_age=_OPPONENT_REFRESH_AGE,
+                )
+            except UscfError as exc:
+                logger.warning(
+                    "Could not fetch opponent %s's profile (using cached if any "
+                    "— ADR 0003): %s", opponent_id, exc,
+                )
+        if raw is None:
+            raw = cache.get_aged(key)
+        if raw is not None:
+            profiles[opponent_id] = parse_member_profile(raw)
+    return profiles
 
 
 def _fetch_standings(
@@ -423,15 +505,19 @@ def _uscf_from_cache(cache: UscfCache, failure: str) -> UscfSyncResult:
         return UscfSyncResult(failure=failure)
 
     logger.info("Showing cached USCF data from %s", cache.fetched_at())
+    game_records = build_game_records(cache.get_current("games") or [])
     return UscfSyncResult(
         profile=parse_member_profile(raw_profile),
         official_series=build_official_series(cache.get_current("supplements") or []),
         live_series=build_live_series(cache.get_current("sections") or []),
-        game_records=build_game_records(cache.get_current("games") or []),
+        game_records=game_records,
         member_events=build_member_events(cache.get_current("events") or []),
         # Crosstables are immutable — the cached ones are always still correct
         standings=_fetch_standings(cache, cache.get_current("sections") or [],
                                    allow_fetch=False),
+        # Stale opponent ratings beat none at all
+        opponent_profiles=_fetch_opponent_profiles(cache, game_records,
+                                                   allow_fetch=False),
         achievements=build_achievements(cache.get_current("norms") or [],
                                         cache.get_current("awards") or []),
         synced_at=cache.fetched_at(),

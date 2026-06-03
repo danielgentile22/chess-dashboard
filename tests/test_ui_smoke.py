@@ -1856,15 +1856,18 @@ class TestRatingLensAcrossStats:
 
     def test_the_upset_tracker_follows_the_lens(self, ui_app, real_career_ui):
         """'Upset' means the same thing as the rating basis you're looking at
-        (PRD #24): the two lenses see different giant kills."""
+        (PRD #24): the two lenses see different giant kills.  Phase D changes
+        both world views: Forfeit wins are never upsets (the Feketekuty
+        '+170 kill' is gone), and the Live lens rates opponents by their
+        crosstable pre-ratings where cached (issue #35)."""
         from pages.trends import update_upsets
         official_wins, _, official_losses, _ = update_upsets(
             *_filter_args(lens="official"))
         live_wins, _, live_losses, _ = update_upsets(*_filter_args(lens="live"))
 
-        assert len(official_wins) == 10
+        assert len(official_wins) == 9        # was 10 before the Forfeit rule
         assert len(official_losses) == 4
-        assert len(live_wins) == 14
+        assert len(live_wins) == 12           # was 14: −1 Forfeit, −1 crosstable
         assert len(live_losses) == 2
         # The biggest kill is a different game in each world view; margins
         # are computed from the whole-number basis (1047 − 695 = 352), so
@@ -1873,6 +1876,20 @@ class TestRatingLensAcrossStats:
         assert official_wins[0]["Margin"] == "+303"
         assert live_wins[0]["Opponent"] == "Kyle Eric Vandeventer"
         assert live_wins[0]["Margin"] == "+352"
+        # Kaiyrberli beat Daniel as the crosstable underdog: 1366 vs 1544
+        kaiyrberli = next(loss for loss in live_losses
+                          if loss["Opponent"] == "Kaiser Kaiyrberli")
+        assert kaiyrberli["Margin"] == "−178"
+        assert kaiyrberli["OpponentRating"] == "1366"     # crosstable, whole
+
+    def test_upset_ratings_never_display_decimals(self, ui_app, real_career_ui):
+        """Typed fallback ratings stay whole too — never '1047.0'."""
+        from pages.trends import update_upsets
+        live_wins, _, _, _ = update_upsets(*_filter_args(lens="live"))
+
+        vandeventer = live_wins[0]
+        assert vandeventer["OpponentRating"] == "1047"
+        assert ".0" not in str(vandeventer["OpponentRating"])
 
     def test_opponent_strength_buckets_follow_the_lens(self, ui_app, real_career_ui):
         """The strength-bucket distribution is built on rating-diff, so the
@@ -1900,15 +1917,17 @@ class TestRatingLensAcrossStats:
         assert rating_of(update_games_table(*_filter_args(lens="official"))) == "1470"
         assert rating_of(update_games_table(*_filter_args(lens="live"))) == "1544"
 
-    def test_performance_rating_stays_opponent_based(self, ui_app, real_career_ui):
-        """The documented limitation, visible in numbers: performance rating
-        and average-opponent strength are built from opponent ratings, which
-        stay typed under both lenses until Phase D."""
+    def test_performance_rating_follows_the_lens(self, ui_app, real_career_ui):
+        """Phase D closes the Phase C limitation: performance rating is built
+        from opponent ratings, which now follow the lens too — typed values
+        under Official (the pairing sheet), crosstable pre-ratings under Live
+        (issue #35).  The two world views give different numbers."""
         from pages.overview import update_kpis
         official = update_kpis(*_filter_args(lens="official"))
         live = update_kpis(*_filter_args(lens="live"))
 
-        assert official[6] == live[6] == "1344"   # performance rating
+        assert official[6] == "1344"     # performance vs typed opponent ratings
+        assert live[6] == "1330"         # vs what opponents were really rated
 
     def test_the_pre_supplement_era_shows_no_official_rating(
         self, ui_app, real_career_ui
@@ -1930,21 +1949,67 @@ class TestRatingLensAcrossStats:
         wins, _, losses, _ = update_upsets(
             *_filter_args(lens="live", outcomes=["Win"]))
 
-        assert len(wins) == 14        # giant kills are wins — all still here
+        assert len(wins) == 12        # giant kills are wins — all still here
         assert losses == []           # losses filtered out entirely
 
 
-class TestRatingDiffLimitationNote:
-    def test_the_note_appears_where_rating_diff_appears(self, ui_app, ui_data):
-        """Issue #32: the opponent-rating limitation is documented in the UI,
-        on both surfaces built from rating-diff (upsets, strength charts)."""
+# ---------------------------------------------------------------------------
+# Opponent USCF enrichment in the Scouting Report (issue #35)
+# ---------------------------------------------------------------------------
+
+class TestScoutingReportUscf:
+    def test_the_report_links_to_the_opponents_uscf_page(
+        self, ui_app, real_career_ui
+    ):
+        """Every opponent with a known member ID gets a deep link to their
+        page on ratings.uschess.org."""
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("John Fontaine", *_filter_args()))
+
+        assert "ratings.uschess.org/members/16441708" in rendered
+
+    def test_then_vs_now_ratings(self, ui_app, real_career_ui):
+        """The insight the issue is named for: you beat Fontaine at 1433
+        (his crosstable rating that day, under the Live lens) — he's 1400 now
+        (his current profile)."""
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("John Fontaine",
+                                              *_filter_args(lens="live")))
+
+        assert "1433" in rendered       # then: crosstable pre-rating in May
+        assert "1400" in rendered       # now: his current profile rating
+
+    def test_opponents_with_no_fetched_profile_degrade_gracefully(
+        self, ui_app, real_career_ui
+    ):
+        """An opponent whose current profile isn't cached still gets their
+        USCF link — just no 'now' rating (ADR 0003)."""
+        from pages.opponents import update_scouting_report
+        # Wade Robertson is matched (ID 16846267) but his profile isn't fetched
+        rendered = str(update_scouting_report("Wade Robertson", *_filter_args()))
+
+        assert "ratings.uschess.org/members/16846267" in rendered
+        assert "now" not in rendered.lower() or "16846267" in rendered
+
+    def test_unmatched_opponents_get_no_uscf_section(self, ui_app, ui_data):
+        """An opponent with no USCF identity (never matched) → no link, no
+        crash — the dossier renders exactly as before."""
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("Opponent E", *_filter_args()))
+
+        assert "ratings.uschess.org" not in rendered
+        assert "scout-dossier" not in rendered or rendered  # renders without error
+
+
+class TestLimitationNoteIsGone:
+    def test_no_rating_basis_note_anywhere(self, ui_app, ui_data):
+        """Issue #35 closed the Phase C limitation — the note documenting it
+        is gone from both pages that carried it."""
         trends = str(_render(_page("/trends")))
         opponents = str(_render(_page("/opponents")))
 
         for rendered in (trends, opponents):
-            assert "typed" in rendered.lower()
-            assert "opponent" in rendered.lower()
-            assert "rating-basis-note" in rendered
+            assert "rating-basis-note" not in rendered
 
 
 # ---------------------------------------------------------------------------

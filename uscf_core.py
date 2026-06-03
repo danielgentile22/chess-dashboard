@@ -1210,22 +1210,27 @@ def apply_rating_lens(
     official_series: list[OfficialRatingPoint],
     live_series: list[LiveRatingPoint],
     match_result: MatchResult,
+    standings: dict[tuple[str, str], list[StandingEntry]] | None = None,
 ) -> pd.DataFrame:
     """
-    Return a copy of *df* whose player-rating columns reflect the lens basis,
-    so every rating-derived stat downstream follows the lens without knowing
-    it exists.
+    Return a copy of *df* whose rating columns reflect the lens basis, so
+    every rating-derived stat downstream follows the lens without knowing it
+    exists.
 
     Official — the supplement in effect at the matched Rated Event's start
     date (Daniel's long-standing convention); a Game with no USCF Game Record
     uses the supplement at its own date; Games before the first supplement
-    have no value — never invented.
+    have no value — never invented.  Opponent ratings are the typed
+    pairing-sheet values (PRD #24).
 
     Live — the matched Section's pre-rating, rounded to a whole number;
     a Game with no matched Section falls back to the Official basis.
+    Opponent ratings come from crosstable pre-ratings where cached
+    (issue #35), falling back to typed values — so rating-diff and upsets
+    are fully consistent with the displayed ratings.
 
-    The lens never hides Games: only PlayerRating / PlayerRatingNum (and the
-    RatingDiff derived from them) change.
+    The lens never hides Games: only the rating columns (and the RatingDiff
+    derived from them) change.
 
     With no USCF data at all (both series empty — USCF unreachable and never
     cached, ADR 0003), *df* is returned unchanged: typed values are all there
@@ -1239,14 +1244,23 @@ def apply_rating_lens(
     # Built once, not via record_for() per row — get_filtered runs this for
     # every filter-driven callback, so per-row dict rebuilding multiplies fast.
     records_by_url = {m.chapter_url: m.record for m in match_result.matches}
+    # The opponents' crosstable pre-ratings (issue #35), one flat lookup:
+    # (event_id, section_name, member_id) → pre-rating
+    opponent_pre = {
+        (event_id, section_name, entry.member_id): entry.pre_rating
+        for (event_id, section_name), entries in (standings or {}).items()
+        for entry in entries
+    } if lens == LIVE_LENS else {}
 
     values = []
+    opponent_values: list[float | int | None] = []
     for _, game in out.iterrows():
         record = records_by_url.get(game["ChapterURL"])
         official_value = _official_basis(record, game, official_series)
         if lens == LIVE_LENS:
             values.append(_live_basis(record, live_by_section,
                                       fallback=official_value))
+            opponent_values.append(_opponent_live_basis(record, game, opponent_pre))
         else:
             values.append(official_value)
 
@@ -1254,10 +1268,37 @@ def apply_rating_lens(
         pd.Series(values, index=out.index, dtype="object"), errors="coerce",
     )
     out["PlayerRating"] = [_rating_display(v) for v in values]
-    # Opponent ratings stay typed under both lenses (the Phase D limitation),
-    # but the diff must compare against the lens basis, not the typed value.
+
+    if lens == LIVE_LENS and opponent_pre:
+        out["OpponentRatingNum"] = pd.to_numeric(
+            pd.Series(opponent_values, index=out.index, dtype="object"),
+            errors="coerce",
+        )
+        out["OpponentRating"] = [_rating_display(v) for v in opponent_values]
+
+    # The diff always compares the two final columns — whatever basis each came
+    # from — so it agrees with the ratings displayed beside it.
     out["RatingDiff"] = out["OpponentRatingNum"] - out["PlayerRatingNum"]
     return out
+
+
+def _opponent_live_basis(
+    record: UscfGameRecord | None,
+    game: pd.Series,
+    opponent_pre: dict[tuple[str, str, str], float | None],
+) -> float | int | None:
+    """
+    An opponent's Live Rating: their crosstable pre-rating for the Section the
+    Game was played in, rounded (issue #35) — or the typed value when no
+    crosstable is cached / the opponent isn't in it.
+    """
+    if record is not None:
+        key = (record.event_id, record.section_name, record.opponent_id)
+        pre = opponent_pre.get(key)
+        if pre is not None:
+            return round(pre)
+    typed = game["OpponentRatingNum"]
+    return None if pd.isna(typed) else typed
 
 
 def _live_basis(
@@ -1317,9 +1358,12 @@ def _supplement_in_effect(
 
 
 def _rating_display(value: int | float | None) -> str:
-    """A lens value as the display string the PlayerRating column carries."""
+    """A lens value as the display string the rating columns carry — always a
+    whole number (Daniel's display rule), never '1047.0'."""
     if value is None:
         return ""
+    if isinstance(value, float):
+        return "" if pd.isna(value) else f"{value:.0f}"
     return str(value)
 
 

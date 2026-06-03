@@ -366,6 +366,13 @@ def get_uscf_standings() -> dict[tuple[str, str], list[StandingEntry]]:
     return _uscf.standings
 
 
+def get_opponent_profiles() -> dict[str, UscfProfile]:
+    """Opponents' current USCF profiles keyed by member ID (issue #35) —
+    the "they're 1580 now" half of then-vs-now.  Empty when USCF is
+    off/unavailable; missing opponents are simply absent."""
+    return _uscf.opponent_profiles
+
+
 def get_uscf_achievements() -> list[UscfAchievement]:
     """The member's official achievements — norms and awards, chronological
     (issue #36). Empty when USCF is off/unavailable."""

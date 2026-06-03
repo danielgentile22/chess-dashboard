@@ -1394,12 +1394,15 @@ def upset_tracker(df: pd.DataFrame) -> dict:
     Each row carries Date, Opponent, both ratings, Margin (rating points),
     Event, Round, and ChapterURL so tables can click through to the Game.
     Games where either rating is unknown can't be ranked and are skipped.
+    Forfeits are never upsets (issue #35): a no-show win is not a giant kill,
+    the same rule that keeps them out of win rate, Streaks, and openings.
     """
     empty: dict = {"wins": [], "losses": []}
     if df.empty or "RatingDiff" not in df.columns:
         return empty
 
-    rated = df[df["RatingDiff"].notna()]
+    rated = _without_forfeits(df)
+    rated = rated[rated["RatingDiff"].notna()]
 
     def _rows(games: pd.DataFrame) -> list[dict]:
         out = games[_UPSET_ROW_COLS].copy()

@@ -2032,10 +2032,11 @@ class TestAchievementMilestones:
 #              the supplement at their own date; Games before the first
 #              supplement have no value — never invented.
 #   Live     — the matched Section's pre-rating, decimals preserved;
-#              unmatched Games fall back to the Official basis.
+#              unmatched Games fall back to the Official basis.  Opponent
+#              ratings come from crosstable pre-ratings where cached
+#              (issue #35), falling back to typed values.
 #
-# Opponent ratings stay typed under both lenses (the documented Phase D
-# limitation); the lens never hides Games.
+# The lens never hides Games.
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
@@ -2189,12 +2190,89 @@ class TestLiveLens:
         assert forfeit["PlayerRating"] == "1133"
 
 
-class TestRatingLensInvariants:
-    def test_rating_diff_follows_the_lens_but_opponents_stay_typed(self, real_career):
-        """Rating-diff (and so upsets and strength buckets) is recomputed from
-        the lensed player rating, while opponent ratings keep Daniel's typed
-        values until Phase D's crosstable enrichment — the documented
-        limitation in issue #32."""
+# The crosstable-backed opponent ratings (issue #35): the Live lens uses
+# what opponents were really rated walking into the Section, not what Daniel
+# typed on the pairing sheet.
+class TestOpponentRatingsUnderTheLens:
+    def _lensed_with_standings(self, career, standings, lens):
+        return uscf_core.apply_rating_lens(
+            career.df, lens, career.official, career.live, career.matches,
+            standings=standings,
+        )
+
+    def test_live_lens_uses_crosstable_opponent_ratings(
+        self, real_career, real_standings
+    ):
+        """Issue #35 closes the Phase C limitation: Fontaine walked into ACC
+        MAY 2026 rated 1432.59 — under the Live lens his rating reads 1433,
+        not the 1465 Daniel typed."""
+        lensed = self._lensed_with_standings(real_career, real_standings, "live")
+
+        may = _games_of_event(real_career, lensed, "ACC MAY 2026")
+        by_opponent = dict(zip(may["Opponent"], may["OpponentRatingNum"], strict=True))
+        assert by_opponent["John Fontaine"] == 1433        # typed 1465
+        assert by_opponent["Kaiser Kaiyrberli"] == 1366    # typed 1446
+        assert by_opponent["Jin William Shao"] == 1467     # typed 1436
+
+    def test_live_lens_fills_in_opponents_daniel_never_rated(
+        self, real_career, real_standings
+    ):
+        """Daniel typed no rating at all for Sista (Thanksgiving R2) — the
+        crosstable knows he was 245.  Official data fills the gap."""
+        lensed = self._lensed_with_standings(real_career, real_standings, "live")
+
+        thanksgiving = _games_of_event(
+            real_career, lensed, "2nd Annual Thankgiving Day Open")
+        sista = thanksgiving[thanksgiving["Opponent"] == "Vivekanand Sista"].iloc[0]
+        assert sista["OpponentRatingNum"] == 245
+        assert sista["OpponentRating"] == "245"
+
+    def test_official_lens_keeps_the_typed_pairing_sheet_values(
+        self, real_career, real_standings
+    ):
+        """The Official world view is the pairing sheet (PRD #24): typed
+        opponent ratings stay, even with crosstables available."""
+        lensed = self._lensed_with_standings(real_career, real_standings, "official")
+
+        may = _games_of_event(real_career, lensed, "ACC MAY 2026")
+        by_opponent = dict(zip(may["Opponent"], may["OpponentRatingNum"], strict=True))
+        assert by_opponent["John Fontaine"] == 1465        # as typed
+
+    def test_opponents_without_a_cached_crosstable_keep_typed_values(
+        self, real_career, real_standings
+    ):
+        """ACC JUNE 2025 has no cached crosstable → its opponents keep their
+        typed ratings under the Live lens (fallback, never a wipe)."""
+        typed = real_career.df
+        lensed = self._lensed_with_standings(real_career, real_standings, "live")
+
+        june_urls = {m.chapter_url for m in real_career.matches.matches
+                     if m.record.event_name == "ACC JUNE 2025"}
+        for url in june_urls:
+            before = typed[typed["ChapterURL"] == url].iloc[0]
+            after = lensed[lensed["ChapterURL"] == url].iloc[0]
+            assert after["OpponentRatingNum"] == before["OpponentRatingNum"]
+
+    def test_rating_diff_agrees_with_both_displayed_ratings(
+        self, real_career, real_standings
+    ):
+        """The acceptance criterion: under the Live lens, rating-diff equals
+        displayed opponent minus displayed player — fully consistent, no
+        typed values mixed in."""
+        lensed = self._lensed_with_standings(real_career, real_standings, "live")
+
+        may = _games_of_event(real_career, lensed, "ACC MAY 2026")
+        for _, game in may.iterrows():
+            assert game["RatingDiff"] == (
+                game["OpponentRatingNum"] - game["PlayerRatingNum"])
+        # Concretely: Kaiyrberli (1366) beat Daniel (1544) → diff −178
+        kaiyrberli = may[may["Opponent"] == "Kaiser Kaiyrberli"].iloc[0]
+        assert kaiyrberli["RatingDiff"] == 1366 - 1544
+
+    def test_without_standings_opponents_stay_typed(self, real_career):
+        """No crosstables passed (USCF down, nothing cached) → exactly the
+        Phase C behavior: opponent ratings stay typed, the diff rebuilt
+        against the lensed player rating."""
         typed = real_career.df
         lensed = _lensed(real_career, "live")
 
@@ -2203,11 +2281,11 @@ class TestRatingLensInvariants:
         for url in may_urls:
             before = typed[typed["ChapterURL"] == url].iloc[0]
             after = lensed[lensed["ChapterURL"] == url].iloc[0]
-            # opponent side untouched...
             assert after["OpponentRatingNum"] == before["OpponentRatingNum"]
-            assert after["OpponentRating"] == before["OpponentRating"]
-            # ...the diff rebuilt against the (whole-number) Live basis
             assert after["RatingDiff"] == before["OpponentRatingNum"] - 1544
+
+
+class TestRatingLensInvariants:
 
     def test_the_lens_never_hides_games(self, real_career):
         """A lens, not a filter (PRD #24): every Game stays, in the same order,

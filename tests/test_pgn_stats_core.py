@@ -1490,6 +1490,20 @@ class TestUpsetTracker:
         assert [loss["Opponent"] for loss in upsets["losses"]] == ["Lucky"]
         assert upsets["losses"][0]["Margin"] == 150
 
+    def test_forfeit_wins_are_never_giant_kills(self):
+        """A no-show win is not an upset (issue #35 / Daniel's decision):
+        Forfeits already sit outside win rate, Streaks, and openings —
+        upset stats follow the same rule."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"result": "1-0", "my_elo": 1005, "opp_elo": 1175, "opponent": "NoShow"},
+            {"result": "1-0", "my_elo": 1005, "opp_elo": 1300, "opponent": "RealWin"},
+        ]), player_name="Me")
+        games["Forfeit"] = [True, False]   # the no-show vs a played game
+
+        upsets = upset_tracker(games)
+
+        assert [win["Opponent"] for win in upsets["wins"]] == ["RealWin"]
+
     def test_expected_results_are_not_upsets(self, df):
         """Beating lower-rated players and losing to higher-rated ones is normal;
         draws never count."""

@@ -523,6 +523,12 @@ REAL_USCF_STANDINGS = {
     key: json.loads((USCF_FIXTURES_DIR / filename).read_text())["items"]
     for key, filename in USCF_STANDINGS_FIXTURES.items()
 }
+# Two real opponent profiles (issue #35): Fontaine (beaten in ACC MAY 2026,
+# rated 1400 now) and Kaiyrberli (lost to in ACC MAY 2026, rated 1366 now).
+REAL_OPPONENT_PROFILES = {
+    "16441708": json.loads((USCF_FIXTURES_DIR / "opponent-fontaine.json").read_text()),
+    "32235302": json.loads((USCF_FIXTURES_DIR / "opponent-kaiyrberli.json").read_text()),
+}
 
 # What UI fixtures feed by default: the real 2025–26 career (so the profile
 # card and the rating series are real) plus the 2024 sample items that cover
@@ -540,7 +546,8 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
                     uscf_events: list | None = None,
                     uscf_norms: list | None = None,
                     uscf_awards: list | None = None,
-                    uscf_standings: dict | None = None):
+                    uscf_standings: dict | None = None,
+                    opponent_profiles: dict | None = None):
     """
     Patch both clients at sync's module boundary for UI fixtures/tests:
     Lichess returns *pgn_text*; USCF returns the real captured responses.
@@ -552,7 +559,8 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
     *uscf_norms* / *uscf_awards* default to the real captured achievements
     (issue #36); *uscf_standings* defaults to the 5 real captured crosstables
     keyed by (event_id, section_number) — Sections without one degrade
-    gracefully, exactly like live (issue #34).
+    gracefully, exactly like live (issue #34); *opponent_profiles* defaults
+    to the 2 real captured opponents (issue #35) — the rest degrade.
     """
     import sync
     from uscf_client import UscfUnreachableError
@@ -573,6 +581,8 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
         uscf_awards = REAL_USCF_AWARDS
     if uscf_standings is None:
         uscf_standings = REAL_USCF_STANDINGS
+    if opponent_profiles is None:
+        opponent_profiles = REAL_OPPONENT_PROFILES
     uscf_down = uscf_profile if isinstance(uscf_profile, Exception) else None
 
     def fake(value):
@@ -581,6 +591,17 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
                 raise uscf_down
             return value
         return fetch
+
+    def fake_profile(member_id, **kwargs):
+        # The member's own profile, or a stubbed opponent's (issue #35)
+        if uscf_down is not None:
+            raise uscf_down
+        if str(uscf_profile.get("id", "")) == str(member_id):
+            return uscf_profile
+        value = opponent_profiles.get(member_id)
+        if value is None:
+            raise UscfUnreachableError(f"no profile fixture for {member_id!r}")
+        return value
 
     def fake_standings(event_id, section_number, **kwargs):
         if uscf_down is not None:
@@ -593,7 +614,7 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
 
     with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn_text), \
          mock.patch.object(sync, "fetch_member_profile",
-                           side_effect=fake(uscf_profile)), \
+                           side_effect=fake_profile), \
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(uscf_supplements)), \
          mock.patch.object(sync, "fetch_member_sections",
