@@ -91,6 +91,24 @@ class TestFetchMemberGames:
         assert url.endswith("/members/12345678/games")
 
 
+class TestFetchMemberEvents:
+    """The member events endpoint — every Rated Event entered (issue #33)."""
+
+    def test_returns_the_event_items(self, uscf_events_json):
+        with mock.patch(
+            "uscf_client.requests.get",
+            return_value=_response(json_body=uscf_events_json),
+        ) as get:
+            items = uscf_client.fetch_member_events("12345678")
+
+        # All 23 Rated Events come back raw, for uscf_core to interpret
+        assert len(items) == 23
+        assert items[0]["name"] == "ACC MAY 2026"
+        assert items[0]["id"] == "202605290393"
+        url = get.call_args.args[0]
+        assert url.endswith("/members/12345678/events")
+
+
 class TestFetchMemberNorms:
     """The norms endpoint — official achievements toward titles (issue #36)."""
 

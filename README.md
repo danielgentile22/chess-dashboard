@@ -20,7 +20,7 @@ The dashboard is a multi-page app — each page loads only its own charts, so it
 | **Trends** | GitHub-style activity calendar (one cell per day, colored by results) · **dual-line rating chart** (your Official Rating as a step line and your Live Rating per Rated Event, so you can watch them diverge and reconverge) · cumulative win rate · games per month · win rate by day of week · game-length distribution · results by time control · score by round (the fatigue check) · **upset tracker** (giant kills and upset losses by rating margin) |
 | **Openings** | **Repertoire tree** (your games arranged move by move, branches that leak points flagged) · ECO family breakdown (A/B/C/D/E) · full opening detail table |
 | **Opponents** | **Scouting Report** (search an opponent → score, rating gap, game timeline, their openings by your color, and every Lesson from facing them) · stacked W/D/L bar per opponent · outcome by rating bucket · outcome vs. rating scatter |
-| **Events** | Performance per tournament · selectable event table → per-event game list + performance rating |
+| **Events** | **Series → Rated Events**: each tournament as you name it expands into the events USCF actually rated — official names and dates, Section(s), your score, game count, live rating change (pre → post), and per-event performance rating · plus the Rated Events you entered but never played |
 | **Games** | Every game with Open-on-Lichess links, Lesson indicators (💡), Tags, and its **USCF status** (✓ matched by opponent ID · ≈ matched by name · ⚠ sources disagree · Forfeit) — click any row to open the game |
 | **Lessons** | Every `Lesson:` you've written on Lichess, filterable by Tag and opponent · recurring-weakness callouts ("#time-trouble appears in 4 of your last 5 losses") · pre-game review mode |
 | **Reconciliation** | Every disagreement between your Studies and USCF, grouped and actionable: color conflicts (both versions side by side) · USCF-rated games missing from your Studies · games USCF hasn't rated · chapters missing opponent IDs · typed ratings that don't match the Official Rating — each with fix-on-Lichess links and Dismiss |
@@ -44,6 +44,8 @@ Configure your USCF member ID and every Sync also pulls your official record fro
 **The matching engine** pairs every USCF Game Record with its Game: by opponent member ID + result first (the `WhiteFideId`/`BlackFideId` headers you type into chapters), then by normalized opponent name + result + event date window for chapters without IDs. Repeat opponents with identical results are disambiguated by color and date — tiebreakers, never requirements, because color is itself a fact the sources can disagree on. Matched Games show their USCF half (Rated Event, Section, official opponent identity); games with at most one move and no USCF record are tagged **Forfeit** (opponent no-show) and excluded from win rate, streaks, and opening stats while still counting toward event scores.
 
 Disagreements go to the **Reconciliation page** — conflicts get a ⚠ badge on the Game everywhere it appears, and the header shows a count of open items. The dashboard always displays the Lichess version of disputed facts; nothing is silently "corrected".
+
+**The Events page is two-level** — *Series* (a tournament as you name it in the PGN Event header, like "ACC Friday Ladder") contain *Rated Events* (what USCF actually rated, like "ACC JUNE 2025" … "ACC MAY 2026"). Each Rated Event shows its official identity, Sections, your score (Forfeit wins count toward the score, never as games), the field size, and your live rating walking in → walking out. Games that matched no Rated Event stay visible under their Series; Rated Events you entered but never played get their own group.
 
 **Norms and awards** join the Milestones timeline as official entries — gold, per the design language (gold is reserved for achievements). A norm or award appearing for the first time in a Sync gets the celebration banner, exactly like a personal best; ones the dashboard has already seen never re-celebrate, even across restarts.
 
@@ -240,7 +242,7 @@ chess-stats-dashboard/
 │   ├── trends.py            #   /trends    rating, activity, time controls, upsets
 │   ├── openings.py          #   /openings  repertoire tree + ECO families
 │   ├── opponents.py         #   /opponents records, head-to-head, strength
-│   ├── events.py            #   /events    tournament performance
+│   ├── events.py            #   /events    Series → Rated Events
 │   ├── games.py             #   /games     full games table
 │   ├── lessons.py           #   /lessons   Lessons + Tag filtering
 │   ├── reconciliation.py    #   /reconciliation  Studies ↔ USCF disagreements

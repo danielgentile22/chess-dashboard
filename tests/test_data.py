@@ -41,7 +41,7 @@ def stub_studies(**study_pgns):
 
 @contextlib.contextmanager
 def stub_uscf(profile, supplements=None, sections=None, games=None,
-              norms=None, awards=None):
+              events=None, norms=None, awards=None):
     """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -57,6 +57,8 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
                            side_effect=fake(sections or [])), \
          mock.patch.object(sync, "fetch_member_games",
                            side_effect=fake(games or [])), \
+         mock.patch.object(sync, "fetch_member_events",
+                           side_effect=fake(events or [])), \
          mock.patch.object(sync, "fetch_member_norms",
                            side_effect=fake(norms or [])), \
          mock.patch.object(sync, "fetch_member_awards",
@@ -470,6 +472,30 @@ class TestAchievementsInStore:
             data.initialize(["study1"], player_name="Test Player")
 
         assert data.get_uscf_achievements() == []
+
+
+class TestEventsInStore:
+    """The member's Rated Events in the data layer (issue #33)."""
+
+    def test_data_layer_exposes_member_events(
+        self, sample_pgn_text, uscf_profile_json, uscf_events_json
+    ):
+        with stub_studies(study1=sample_pgn_text), stub_uscf(
+            uscf_profile_json, events=uscf_events_json["items"],
+        ):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        events = data.get_uscf_events()
+        assert len(events) == 23
+        assert events[-1].name == "ACC MAY 2026"
+
+    def test_events_are_empty_without_uscf(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_uscf_events() == []
 
 
 class TestNewAchievementDetection:
