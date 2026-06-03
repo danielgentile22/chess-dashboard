@@ -1718,6 +1718,197 @@ class TestUnplayedEvents:
 
 
 # ---------------------------------------------------------------------------
+# Standings → typed crosstables (issue #34)
+# ---------------------------------------------------------------------------
+
+class TestBuildStandings:
+    def test_the_real_crosstable_parses_in_placement_order(self, uscf_standings_json):
+        """ACC MAY 2026: 116 players, ordered by final placement."""
+        standings = uscf_core.build_standings(
+            uscf_standings_json[("202605290393", 1)]["items"])
+
+        assert len(standings) == 116
+        assert [s.ordinal for s in standings] == sorted(s.ordinal for s in standings)
+        assert standings[0].ordinal == 1
+
+    def test_daniels_row_carries_placement_score_and_ratings(
+        self, uscf_standings_json
+    ):
+        """Daniel finished 5th of 116 with 3 points, 1544.47 → 1570.72."""
+        standings = uscf_core.build_standings(
+            uscf_standings_json[("202605290393", 1)]["items"])
+        daniel = next(s for s in standings if s.member_id == "32487228")
+
+        assert daniel.ordinal == 5
+        assert daniel.name == "Daniel Gentile"
+        assert daniel.score == 3
+        assert daniel.pre_rating == 1544.47     # decimals kept in the data
+        assert daniel.post_rating == 1570.72
+
+    def test_round_outcomes_carry_real_round_numbers_and_opponents(
+        self, uscf_standings_json
+    ):
+        """Daniel's ACC MAY rounds: played 1, 3, 4, 5 (unpaired in 2) — the
+        real round numbers issue #34 attaches to Games."""
+        standings = uscf_core.build_standings(
+            uscf_standings_json[("202605290393", 1)]["items"])
+        daniel = next(s for s in standings if s.member_id == "32487228")
+
+        by_round = {r.round_number: r for r in daniel.rounds}
+        assert by_round[1].outcome == "Win"
+        assert by_round[1].opponent_member_id == "16441708"   # Fontaine
+        assert by_round[2].outcome == "Unpaired"
+        assert by_round[5].outcome == "Loss"
+        assert by_round[5].color == "Black"
+        assert by_round[5].opponent_member_id == "32235302"   # Kaiyrberli
+
+    def test_dual_rated_sections_use_the_regular_rating(self, uscf_standings_json):
+        """The Thanksgiving Open was dual-rated: every player has Q and R
+        records — Regular is the backbone (PRD #24).  Daniel's R record there
+        (1155.4 → 1229.8) is exactly what the Live series chain says; his Q
+        record (1013.59 → 1091.53) must never leak in."""
+        standings = uscf_core.build_standings(
+            uscf_standings_json[("202511020583", 3)]["items"])
+        daniel = next(s for s in standings if s.member_id == "32487228")
+
+        assert daniel.pre_rating == 1155.4      # the R record...
+        assert daniel.post_rating == 1229.8
+        assert daniel.pre_rating != 1013.59     # ...never the Q one
+
+    def test_forfeit_and_bye_outcomes_parse(self, uscf_standings_json):
+        """The crosstable encodes no-shows: Daniel's WinForfeit vs Feketekuty
+        (Thanksgiving) and his own Forfeit at Rockville."""
+        thanksgiving = uscf_core.build_standings(
+            uscf_standings_json[("202511020583", 3)]["items"])
+        daniel = next(s for s in thanksgiving if s.member_id == "32487228")
+        forfeit_round = next(r for r in daniel.rounds if r.outcome == "WinForfeit")
+        assert forfeit_round.round_number == 4
+        assert forfeit_round.opponent_member_id == "30077997"   # Feketekuty
+
+        rockville = uscf_core.build_standings(
+            uscf_standings_json[("202508311982", 2)]["items"])
+        daniel_rockville = next(s for s in rockville if s.member_id == "32487228")
+        assert daniel_rockville.rounds[0].outcome == "Forfeit"   # he never showed
+        assert daniel_rockville.score == 0
+
+    def test_players_unrated_walking_in_have_no_pre_rating(
+        self, uscf_standings_json
+    ):
+        """5 provisional players in ACC MAY had no pre-rating — None, never 0."""
+        standings = uscf_core.build_standings(
+            uscf_standings_json[("202605290393", 1)]["items"])
+        unrated = [s for s in standings if s.pre_rating is None]
+
+        assert len(unrated) == 5
+        assert all(s.post_rating is not None for s in unrated)
+
+    def test_an_empty_crosstable_is_an_empty_list(self):
+        assert uscf_core.build_standings([]) == []
+
+
+# ---------------------------------------------------------------------------
+# Real round numbers from crosstables (issue #34)
+# ---------------------------------------------------------------------------
+
+# (event_id, section_number) → section name, for keying standings the way the
+# Games know them (the UscfSection column carries names, not numbers).
+_SECTION_NAMES = {
+    ("202605290393", 1): "LADDER",
+    ("202603290543", 2): "Under 1800",
+    ("202603290543", 7): "Extra games - Classical",
+    ("202508311982", 2): "UNDER 1500",
+    ("202511020583", 3): "U1600",
+}
+
+
+@pytest.fixture(scope="module")
+def real_standings(uscf_standings_json):
+    """The captured crosstables as typed standings, keyed by (event_id, section name)."""
+    return {
+        (event_id, _SECTION_NAMES[(event_id, number)]):
+            uscf_core.build_standings(raw["items"])
+        for (event_id, number), raw in uscf_standings_json.items()
+    }
+
+
+@pytest.fixture(scope="module")
+def real_enriched(study_snapshot_df, uscf_games_json):
+    """The real career, matched and enriched."""
+    records = uscf_core.build_game_records(uscf_games_json["items"])
+    match = uscf_core.match_games(study_snapshot_df, records)
+    return uscf_core.enrich_games(study_snapshot_df, match)
+
+
+class TestAttachRoundNumbers:
+    def test_ladder_games_get_their_real_rounds_not_the_typed_ones(
+        self, real_enriched, real_standings
+    ):
+        """The whole point of issue #34: Daniel hand-types continuous ladder
+        rounds (24, 25, 26, 27 for ACC MAY); USCF's crosstable says those were
+        really rounds 1, 3, 4, 5 of that Rated Event."""
+        attached = uscf_core.attach_round_numbers(
+            real_enriched, real_standings, "32487228")
+
+        may = attached[attached["UscfEventId"] == "202605290393"]
+        assert list(may["RoundNum"]) == [24, 25, 26, 27]       # what Daniel typed
+        assert list(may["UscfRound"]) == [1, 3, 4, 5]          # what USCF says
+
+    def test_the_forfeit_gets_its_round_from_the_crosstable(
+        self, real_enriched, real_standings
+    ):
+        """The Feketekuty no-show has no USCF Game Record, but the crosstable's
+        WinForfeit round carries his member ID — so even the Forfeit gets its
+        real round number."""
+        attached = uscf_core.attach_round_numbers(
+            real_enriched, real_standings, "32487228")
+
+        forfeit = attached[attached["Forfeit"]]
+        assert list(forfeit["UscfRound"]) == [4]
+
+    def test_two_sections_of_one_event_attach_independently(
+        self, real_enriched, real_standings
+    ):
+        """The DMV case: the Under 1800 games and the Extra-games game each get
+        rounds from their own Section's crosstable."""
+        attached = uscf_core.attach_round_numbers(
+            real_enriched, real_standings, "32487228")
+
+        dmv = attached[attached["UscfEventId"] == "202603290543"]
+        by_opponent = dict(zip(dmv["Opponent"], dmv["UscfRound"], strict=True))
+        assert by_opponent["Gunnar J. Isaacson"] == 1       # Under 1800, round 1
+        assert by_opponent["Nora Sullivan"] == 2            # Under 1800, round 2
+        assert by_opponent["Georgina Chin"] == 3            # Extra games, round 3
+        assert by_opponent["John Fontaine"] == 4            # Under 1800, round 4
+
+    def test_games_without_a_crosstable_have_no_real_round(
+        self, real_enriched, real_standings
+    ):
+        """Only 5 crosstables are cached in the fixtures — every other Game
+        keeps NaN, falling back to the typed round downstream."""
+        import pandas as pd
+
+        attached = uscf_core.attach_round_numbers(
+            real_enriched, real_standings, "32487228")
+
+        june = attached[attached["UscfEventId"] == "202506284842"]  # no crosstable
+        assert pd.isna(june["UscfRound"]).all()
+
+    def test_no_standings_at_all_still_adds_the_column(self, real_enriched):
+        """ADR 0003: USCF down → the column exists (all NaN) so downstream
+        code never checks for its presence."""
+        import pandas as pd
+
+        attached = uscf_core.attach_round_numbers(real_enriched, {}, "32487228")
+
+        assert "UscfRound" in attached.columns
+        assert pd.isna(attached["UscfRound"]).all()
+
+    def test_the_input_df_is_never_mutated(self, real_enriched, real_standings):
+        uscf_core.attach_round_numbers(real_enriched, real_standings, "32487228")
+        assert "UscfRound" not in real_enriched.columns
+
+
+# ---------------------------------------------------------------------------
 # Norms and awards → achievements (issue #36)
 #
 # build_achievements turns raw /norms and /awards responses into one

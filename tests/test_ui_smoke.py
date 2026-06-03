@@ -961,6 +961,76 @@ class TestEventsSeriesGroups:
         assert "Forfeit" in rendered
 
 
+class TestEventsCrosstables:
+    """Standings inside each Rated Event (issue #34): placement, the full
+    crosstable with Daniel's row highlighted, and real round numbers."""
+
+    def test_rated_events_show_official_placement(self, ui_app, real_career_ui):
+        """'Finished 5th of 116' — straight from the ACC MAY crosstable."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "5th of 116" in rendered
+
+    def test_crosstable_lists_every_player_with_daniel_highlighted(
+        self, ui_app, real_career_ui
+    ):
+        """The full field renders — the winner (an unrated walk-in who won the
+        section!) down to last place — with Daniel's own row flagged."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "JOHN BUERGLER" in rendered          # the ACC MAY winner
+        assert "crosstable-row-me" in rendered      # Daniel's row highlight
+
+    def test_crosstable_ratings_display_as_whole_numbers(
+        self, ui_app, real_career_ui
+    ):
+        """Every player's pre → post shows whole, never with decimals."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "1357" in rendered          # Kozhakhmetov's post, rounded
+        assert "1357.47" not in rendered
+        assert "1544.47" not in rendered   # Daniel's pre stays whole too
+
+    def test_game_rows_show_real_round_numbers(self, ui_app, real_career_ui):
+        """ACC MAY games: Daniel typed rounds 24–27; the cards show the real
+        rounds 1, 3, 4, 5 from the crosstable."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        # The May card shows R1/R3/R4/R5, not R24-R27
+        assert "R24" not in rendered
+        assert "R27" not in rendered
+
+    def test_daniels_crosstable_rounds_link_to_his_games(
+        self, ui_app, real_career_ui
+    ):
+        """Round outcomes in Daniel's crosstable row click through to the Games
+        where one exists (issue #34's acceptance criterion)."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        # His ACC MAY round-1 win vs Fontaine has a Game; the crosstable links it
+        df = __import__("data").get_df()
+        may_r1 = df[(df["UscfEventId"] == "202605290393") & (df["UscfRound"] == 1)]
+        chapter_id = may_r1.iloc[0]["ChapterURL"].rsplit("/", 1)[-1]
+        assert rendered.count(f"/game/{chapter_id}") >= 2   # game row + crosstable
+
+    def test_events_without_a_cached_crosstable_degrade_gracefully(
+        self, ui_app, ui_data
+    ):
+        """Sample events have no crosstables — cards render without placement,
+        no errors (ADR 0003)."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "TEST OPEN JANUARY" in rendered
+        assert "Finished" not in rendered
+        assert "crosstable" not in rendered.lower()
+
+
 class TestEventsUnplayed:
     def test_entered_but_never_played_events_render(self, ui_app, real_career_ui):
         """The Rockville case (issue #33): entered, zero games — rendered in

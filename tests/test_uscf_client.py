@@ -109,6 +109,25 @@ class TestFetchMemberEvents:
         assert url.endswith("/members/32487228/events")
 
 
+class TestFetchEventStandings:
+    """The standings endpoint — the full crosstable of one Rated Event Section
+    (issue #34)."""
+
+    def test_returns_every_player_in_the_section(self, uscf_standings_json):
+        crosstable = uscf_standings_json[("202605290393", 1)]
+        with mock.patch(
+            "uscf_client.requests.get",
+            return_value=_response(json_body=crosstable),
+        ) as get:
+            items = uscf_client.fetch_event_standings("202605290393", 1)
+
+        # All 116 players of the ACC MAY 2026 LADDER section come back raw
+        assert len(items) == 116
+        assert items[0]["ordinal"] == 1
+        url = get.call_args.args[0]
+        assert url.endswith("/rated-events/202605290393/sections/1/standings")
+
+
 class TestFetchMemberNorms:
     """The norms endpoint — official achievements toward titles (issue #36)."""
 

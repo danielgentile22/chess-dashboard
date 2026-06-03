@@ -41,14 +41,28 @@ def stub_studies(**study_pgns):
 
 @contextlib.contextmanager
 def stub_uscf(profile, supplements=None, sections=None, games=None,
-              events=None, norms=None, awards=None):
-    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
+              events=None, norms=None, awards=None, standings=None):
+    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise.
+
+    *standings* maps (event_id, section_number) → raw item list; unstubbed
+    crosstables raise (sync skips them gracefully, per-crosstable degradation)."""
+    from uscf_client import UscfUnreachableError
+
     def fake(value):
         def fetch(member_id, **kwargs):
             if isinstance(value, Exception):
                 raise value
             return value
         return fetch
+
+    def fake_standings(event_id, section_number, **kwargs):
+        value = (standings or {}).get((event_id, section_number))
+        if value is None:
+            raise UscfUnreachableError(
+                f"no standings stubbed for {event_id}/{section_number}")
+        if isinstance(value, Exception):
+            raise value
+        return value
 
     with mock.patch.object(sync, "fetch_member_profile", side_effect=fake(profile)), \
          mock.patch.object(sync, "fetch_rating_supplements",
@@ -62,7 +76,9 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
          mock.patch.object(sync, "fetch_member_norms",
                            side_effect=fake(norms or [])), \
          mock.patch.object(sync, "fetch_member_awards",
-                           side_effect=fake(awards or [])):
+                           side_effect=fake(awards or [])), \
+         mock.patch.object(sync, "fetch_event_standings",
+                           side_effect=fake_standings):
         yield
 
 
@@ -496,6 +512,53 @@ class TestEventsInStore:
             data.initialize(["study1"], player_name="Test Player")
 
         assert data.get_uscf_events() == []
+
+
+class TestStandingsInStore:
+    """Crosstables and real round numbers in the data layer (issue #34)."""
+
+    @pytest.fixture()
+    def real_career_store(self, uscf_profile_json, uscf_games_json,
+                          uscf_sections_json, uscf_standings_json):
+        """The store loaded with the real fixture pair + the 5 crosstables."""
+        pgn_text = (
+            __import__("pathlib").Path("tests/fixtures/uscf/lichess-study-snapshot.pgn")
+            .read_text()
+        )
+        raw_standings = {key: raw["items"]
+                         for key, raw in uscf_standings_json.items()}
+        with stub_studies(study1=pgn_text), stub_uscf(
+            uscf_profile_json,
+            sections=uscf_sections_json["items"],
+            games=uscf_games_json["items"],
+            standings=raw_standings,
+        ):
+            data.initialize(["study1"], player_name="Daniel Gentile",
+                            uscf_member_id="32487228")
+
+    def test_data_layer_exposes_standings(self, real_career_store):
+        standings = data.get_uscf_standings()
+
+        acc_may = standings[("202605290393", "LADDER")]
+        assert len(acc_may) == 116
+        daniel = next(s for s in acc_may if s.member_id == "32487228")
+        assert daniel.ordinal == 5          # finished 5th of 116
+
+    def test_games_carry_their_real_round_numbers(self, real_career_store):
+        """The store's df has UscfRound: ACC MAY's typed rounds 24–27 are
+        really rounds 1, 3, 4, 5."""
+        df = data.get_df()
+        may = df[df["UscfEventId"] == "202605290393"]
+
+        assert list(may["UscfRound"]) == [1, 3, 4, 5]
+
+    def test_standings_are_empty_without_uscf(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_uscf_standings() == {}
+        # The round column still exists — downstream code never checks
+        assert "UscfRound" in data.get_df().columns
 
 
 class TestNewAchievementDetection:

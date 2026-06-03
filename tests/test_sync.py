@@ -31,12 +31,21 @@ def stub_studies(**study_pgns):
     return mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch)
 
 
+class UnstubbedStandingsError(UscfUnreachableError):
+    """Raised when a test fetches a crosstable it didn't stub — sync treats it
+    like any per-crosstable failure (skip that Section's standings)."""
+
+
 @contextlib.contextmanager
 def stub_uscf(profile, supplements=None, sections=None, games=None,
-              events=None, norms=None, awards=None):
+              events=None, norms=None, awards=None, standings=None):
     """
     Patch the USCF client inside sync: each value is the raw JSON to return,
     or an Exception to raise.  List endpoints default to empty lists.
+
+    *standings* maps (event_id, section_number) → raw item list (or an
+    Exception); unstubbed crosstables raise (sync skips them gracefully).
+    The mock is yielded so tests can assert on fetch counts.
     """
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -44,6 +53,17 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
                 raise value
             return value
         return fetch
+
+    def fake_standings(event_id, section_number, **kwargs):
+        value = (standings or {}).get((event_id, section_number))
+        if value is None:
+            raise UnstubbedStandingsError(
+                f"no standings stubbed for {event_id}/{section_number}")
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    standings_mock = mock.Mock(side_effect=fake_standings)
 
     with mock.patch.object(sync, "fetch_member_profile",
                            side_effect=fake(profile), create=True), \
@@ -58,8 +78,10 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
          mock.patch.object(sync, "fetch_member_norms",
                            side_effect=fake(norms or []), create=True), \
          mock.patch.object(sync, "fetch_member_awards",
-                           side_effect=fake(awards or []), create=True):
-        yield
+                           side_effect=fake(awards or []), create=True), \
+         mock.patch.object(sync, "fetch_event_standings",
+                           standings_mock, create=True):
+        yield standings_mock
 
 
 class TestSyncSingleStudy:
@@ -630,6 +652,121 @@ class TestSyncUscfEvents:
         assert result.from_cache is True
         assert len(result.member_events) == 23
         assert "events endpoint broke" in result.failure
+
+
+class TestSyncUscfStandings:
+    """sync_uscf also fetches crosstables — one per OTB Section played,
+    cached permanently (issue #34)."""
+
+    @pytest.fixture()
+    def raw_standings(self, uscf_standings_json):
+        """The captured crosstables as the stub wants them: raw item lists."""
+        return {key: raw["items"] for key, raw in uscf_standings_json.items()}
+
+    def test_standings_are_fetched_per_played_otb_section(
+        self, uscf_profile_json, uscf_sections_json, raw_standings
+    ):
+        with stub_uscf(uscf_profile_json, sections=uscf_sections_json["items"],
+                       standings=raw_standings):
+            result = sync.sync_uscf("32487228")
+
+        # The 5 captured crosstables come back typed, keyed by section NAME
+        # (what the enriched Games carry)
+        assert ("202605290393", "LADDER") in result.standings
+        assert ("202603290543", "Under 1800") in result.standings
+        acc_may = result.standings[("202605290393", "LADDER")]
+        assert len(acc_may) == 116
+        assert acc_may[0].ordinal == 1
+
+    def test_online_sections_never_fetch_a_crosstable(
+        self, uscf_profile_json, uscf_sections_json, raw_standings
+    ):
+        """The OR section (DMVCHESS WEDNESDAY CLASS) is online-rated: its games
+        are never Chapters, so its crosstable is never fetched (politeness)."""
+        with stub_uscf(uscf_profile_json, sections=uscf_sections_json["items"],
+                       standings=raw_standings) as standings_mock:
+            sync.sync_uscf("32487228")
+
+        fetched = {call.args for call in standings_mock.call_args_list}
+        assert ("202601300323", 6) not in fetched      # the online section
+
+    def test_crosstables_are_cached_permanently(
+        self, uscf_profile_json, uscf_sections_json, raw_standings, tmp_path
+    ):
+        """Issue #34's acceptance criterion: repeat Syncs make ZERO crosstable
+        calls for already-cached events — they are immutable once rated."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        # Only the Sections whose crosstables were captured as fixtures
+        sections = [s for s in uscf_sections_json["items"]
+                    if (s["event"]["id"], s["sectionNumber"]) in raw_standings]
+
+        with stub_uscf(uscf_profile_json, sections=sections,
+                       standings=raw_standings) as first_mock:
+            sync.sync_uscf("32487228", cache_path=cache_path)
+        assert first_mock.call_count == len(raw_standings)   # first-ever Sync fetches
+
+        with stub_uscf(uscf_profile_json, sections=sections,
+                       standings=raw_standings) as second_mock:
+            second = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert second_mock.call_count == 0          # everything served from cache
+        assert ("202605290393", "LADDER") in second.standings
+
+    def test_a_failed_crosstable_is_retried_on_the_next_sync(
+        self, uscf_profile_json, uscf_sections_json, raw_standings, tmp_path
+    ):
+        """Only a SUCCESSFUL fetch is cached forever — a transient failure never
+        permanently loses that Section's standings."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        sections = [s for s in uscf_sections_json["items"]
+                    if (s["event"]["id"], s["sectionNumber"]) in raw_standings]
+
+        broken = dict(raw_standings)
+        broken[("202605290393", 1)] = UscfUnreachableError("transient failure")
+        with stub_uscf(uscf_profile_json, sections=sections, standings=broken):
+            first = sync.sync_uscf("32487228", cache_path=cache_path)
+        assert ("202605290393", "LADDER") not in first.standings
+
+        # USCF recovers → the next Sync fetches the one that failed, only that
+        with stub_uscf(uscf_profile_json, sections=sections,
+                       standings=raw_standings) as retry_mock:
+            second = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert {call.args for call in retry_mock.call_args_list} == {("202605290393", 1)}
+        assert ("202605290393", "LADDER") in second.standings
+
+    def test_one_crosstable_failing_skips_only_that_section(
+        self, uscf_profile_json, uscf_sections_json, raw_standings
+    ):
+        """Crosstable failures degrade individually (unlike the member
+        snapshot): one Section's standings missing never costs the others."""
+        broken = dict(raw_standings)
+        broken[("202605290393", 1)] = UscfUnreachableError("crosstable broke")
+
+        with stub_uscf(uscf_profile_json, sections=uscf_sections_json["items"],
+                       standings=broken):
+            result = sync.sync_uscf("32487228")
+
+        assert result.available                           # the Sync itself is fine
+        assert ("202605290393", "LADDER") not in result.standings
+        assert ("202603290543", "Under 1800") in result.standings
+
+    def test_cached_crosstables_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_sections_json, raw_standings, tmp_path
+    ):
+        """USCF down: the member snapshot degrades to cache — and so do the
+        crosstables (they're immutable; the cache is always correct)."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, sections=uscf_sections_json["items"],
+                       standings=raw_standings):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert ("202605290393", "LADDER") in degraded.standings
+        assert len(degraded.standings[("202605290393", "LADDER")]) == 116
 
 
 class TestSyncUscfAchievements:
