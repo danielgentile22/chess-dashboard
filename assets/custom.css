@@ -2015,7 +2015,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   cursor: pointer;
   list-style-position: inside;
 }
-.series-summary::marker { color: var(--cs-accent); font-size: 12px; }
+.series-summary::marker { color: var(--cs-muted); font-size: 12px; }  /* chrome — neutral, not gold */
 .series-summary:hover { background: var(--cs-hover); border-radius: var(--cs-radius); }
 .series-name {
   font-family: var(--cs-font-display);
@@ -2132,7 +2132,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   padding: 4px 0;
   list-style-position: inside;
 }
-.crosstable-summary::marker { color: var(--cs-primary); font-size: 11px; }
+.crosstable-summary::marker { color: var(--cs-muted); font-size: 11px; }  /* chrome — neutral, not gold/blue */
 .crosstable-placement {
   font-weight: 600;
   font-size: 13px;
@@ -2162,15 +2162,15 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   position: sticky;
   top: 0;
   background: var(--cs-card2);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  color: var(--cs-accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: normal;          /* quiet header — no tracked shouting */
+  text-transform: none;            /* no uppercase */
+  color: var(--cs-muted);          /* chrome — neutral, not gold */
   z-index: 1;
 }
 .crosstable-row-me {
-  background: var(--cs-accent-wash);       /* Daniel's row — derived gold wash */
+  background: var(--cs-text-wash-2);       /* Daniel's row — subtle neutral fill */
   font-weight: 600;
 }
 .crosstable-ordinal {
@@ -2180,7 +2180,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   color: var(--cs-dim);
   text-align: right;
 }
-.crosstable-row-me .crosstable-ordinal { color: var(--cs-accent); }
+.crosstable-row-me .crosstable-ordinal { color: var(--cs-text); }  /* chrome — neutral, not gold */
 .crosstable-player { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .crosstable-rating {
   font-family: var(--cs-font-data);
