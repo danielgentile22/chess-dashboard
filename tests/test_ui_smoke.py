@@ -2602,3 +2602,167 @@ class TestEventsGoldDiscipline:
         for chip in (".crosstable-round.w", ".crosstable-round.l",
                      ".crosstable-round.d"):
             assert "var(--cs-" in self._rule(css, chip)
+
+
+class TestMotionAndPolish:
+    """E10: the app-wide motion layer (page-load stagger, sliding nav underline,
+    hover lift, the drawer's Apple sheet curve) — all CSS-driven, interruptible,
+    settled once the page lands, and fully disabled under prefers-reduced-motion.
+    Plus the polish pass: 44px touch targets and phone-fit charts.
+
+    External behavior only: what the stylesheet declares (assert on selectors
+    and declarations, never pixel-perfect visual appearance)."""
+
+    @property
+    def css(self) -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parent.parent
+                / "assets" / "custom.css").read_text()
+
+    @staticmethod
+    def _block(css: str, selector: str) -> str:
+        """The declaration block for *selector* (first match, whitespace
+        tolerant before the brace)."""
+        import re
+        m = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css)
+        assert m, f"selector {selector} not found in CSS"
+        return m.group(1)
+
+    # -- Motion is present --------------------------------------------------
+
+    def test_cards_fade_up_with_a_stagger_on_load(self):
+        """Cards animate in (a fade-up) with a per-card delay so the page
+        assembles top-to-bottom (PRD: ~40ms stagger, 350ms ease-out)."""
+        css = self.css
+        # The card-in animation exists and is applied to the page's cards.
+        assert "@keyframes cardIn" in css
+        block = self._block(css, ".page .chart-card")
+        assert "animation" in block and "cardIn" in block
+        # A staggered delay is declared (the second card waits behind the first).
+        assert "animation-delay: 40ms" in css
+
+    def test_card_stagger_runs_once_and_holds(self):
+        """The fade-up uses `both` (holds the end state) and is finite — it
+        never loops, so nothing keeps moving after the page settles."""
+        block = self._block(self.css, ".page .chart-card")
+        assert "both" in block
+        assert "infinite" not in block
+
+    def test_nav_underline_slides_between_tabs(self):
+        """The active-tab underline transitions its transform (a slide), rather
+        than snapping in instantly (PRD: the underline slides between tabs)."""
+        css = self.css
+        # The underline lives on every link's ::after and transitions its scale.
+        under = self._block(css, ".app-nav-link::after")
+        assert "transform" in under
+        assert "transition" in under
+        # The active tab scales the underline up; an inactive one keeps it at 0.
+        active = self._block(css, ".app-nav-link.active::after")
+        assert "scaleX(1)" in active
+        assert "scaleX(0)" in under
+
+    def test_cards_lift_on_hover(self):
+        """Chart/content cards lift slightly on hover so what's interactive is
+        discoverable (PRD: −1px translate)."""
+        block = self._block(self.css, ".chart-card:hover")
+        assert "translateY(-1px)" in block
+
+    def test_drawer_uses_the_apple_sheet_curve(self):
+        """The filter drawer animates on Apple's sheet curve, not Bootstrap's
+        linear default (PRD: cubic-bezier(0.32, 0.72, 0, 1))."""
+        block = self._block(self.css, ".filter-drawer.offcanvas")
+        assert "cubic-bezier(.32, .72, 0, 1)" in block
+        assert "transition" in block
+
+    def test_streak_fire_blaze_is_finite_not_infinite(self):
+        """The blazing-streak pulse settles (a finite iteration count) instead
+        of looping forever — nothing keeps moving after the page settles."""
+        block = self._block(self.css, ".streak-fire.blazing")
+        assert "infinite" not in block
+        assert "animation" in block
+
+    # -- Reduced motion disables everything --------------------------------
+
+    def test_reduced_motion_media_query_exists(self):
+        css = self.css
+        assert "@media (prefers-reduced-motion: reduce)" in css
+
+    def test_reduced_motion_disables_animation_and_transition(self):
+        """Under reduced motion the universal selector zeroes both animation and
+        transition durations — no animation plays, nothing moves."""
+        import re
+        css = self.css
+        start = css.index("@media (prefers-reduced-motion: reduce)")
+        block = css[start:]
+        # The universal selector is targeted (catches every element + pseudo).
+        assert re.search(r"\*\s*,\s*\*::before\s*,\s*\*::after", block)
+        assert "animation-duration: .001ms" in block
+        assert "transition-duration: .001ms" in block
+        assert "animation-iteration-count: 1" in block
+
+    def test_reduced_motion_kills_the_blazing_fire(self):
+        """The decorative streak-fire pulse is switched fully off under reduced
+        motion (animation: none), so the count sits perfectly still."""
+        css = self.css
+        start = css.index("@media (prefers-reduced-motion: reduce)")
+        block = css[start:]
+        assert ".streak-fire.blazing { animation: none" in block
+
+    # -- 44px touch targets ------------------------------------------------
+
+    def test_nav_tabs_meet_the_44px_touch_target(self):
+        block = self._block(self.css, ".app-nav-link")
+        assert "min-height: 44px" in block
+
+    def test_preset_chips_meet_the_44px_touch_target(self):
+        block = self._block(self.css, ".preset-btn")
+        assert "min-height: 44px" in block
+
+    def test_repertoire_tree_rows_meet_the_44px_touch_target(self):
+        block = self._block(self.css, ".rep-node-row")
+        assert "min-height: 44px" in block
+
+    # -- Charts fit a phone ------------------------------------------------
+
+    def test_charts_are_capped_on_a_phone(self):
+        """At phone width the tall desktop chart heights are capped so a plot
+        fills its frame instead of stranding empty space — and content cards
+        (which hold tables) are left to size to their content."""
+        css = self.css
+        # The cap targets real chart cards, never content cards.
+        assert ".chart-card:not(.content-card)" in css
+        # It is declared inside the phone media query (max-width: 768px).
+        phone = css[css.index("/* ── Phone (the chess-club view)"):]
+        assert ".chart-card:not(.content-card)" in phone
+
+    def test_charts_do_not_force_horizontal_scroll_on_a_phone(self):
+        """The responsive Plotly graph is pinned to its card width so a plot
+        never overflows into a sideways scroll at 390px."""
+        phone = self.css[self.css.index("/* ── Phone (the chess-club view)"):]
+        assert ".plot-container" in phone or ".js-plotly-plot" in phone
+
+    # -- Spacing pass: standalone cards never touch ------------------------
+
+    def test_standalone_page_cards_carry_a_bottom_margin(self):
+        """A card placed directly on a page (Openings' Repertoire card above its
+        grid) carries the grid rhythm below it, so it never butts against the
+        next block (spacing polish)."""
+        css = self.css
+        assert ".page > .content-card" in css
+        block = self._block(css, ".page > .content-card")
+        assert "margin-bottom: 14px" in block
+
+    def test_card_stack_spaces_stacked_cards(self):
+        """A vertical stack of cards (Reconciliation's per-kind sections) gets
+        the shared 14px rhythm, so the cards don't touch."""
+        block = self._block(self.css, ".card-stack")
+        assert "gap: 14px" in block
+
+    def test_reconciliation_stacks_its_cards_with_the_shared_rhythm(
+        self, ui_app, ui_data
+    ):
+        """The Reconciliation page (which lists several per-kind cards) wraps
+        them in the spaced card-stack container, so the cards don't touch."""
+        from pages.reconciliation import update_reconciliation
+        rendered = str(update_reconciliation({"seq": 0}))
+        assert "card-stack" in rendered
