@@ -1342,8 +1342,23 @@ class TestGameDetail:
 
     def test_embed_url_derivation(self, ui_app, ui_data):
         from pages.game_detail import embed_url
+        # The embed path is derived AND the dark-background parameter is appended,
+        # so opening a Game in the dark app no longer flashbangs the viewer (#43).
         assert (embed_url("https://lichess.org/study/abc123/def456")
-                == "https://lichess.org/study/embed/abc123/def456")
+                == "https://lichess.org/study/embed/abc123/def456?bg=dark")
+
+    def test_embed_url_dark_param_with_existing_query(self, ui_app, ui_data):
+        from pages.game_detail import embed_url
+        # A ChapterURL that already carries a query string still gets bg=dark,
+        # appended with & rather than a second ?.
+        assert (embed_url("https://lichess.org/study/abc123/def456?ply=3")
+                == "https://lichess.org/study/embed/abc123/def456?ply=3&bg=dark")
+
+    def test_embed_url_blank_returns_empty(self, ui_app, ui_data):
+        from pages.game_detail import embed_url
+        # A blank ChapterURL yields no embed URL — the caller skips the iframe.
+        assert embed_url("") == ""
+        assert embed_url("   ") == ""
 
     def test_detail_shows_board_metadata_and_lesson(self, ui_app, ui_data):
         from pages.game_detail import layout
@@ -1366,6 +1381,27 @@ class TestGameDetail:
         rendered = str(layout(chapter_id="chap0002"))
         assert "lichess.org/study/embed/teststudy/chap0002" in rendered
         assert "No Lesson" in rendered  # deliberate empty state, not a crash
+
+    def test_game_without_chapter_url_renders_without_error(
+        self, ui_app, ui_data, monkeypatch
+    ):
+        """A Game with no ChapterURL renders its detail view gracefully —
+        no broken iframe, no crash (acceptance criterion, #43)."""
+        import pandas as pd
+
+        from pages import game_detail
+        urlless = pd.Series({
+            "Opponent": "Opponent X", "Outcome": "Win", "ChapterURL": "",
+            "Event": "Test Open", "Round": "1", "Date": "2024.01.01",
+        })
+        monkeypatch.setattr(game_detail, "_find_game", lambda _id: urlless)
+        rendered = str(game_detail.layout(chapter_id="whatever"))
+        # The header still renders for the Game...
+        assert "Opponent X" in rendered
+        # ...the board card degrades gracefully instead of embedding nothing...
+        assert "No board for this game" in rendered
+        # ...and no embed iframe URL is emitted.
+        assert "lichess.org/study/embed" not in rendered
 
     def test_unknown_chapter_shows_not_found(self, ui_app, ui_data):
         from pages.game_detail import layout
