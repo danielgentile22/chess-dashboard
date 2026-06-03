@@ -76,8 +76,9 @@ def layout(**kwargs) -> html.Div:
             html.Div(id="scouting-report"),
         ),
 
-        # Who you play and how it goes
-        chart_card("Opponent W/D/L (top 25, played >1 game)", "opponent-bar", height=420),
+        # Who you play and how it goes.  Horizontal bars need vertical room —
+        # one row per opponent — so the names stay readable down the y-axis.
+        chart_card("Opponent W/D/L (top 25, played >1 game)", "opponent-bar", height=620),
         html.Div(className="g2", children=[
             chart_card("W/D/L by opponent rating difference", "rating-bucket-bar"),
             chart_card("Outcome vs opponent rating", "outcome-scatter"),
@@ -310,12 +311,15 @@ def update_opponents(colors, outcomes, terminations, start, end, events, moves, 
         value_vars=["Win", "Draw", "Loss"],
         var_name="Outcome", value_name="Count",
     )
+    # Horizontal bars so opponent names read straight across — no rotated,
+    # overlapping labels (PRD: "horizontal bars wherever names are long").
     fig = px.bar(
-        long, x="Opponent", y="Count", color="Outcome",
-        barmode="stack", color_discrete_map=WDL_COLOR_MAP,
+        long, x="Count", y="Opponent", color="Outcome",
+        orientation="h", barmode="stack", color_discrete_map=WDL_COLOR_MAP,
     )
-    apply_dark_theme(fig, legend_title="Outcome")
-    fig.update_xaxes(tickangle=35, automargin=True)
+    apply_dark_theme(fig, xaxis_title="Games", legend_title="Outcome")
+    # Most-played opponent on top; let names claim whatever width they need.
+    fig.update_yaxes(autorange="reversed", automargin=True)
     return fig
 
 
