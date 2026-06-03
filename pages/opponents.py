@@ -147,15 +147,19 @@ def _uscf_identity(report: dict, games) -> html.Div | None:
     # vs where their rating stands today (issue #35's insight)
     profile = data.get_opponent_profiles().get(opponent_id)
     regular = profile.rating("R") if profile is not None else None
-    then, now = report["their_rating"], (regular.rating if regular else None)
-    if then and now is not None:
+    then = report["their_rating"]
+    now = regular.rating if regular is not None else None
+    if then is not None and now is not None:
         delta = now - then
         delta_str = f"+{delta}" if delta > 0 else str(delta)
+        # They climbed since → red (the harder rematch); dropped → green;
+        # unchanged → neutral
+        delta_class = "loss" if delta > 0 else ("win" if delta < 0 else "")
         children.append(html.Div(className="scout-then-vs-now", children=[
             html.Span(f"Rated {then} when you last played", className="scout-then"),
             html.Span(" · ", className="scout-then-sep"),
             html.Span(f"{now} now ({delta_str})",
-                      className="scout-now " + ("loss" if delta > 0 else "win")),
+                      className=f"scout-now {delta_class}".strip()),
         ]))
 
     return html.Div(children, className="scout-uscf-identity")

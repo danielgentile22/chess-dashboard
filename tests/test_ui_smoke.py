@@ -542,6 +542,31 @@ class TestUscfAchievementMilestones:
         finally:
             data.reset()
 
+    def test_an_undated_achievement_sorts_last_never_first(
+        self, ui_app, sample_pgn_text
+    ):
+        """An achievement USCF sends with no date at all goes to the END of the
+        timeline (nothing to place it by) — never to the top."""
+        import data
+        from pages.overview import update_milestones
+        from tests.conftest import stub_ui_sources
+
+        undated_award = [{"category": "WinMilestone", "winCount": 10}]
+        data.reset()
+        with stub_ui_sources(sample_pgn_text, uscf_norms=[],
+                             uscf_awards=undated_award):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="12345678")
+        try:
+            rendered = str(update_milestones(*_filter_args()))
+            # The undated 10th-win award renders after every dated milestone —
+            # including the latest one (peak rating)
+            for dated_description in ("First recorded game", "peak rating"):
+                assert rendered.rindex(dated_description) \
+                    < rendered.index("10th career win")
+        finally:
+            data.reset()
+
 
 # ---------------------------------------------------------------------------
 # Trends page callbacks (issue #9)

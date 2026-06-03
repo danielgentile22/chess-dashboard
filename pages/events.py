@@ -21,7 +21,13 @@ import plotly.express as px
 from dash import Output, callback, dcc, html
 
 import data
-from components import chart_card, content_card, empty_state, page_header
+from components import (
+    chart_card,
+    content_card,
+    empty_state,
+    game_detail_path,
+    page_header,
+)
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import event_summary, performance_rating_stats
 from styles import WDL_COLOR_MAP, apply_dark_theme, empty_fig
@@ -29,6 +35,7 @@ from uscf_core import (
     RoundOutcome,
     StandingEntry,
     UscfEvent,
+    ordinal,
     series_summary,
     unplayed_events,
 )
@@ -114,21 +121,10 @@ def _game_row(row: dict):
         html.Span("Forfeit", className="event-game-forfeit-tag")
         if row.get("Forfeit") else None,
     ]
-    detail = row.get("ChapterURL", "")
+    detail = game_detail_path(row.get("ChapterURL", ""))
     if detail:
-        chapter_id = detail.rstrip("/").rsplit("/", 1)[-1]
-        return dcc.Link(children, href=f"/game/{chapter_id}",
-                        className="event-game-row")
+        return dcc.Link(children, href=detail, className="event-game-row")
     return html.Div(children, className="event-game-row")
-
-
-def _ordinal_label(n: int) -> str:
-    """5 → '5th', 1 → '1st', 22 → '22nd' (placement wording)."""
-    if 11 <= n % 100 <= 13:
-        suffix = "th"
-    else:
-        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-    return f"{n}{suffix}"
 
 
 def _round_result(outcome: RoundOutcome, games_by_round: dict[int, str]):
@@ -141,11 +137,10 @@ def _round_result(outcome: RoundOutcome, games_by_round: dict[int, str]):
     if outcome.opponent_name:
         title += f" vs {outcome.opponent_name}"
 
-    chapter_url = games_by_round.get(outcome.round_number, "")
+    detail = game_detail_path(games_by_round.get(outcome.round_number, ""))
     css = f"crosstable-round {letters.get(outcome.outcome, '').lower() or 'none'}"
-    if chapter_url:
-        chapter_id = chapter_url.rstrip("/").rsplit("/", 1)[-1]
-        return dcc.Link(letter, href=f"/game/{chapter_id}", title=title,
+    if detail:
+        return dcc.Link(letter, href=detail, title=title,
                         className=css + " crosstable-round-link")
     return html.Span(letter, title=title, className=css)
 
@@ -174,7 +169,7 @@ def _crosstable(section_name: str, standings: list[StandingEntry],
                 member_id: str, games_by_round: dict[int, str]) -> html.Details:
     """The full standings of one Section, expandable (issue #34)."""
     me = next((s for s in standings if s.member_id == member_id), None)
-    placement = (f"Finished {_ordinal_label(me.ordinal)} of {len(standings)}"
+    placement = (f"Finished {ordinal(me.ordinal)} of {len(standings)}"
                  if me else f"{len(standings)} players")
     return html.Details(className="crosstable", children=[
         html.Summary(className="crosstable-summary", children=[
@@ -209,11 +204,14 @@ def _rated_event_card(event: dict, performance_rating: int | None = None,
         f"Performance {performance_rating}" if performance_rating else "",
     ]
 
-    # Real round → ChapterURL, for crosstable round links.  The Series'
-    # unmatched rows ride along so a Forfeit's crosstable round links too.
+    # Real round → ChapterURL, for crosstable round links.  Forfeit rows from
+    # the Series ride along (their crosstable round was attached via this very
+    # event's crosstable) — but never other events' unmatched games, which
+    # could collide on round numbers.
+    forfeit_rows = [row for row in (extra_rows or []) if row.get("Forfeit")]
     games_by_round = {
         int(row["UscfRound"]): row["ChapterURL"]
-        for row in [*event["rows"], *(extra_rows or [])]
+        for row in [*event["rows"], *forfeit_rows]
         if pd.notna(row.get("UscfRound")) and row.get("ChapterURL")
     }
     crosstables = [
