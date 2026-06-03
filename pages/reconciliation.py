@@ -143,7 +143,9 @@ def _render_entries(entries: list[ReconciliationEntry]) -> html.Div:
                      className="reconcile-entries"),
         ))
     sections.append(_persistence_note())
-    return html.Div(sections)
+    # The per-kind cards stack vertically; the shared card-stack rhythm gives
+    # them the same gap a grid row would (spacing polish, issue #51).
+    return html.Div(sections, className="card-stack")
 
 
 # ---------------------------------------------------------------------------

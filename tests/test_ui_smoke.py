@@ -141,10 +141,19 @@ class TestShell:
         layout = ui_app.layout
         return _collect_ids(layout() if callable(layout) else layout)
 
-    def test_header_has_sync_and_freshness(self, shell_ids):
-        assert "sync-button" in shell_ids
-        assert "sync-freshness" in shell_ids
-        assert "header-games-count" in shell_ids
+    def test_header_holds_exactly_the_calm_set(self, shell_ids):
+        """The simplified header (issue #45): brand, form/streak, reconciliation
+        badge, the Official/Live lens, Filters, Sync — and nothing else."""
+        for present in ("header-form", "reconciliation-badge", "rating-lens",
+                        "filter-drawer-button", "sync-button"):
+            assert present in shell_ids, f"header is missing {present}"
+
+    def test_header_metadata_relocated_out_of_header(self, shell_ids):
+        """Game count, date range, and the standalone freshness label moved
+        into the filter drawer / Sync tooltip (issue #45) — gone from the header."""
+        assert "header-games-count" not in shell_ids
+        assert "header-date-range" not in shell_ids
+        assert "sync-freshness" not in shell_ids
 
     def test_header_has_form_indicators(self, shell_ids):
         assert "header-form" in shell_ids  # streak fire + form dots (issue #10)
@@ -189,6 +198,14 @@ class TestShell:
         assert "celebration-zone" in shell_ids
         for path, _ in PAGES:
             assert "celebration-zone" not in _collect_ids(_render(_page(path)))
+
+    def test_freshness_is_wired_to_the_sync_button_tooltip(self, ui_app, ui_data):
+        """Sync freshness moved onto the Sync button's tooltip (issue #45):
+        a callback must drive ``sync-button.title``, not a header stat span."""
+        ui_app.server.test_client().get("/")
+        assert any("sync-button.title" in key for key in ui_app.callback_map), (
+            "no callback feeds the Sync button tooltip"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -629,12 +646,16 @@ class TestTrendsCallbacks:
         assert labels == ["2024"]
 
     def test_activity_calendar_cells_carry_the_days_games(self, ui_app, ui_data):
-        """Hovering a cell shows that day's Games (opponent, result)."""
+        """Hovering a played day leads with the game count, then that day's
+        Games (opponent, result).  Days without Games carry no hover at all."""
         from pages.trends import update_activity_calendar
         hover = self._calendar_hover_text(update_activity_calendar(*_filter_args()))
         assert "Win vs Opponent A" in hover
         assert "Draw vs Opponent B" in hover
-        assert "No games" in hover  # days without Games are visibly empty
+        # The pretty hover leads with a bold count: "<b>1</b> game · …".
+        assert "</b> game" in hover
+        # Empty days are blank (no "No games" popup) — they carry no hover text.
+        assert "No games" not in hover
 
     def test_activity_calendar_responds_to_filters(self, ui_app, ui_data):
         """Filtering to wins-only removes the loss day's games from the calendar."""
@@ -846,6 +867,17 @@ class TestOpponentsCallbacks:
         # Opponents A and B are both played more than once in the fixture
         assert update_opponents(*_filter_args()).data
 
+    def test_opponent_bar_is_horizontal(self, ui_app, ui_data):
+        """E7: opponent names read down the y-axis (horizontal bars), so the
+        labels never rotate into an overlapping diagonal."""
+        from pages.opponents import update_opponents
+        fig = update_opponents(*_filter_args())
+        # Every W/D/L trace is a horizontal bar with opponent names on y.
+        assert fig.data
+        for trace in fig.data:
+            assert trace.orientation == "h"
+            assert _axis_vals(trace.y)        # opponent names live on the y-axis
+
     def test_strength_charts_build(self, ui_app, ui_data):
         from pages.opponents import update_bucket, update_scatter
         assert update_bucket(*_filter_args()).data
@@ -961,6 +993,17 @@ class TestEventsSeriesGroups:
     def test_the_event_bar_still_builds(self, ui_app, ui_data):
         from pages.events import update_event_bar
         assert update_event_bar(*_filter_args()).data
+
+    def test_the_event_bar_is_horizontal(self, ui_app, ui_data):
+        """E6: tournament names read down the y-axis (horizontal bars), so the
+        labels never rotate into an overlapping diagonal."""
+        from pages.events import update_event_bar
+        fig = update_event_bar(*_filter_args())
+        # Every W/D/L trace is a horizontal bar with Series names on y.
+        assert fig.data
+        for trace in fig.data:
+            assert trace.orientation == "h"
+            assert _axis_vals(trace.y)        # Series names live on the y-axis
 
     def test_the_real_club_ladder_renders_with_its_monthly_events(
         self, ui_app, real_career_ui
@@ -1342,8 +1385,23 @@ class TestGameDetail:
 
     def test_embed_url_derivation(self, ui_app, ui_data):
         from pages.game_detail import embed_url
+        # The embed path is derived AND the dark-background parameter is appended,
+        # so opening a Game in the dark app no longer flashbangs the viewer (#43).
         assert (embed_url("https://lichess.org/study/abc123/def456")
-                == "https://lichess.org/study/embed/abc123/def456")
+                == "https://lichess.org/study/embed/abc123/def456?bg=dark")
+
+    def test_embed_url_dark_param_with_existing_query(self, ui_app, ui_data):
+        from pages.game_detail import embed_url
+        # A ChapterURL that already carries a query string still gets bg=dark,
+        # appended with & rather than a second ?.
+        assert (embed_url("https://lichess.org/study/abc123/def456?ply=3")
+                == "https://lichess.org/study/embed/abc123/def456?ply=3&bg=dark")
+
+    def test_embed_url_blank_returns_empty(self, ui_app, ui_data):
+        from pages.game_detail import embed_url
+        # A blank ChapterURL yields no embed URL — the caller skips the iframe.
+        assert embed_url("") == ""
+        assert embed_url("   ") == ""
 
     def test_detail_shows_board_metadata_and_lesson(self, ui_app, ui_data):
         from pages.game_detail import layout
@@ -1366,6 +1424,27 @@ class TestGameDetail:
         rendered = str(layout(chapter_id="chap0002"))
         assert "lichess.org/study/embed/teststudy/chap0002" in rendered
         assert "No Lesson" in rendered  # deliberate empty state, not a crash
+
+    def test_game_without_chapter_url_renders_without_error(
+        self, ui_app, ui_data, monkeypatch
+    ):
+        """A Game with no ChapterURL renders its detail view gracefully —
+        no broken iframe, no crash (acceptance criterion, #43)."""
+        import pandas as pd
+
+        from pages import game_detail
+        urlless = pd.Series({
+            "Opponent": "Opponent X", "Outcome": "Win", "ChapterURL": "",
+            "Event": "Test Open", "Round": "1", "Date": "2024.01.01",
+        })
+        monkeypatch.setattr(game_detail, "_find_game", lambda _id: urlless)
+        rendered = str(game_detail.layout(chapter_id="whatever"))
+        # The header still renders for the Game...
+        assert "Opponent X" in rendered
+        # ...the board card degrades gracefully instead of embedding nothing...
+        assert "No board for this game" in rendered
+        # ...and no embed iframe URL is emitted.
+        assert "lichess.org/study/embed" not in rendered
 
     def test_unknown_chapter_shows_not_found(self, ui_app, ui_data):
         from pages.game_detail import layout
@@ -1724,10 +1803,11 @@ class TestRatingLensToggle:
         assert ("rating-lens", "value") in dependencies
 
     def test_the_lens_triggers_no_data_callbacks(self, ui_app, ui_data):
-        """Toggling the lens changes no data — the freshness label, the cache
-        notice, and the Reconciliation badge must not re-fire on it."""
+        """Toggling the lens changes no data — the freshness label (now the Sync
+        button's tooltip, issue #45), the cache notice, and the Reconciliation
+        badge must not re-fire on it."""
         ui_app.server.test_client().get("/")
-        data_outputs = ("sync-freshness", "reconciliation-badge", "cache-notice")
+        data_outputs = ("sync-button.title", "reconciliation-badge", "cache-notice")
         for key, cb in ui_app.callback_map.items():
             if not any(output in key for output in data_outputs):
                 continue
@@ -2059,3 +2139,634 @@ class TestGamesCallbacks:
     def test_games_table_respects_filters(self, ui_app, ui_data):
         from pages.games import update_games_table
         assert len(update_games_table(*_filter_args(outcomes=["Win"]))) == 4
+
+
+def _games_table_columns(layout):
+    """The (label, id) pairs of the Games DataTable, in display order."""
+    def walk(node):
+        if getattr(node, "id", None) == "games-table":
+            return node
+        children = getattr(node, "children", None)
+        if children is None:
+            return None
+        if not isinstance(children, (list, tuple)):
+            children = [children]
+        for child in children:
+            found = walk(child)
+            if found is not None:
+                return found
+        return None
+
+    table = walk(layout)
+    assert table is not None, "games-table not found in layout"
+    return [(c["name"], c["id"]) for c in table.columns]
+
+
+class TestGamesColumnSet:
+    """The Games table is rebuilt around the player (opponent, ratings, my
+    color, outcome).  A guard test pins the exact column set so the redundant
+    raw-PGN columns can't creep back (the PRD's "Games column set" decision)."""
+
+    def test_player_centric_columns_in_order(self, ui_app, ui_data):
+        from pages.games import layout
+        ids = [cid for _name, cid in _games_table_columns(layout())]
+        assert ids == [
+            "Date", "Event", "RoundNum", "Opponent", "OpponentRating",
+            "Color", "PlayerRating", "Outcome", "Termination",
+            "FullMoves", "ECO", "Opening",
+            "LessonIndicator", "TagsDisplay", "USCF", "Lichess",
+        ]
+
+    def test_redundant_pgn_columns_are_dropped(self, ui_app, ui_data):
+        """No Index, no White/Black name or rating pairs, no raw Result —
+        the player-centric columns already say who I played and how it went."""
+        from pages.games import layout
+        ids = {cid for _name, cid in _games_table_columns(layout())}
+        for banned in ("Index", "White", "WhiteRating",
+                       "Black", "BlackRating", "Result"):
+            assert banned not in ids, f"redundant column {banned!r} crept back"
+
+    def test_data_rows_only_carry_displayed_columns_plus_chapter_url(
+        self, ui_app, ui_data
+    ):
+        """The callback feeds exactly the displayed columns (plus the hidden
+        ChapterURL that powers row-click navigation) — no stray PGN fields."""
+        from pages.games import layout, update_games_table
+        displayed = {cid for _name, cid in _games_table_columns(layout())}
+        row = update_games_table(*_filter_args())[0]
+        assert set(row) == displayed | {"ChapterURL"}
+
+
+class TestMobileGameCards:
+    """The mobile Games card list (issue #48): at phone widths each Game
+    renders as a tappable card — opponent, outcome, date, event — fed by the
+    *same* callback rows as the desktop table (the PRD's "Mobile game cards"
+    testing decision)."""
+
+    @staticmethod
+    def _cards(card_list):
+        """The individual card components inside a game_cards() list."""
+        children = card_list.children
+        return children if isinstance(children, (list, tuple)) else [children]
+
+    def test_one_card_per_game_row(self, ui_app, ui_data):
+        """The card list and the table are two renderings of one row set."""
+        from components import game_cards
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        assert len(self._cards(game_cards(rows))) == len(rows) == 7
+
+    def test_card_carries_opponent_outcome_date_event(self, ui_app, ui_data):
+        """Each card shows the things that matter first at the club."""
+        from components import game_cards
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        rendered = str(game_cards(rows))
+        # A specific fixture Game's facts all appear on its card.
+        assert "Opponent A" in rendered      # opponent
+        assert "Win" in rendered             # outcome
+        assert "Test Open" in rendered       # event
+        assert "2024" in rendered            # date
+
+    def test_outcome_drives_a_semantic_class(self, ui_app, ui_data):
+        """The outcome word carries an outcome-<result> class so wins read
+        green and losses red — color only where it means something."""
+        from components import game_cards
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        rendered = str(game_cards(rows))
+        # The fixture has wins, draws, and a loss → all three classes appear.
+        assert "outcome-win" in rendered
+        assert "outcome-loss" in rendered
+        assert "outcome-draw" in rendered
+
+    def test_card_with_a_chapter_url_links_to_the_detail_view(self, ui_app, ui_data):
+        """Tapping a card opens that Game — same as clicking a table row."""
+        from dash import dcc
+
+        from components import game_cards
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        cards = self._cards(game_cards(rows))
+        linked = [c for c in cards if isinstance(c, dcc.Link)]
+        assert linked, "no card links to a Game detail view"
+        # Every linked card points at the in-app /game/<chapter> route.
+        assert all(c.href.startswith("/game/") for c in linked)
+
+    def test_card_without_a_chapter_url_renders_without_a_link(self, ui_app):
+        """A Game with no ChapterURL renders a plain card — no link, no error."""
+        from dash import dcc, html
+
+        from components import game_cards
+        rows = [
+            {"Opponent": "No URL Opponent", "Outcome": "Loss",
+             "Date": "2024.05.01", "Event": "Club Night", "ChapterURL": ""},
+        ]
+        card = self._cards(game_cards(rows))[0]
+        assert isinstance(card, html.Div)        # not a dcc.Link
+        assert not isinstance(card, dcc.Link)
+        assert "No URL Opponent" in str(card)    # still shows the Game
+
+    def test_missing_chapter_url_key_does_not_error(self, ui_app):
+        """A row dict that omits ChapterURL entirely still renders harmlessly."""
+        from components import game_cards
+        rows = [{"Opponent": "Sparse", "Outcome": "Win",
+                 "Date": "2024.05.02", "Event": "Club Night"}]
+        rendered = str(game_cards(rows))
+        assert "Sparse" in rendered
+
+    def test_page_renders_both_table_and_card_views(self, ui_app, ui_data):
+        """The layout carries both presentations; CSS picks one by width."""
+        from pages.games import layout
+        ids = _collect_ids(layout())
+        assert "games-table" in ids   # desktop table
+        assert "games-cards" in ids   # mobile card list
+        rendered = str(layout())
+        assert "games-table-view" in rendered
+        assert "games-cards-view" in rendered
+
+    def test_table_and_cards_share_one_callback(self, ui_app, ui_data):
+        """Both presentations are fed by the same callback build — no second
+        data pipeline (issue #48's acceptance criterion)."""
+        from pages.games import update_games
+        table_data, cards = update_games(*_filter_args())
+        # The card list renders exactly the rows the table is given.
+        assert len(self._cards(cards)) == len(table_data)
+
+    def test_card_swap_lives_in_css_not_python(self):
+        """The desktop-table / phone-cards swap is a CSS media query, so the
+        callback never branches on viewport width."""
+        from pathlib import Path
+        css = (Path(__file__).resolve().parent.parent
+               / "assets" / "custom.css").read_text()
+        assert ".games-cards-view" in css
+        assert ".games-table-view" in css
+
+
+class TestQuietTableTreatment:
+    """The shared quiet-table treatment (neutral headers, left-aligned text,
+    hairline separators, focused-row fix) is reusable styling, not Games-only
+    CSS — issues #49 (Events crosstables) and #50 (Trends upset tables) reuse
+    it."""
+
+    def test_quiet_helper_wraps_with_the_shared_class(self):
+        from dash import html
+
+        from components import quiet_table
+        wrapped = quiet_table(html.Div(id="inner"), clickable=True)
+        assert "quiet-table" in wrapped.className
+        assert "clickable-rows" in wrapped.className
+
+    def test_quiet_header_style_is_neutral_not_gold(self):
+        """Quiet headers carry no gold and no uppercase shouting."""
+        from components import QUIET_TABLE_HEADER
+        from styles import COLORS
+        assert QUIET_TABLE_HEADER["color"] == COLORS["muted"]
+        assert QUIET_TABLE_HEADER["color"] != COLORS["accent"]
+        assert QUIET_TABLE_HEADER["textTransform"] == "none"
+        assert QUIET_TABLE_HEADER["textAlign"] == "left"
+
+    def test_quiet_cell_style_left_aligns(self):
+        from components import QUIET_TABLE_CELL
+        assert QUIET_TABLE_CELL["textAlign"] == "left"
+
+    def test_quiet_treatment_lives_in_shared_css_not_games_page(self):
+        """The hairline separators and focused-row fix are defined once on the
+        .quiet-table class so any page can adopt them."""
+        from pathlib import Path
+        css = (Path(__file__).resolve().parent.parent
+               / "assets" / "custom.css").read_text()
+        assert ".quiet-table" in css
+        # The white focused-row glitch is re-tinted on the shared class.
+        assert ".quiet-table .dash-cell.focused" in css
+
+    def test_games_table_adopts_the_quiet_treatment(self, ui_app, ui_data):
+        """The Games table sits inside a .quiet-table wrapper."""
+        from pages.games import layout
+        assert "quiet-table" in str(layout())
+
+
+class TestOverviewTrendsContentDiscipline:
+    """E8: Overview + Trends adopt the content-first rules — KPI colour
+    discipline, the wrapping favourite-opening KPI, content-sized cards, neutral
+    game-milestone rows (gold stays on USCF achievements), and the upset tables
+    on the shared quiet-table treatment."""
+
+    @property
+    def css(self) -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parent.parent
+                / "assets" / "custom.css").read_text()
+
+    @staticmethod
+    def _block(css: str, selector: str) -> str:
+        """The declaration block for *selector* (whitespace-tolerant before the
+        opening brace), so multi-space selectors like '.milestone-dot.first'
+        still match."""
+        import re
+        m = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css)
+        assert m, f"selector {selector} not found in CSS"
+        return m.group(1)
+
+    @staticmethod
+    def _value_card(tree, value_id: str):
+        """The KPI card whose value Div carries *value_id*."""
+        for node in _walk_components(tree):
+            if getattr(node, "id", None) == value_id:
+                return node
+        raise AssertionError(f"no KPI value with id {value_id}")
+
+    # -- KPI colour discipline ---------------------------------------------
+
+    def test_kpi_values_are_neutral_except_win_and_loss(self, ui_app, ui_data):
+        """Only the win % and loss % KPIs carry a semantic colour class; every
+        other value (ratings, performance, streak, opponents) is neutral."""
+        tree = _render(_page("/"))
+        # The two coloured ones.
+        assert "win" in self._value_card(tree, "kpi-win-pct").className
+        assert "loss" in self._value_card(tree, "kpi-loss-pct").className
+        # Everything that used to wear accent / primary / win is neutral now.
+        for neutral in ("kpi-rating", "kpi-peak", "kpi-perf", "kpi-streak",
+                        "kpi-total", "kpi-draw-pct", "kpi-opps"):
+            cls = self._value_card(tree, neutral).className
+            assert "accent" not in cls, f"{neutral} still carries accent"
+            assert "primary" not in cls, f"{neutral} still carries primary"
+            assert "win" not in cls and "loss" not in cls, \
+                f"{neutral} carries a semantic colour it shouldn't"
+
+    # -- Favourite-opening KPI wraps, never truncates ----------------------
+
+    def test_favourite_opening_kpi_uses_the_wrapping_text_variant(
+        self, ui_app, ui_data
+    ):
+        tree = _render(_page("/"))
+        assert "kpi-value-text" in self._value_card(tree, "kpi-fav-opn").className
+
+    def test_favourite_opening_value_is_not_truncated(self, ui_app, ui_data):
+        """The KPI callback emits the full opening name — no '…' ellipsis."""
+        from pages.overview import update_kpis
+        fav = update_kpis(*_filter_args())[-1]   # last KPI output is the opening
+        assert "…" not in fav
+
+    def test_long_favourite_opening_reaches_the_browser_whole(
+        self, ui_app, sample_pgn_text
+    ):
+        """A long opening name survives the callback intact — the CSS wraps it,
+        Python never clips it."""
+        import data
+        import sync
+        from pages.overview import update_kpis
+        from pgn_stats_core import kpi_stats
+
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text):
+            data.initialize(["teststudy"], player_name="Test Player")
+        try:
+            full = kpi_stats(data.get_df())["favorite_opening"]
+            assert update_kpis(*_filter_args())[-1] == full
+        finally:
+            data.reset()
+
+    def test_kpi_text_variant_wraps_in_css(self):
+        """The text variant wraps (no nowrap / ellipsis) — the truncation bug
+        is fixed at the source."""
+        block = self._block(self.css, ".kpi-value-text")
+        assert "white-space: normal" in block
+        assert "nowrap" not in block
+
+    # -- Content-sized cards (no dead zones) -------------------------------
+
+    def test_content_cards_carry_the_content_marker(self):
+        """content_card marks itself so the grid can size it to content rather
+        than stretch it to a chart neighbour's height."""
+        from dash import html
+
+        from components import content_card
+        card = content_card("X", html.Div("y"))
+        assert "content-card" in card.className
+        assert "chart-card" in card.className   # still the shared surface
+
+    def test_grid_does_not_stretch_content_cards(self):
+        """The grid only floors real chart cards; content cards size to content
+        (align-items: start), so 'Last 20 games' / 'Average game length' lose
+        their dead zones."""
+        css = self.css
+        assert "align-items: start" in css
+        assert ".g3 > .chart-card:not(.content-card)" in css
+
+    def test_last_20_games_card_is_a_content_card(self, ui_app, ui_data):
+        """The Overview 'Last 20 games' card (holding the streak badges) is a
+        content card, so it sizes to content instead of stretching to its chart
+        neighbours' height."""
+        tree = _render(_page("/"))
+        badges = self._value_card(tree, "streak-badges")  # the streak-badges Div
+        # Walk up: the enclosing content card is the nearest ancestor with the
+        # marker class.  Easiest robust check: a content card carrying the
+        # streak-badges id exists in the rendered tree.
+        card = next(
+            node for node in _walk_components(tree)
+            if "content-card" in (getattr(node, "className", "") or "")
+            and "streak-badges" in _collect_ids(node)
+        )
+        assert "content-card" in card.className
+        assert badges is not None
+
+    # -- Trends: average game length is a compact stat strip ----------------
+
+    def test_average_game_length_is_a_compact_stat_strip(self, ui_app, ui_data):
+        from pages.trends import update_length_stats
+        rendered = str(update_length_stats(*_filter_args()))
+        assert "stat-strip" in rendered
+        assert "stat-strip-value" in rendered
+
+    def test_stat_strip_styled_in_css(self):
+        assert ".stat-strip" in self.css
+        assert ".stat-strip-value" in self.css
+
+    # -- Milestones: game rows neutral, USCF achievements gold -------------
+
+    def test_uscf_achievement_rows_are_gold(self, ui_app, ui_data):
+        """The official-achievement rows keep gold (they're achievements)."""
+        from pages.overview import update_milestones
+        rendered = str(update_milestones(*_filter_args()))
+        assert "milestone-row-uscf" in rendered
+        assert "milestone-num-uscf" in rendered
+
+    def test_uscf_milestone_dot_keeps_gold_in_css(self):
+        block = self._block(self.css, ".milestone-dot.uscf")
+        assert "var(--cs-accent)" in block
+
+    def test_game_milestone_dots_are_neutral_not_gold(self):
+        """The game-milestone rows (first / streak / peak / every-10th) go
+        neutral — gold survives only on the USCF achievement rows."""
+        css = self.css
+        for selector in (".milestone-dot.first", ".milestone-dot.streak",
+                         ".milestone-dot.peak", ".milestone-dot.milestone"):
+            block = self._block(css, selector)
+            assert "var(--cs-accent)" not in block, \
+                f"{selector} still gold — game milestones must be neutral"
+
+    def test_base_milestone_dot_is_neutral(self):
+        """A milestone row with no extra kind class defaults to a neutral dot,
+        not the old gold default."""
+        block = self._block(self.css, ".milestone-dot")
+        assert "var(--cs-accent)" not in block
+
+    # -- Trends upset tables adopt the shared quiet-table treatment --------
+
+    def test_upset_tables_adopt_the_quiet_treatment(self, ui_app, ui_data):
+        """Both upset tables sit inside a .quiet-table wrapper."""
+        from pages.trends import layout
+        rendered = str(layout())
+        # Two upset tables, each wrapped — the shared class appears for both.
+        assert rendered.count("quiet-table") >= 2
+
+    def test_upset_tables_use_the_quiet_header_style(self):
+        from components import QUIET_TABLE_HEADER
+        from pages.trends import _upset_table
+        table = _upset_table("upset-test")
+        assert table.style_header == QUIET_TABLE_HEADER
+
+    def test_upset_rows_still_click_through_to_games(self, ui_app, ui_data):
+        """The quiet treatment keeps the click-to-open behaviour (issue #11)."""
+        from pages.trends import navigate_to_game_from_upset_loss
+        rows = [{"Opponent": "X",
+                 "ChapterURL": "https://lichess.org/study/s/chap0009"}]
+        href, cleared = navigate_to_game_from_upset_loss(
+            {"row": 0, "column_id": "Opponent"}, rows)
+        assert href == "/game/chap0009"
+        assert cleared is None
+
+
+class TestEventsGoldDiscipline:
+    """E6: the Events crosstables apply the gold-discipline decision — the
+    'Finished Nth of M' placement stays gold (it's an achievement); the sticky
+    headers, Series/crosstable expand markers, and the own-row highlight are
+    chrome and go neutral.  Every surviving gold tint derives from the token."""
+
+    @staticmethod
+    def _rule(css: str, selector: str) -> str:
+        """The declaration block for a single CSS *selector* (first match)."""
+        start = css.index(selector)
+        open_brace = css.index("{", start)
+        close_brace = css.index("}", open_brace)
+        return css[open_brace + 1:close_brace]
+
+    @property
+    def css(self) -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parent.parent
+                / "assets" / "custom.css").read_text()
+
+    def test_placement_line_stays_gold(self):
+        """The achievement keeps the gold token."""
+        assert "var(--cs-accent)" in self._rule(self.css, ".crosstable-placement")
+
+    def test_crosstable_header_is_neutral_not_gold(self):
+        """The sticky header is chrome — neutral, no gold, no uppercase shout."""
+        block = self._rule(self.css, ".crosstable-header {")
+        assert "var(--cs-accent)" not in block
+        assert "var(--cs-muted)" in block
+        assert "text-transform: uppercase" not in block
+
+    def test_own_row_highlight_is_a_subtle_neutral_fill(self):
+        """Daniel's row stays distinguishable, but with a neutral fill — the
+        gold wash is gone."""
+        block = self._rule(self.css, ".crosstable-row-me {")
+        assert "var(--cs-accent-wash)" not in block
+        assert "background" in block          # still visually distinguishable
+
+    def test_own_row_ordinal_is_neutral(self):
+        block = self._rule(self.css, ".crosstable-row-me .crosstable-ordinal")
+        assert "var(--cs-accent)" not in block
+
+    def test_series_expand_marker_is_neutral(self):
+        block = self._rule(self.css, ".series-summary::marker")
+        assert "var(--cs-accent)" not in block
+
+    def test_crosstable_expand_marker_is_neutral(self):
+        block = self._rule(self.css, ".crosstable-summary::marker")
+        assert "var(--cs-accent)" not in block
+
+    def test_placement_is_the_only_gold_in_the_crosstable_region(self):
+        """Across the whole crosstable block, the placement line is the only
+        use of the gold token — chrome carries none."""
+        css = self.css
+        region = css[css.index(".crosstable {"):css.index(".unplayed-events-list")]
+        gold_lines = [ln for ln in region.splitlines() if "--cs-accent" in ln]
+        assert gold_lines, "expected the placement line to keep gold"
+        assert all("placement" in ln for ln in gold_lines), gold_lines
+
+    def test_forfeit_tag_and_round_chips_re_tint_from_tokens(self, ui_app, real_career_ui):
+        """Forfeit tags and round-result chips carry no hardcoded colors — they
+        re-tint from the theme tokens."""
+        css = self.css
+        forfeit = self._rule(css, ".event-game-forfeit-tag {")
+        assert "var(--cs-warning)" in forfeit
+        for chip in (".crosstable-round.w", ".crosstable-round.l",
+                     ".crosstable-round.d"):
+            assert "var(--cs-" in self._rule(css, chip)
+
+
+class TestMotionAndPolish:
+    """E10: the app-wide motion layer (page-load stagger, sliding nav underline,
+    hover lift, the drawer's Apple sheet curve) — all CSS-driven, interruptible,
+    settled once the page lands, and fully disabled under prefers-reduced-motion.
+    Plus the polish pass: 44px touch targets and phone-fit charts.
+
+    External behavior only: what the stylesheet declares (assert on selectors
+    and declarations, never pixel-perfect visual appearance)."""
+
+    @property
+    def css(self) -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parent.parent
+                / "assets" / "custom.css").read_text()
+
+    @staticmethod
+    def _block(css: str, selector: str) -> str:
+        """The declaration block for *selector* (first match, whitespace
+        tolerant before the brace)."""
+        import re
+        m = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css)
+        assert m, f"selector {selector} not found in CSS"
+        return m.group(1)
+
+    # -- Motion is present --------------------------------------------------
+
+    def test_cards_fade_up_with_a_stagger_on_load(self):
+        """Cards animate in (a fade-up) with a per-card delay so the page
+        assembles top-to-bottom (PRD: ~40ms stagger, 350ms ease-out)."""
+        css = self.css
+        # The card-in animation exists and is applied to the page's cards.
+        assert "@keyframes cardIn" in css
+        block = self._block(css, ".page .chart-card")
+        assert "animation" in block and "cardIn" in block
+        # A staggered delay is declared (the second card waits behind the first).
+        assert "animation-delay: 40ms" in css
+
+    def test_card_stagger_runs_once_and_holds(self):
+        """The fade-up uses `both` (holds the end state) and is finite — it
+        never loops, so nothing keeps moving after the page settles."""
+        block = self._block(self.css, ".page .chart-card")
+        assert "both" in block
+        assert "infinite" not in block
+
+    def test_nav_underline_slides_between_tabs(self):
+        """The active-tab underline transitions its transform (a slide), rather
+        than snapping in instantly (PRD: the underline slides between tabs)."""
+        css = self.css
+        # The underline lives on every link's ::after and transitions its scale.
+        under = self._block(css, ".app-nav-link::after")
+        assert "transform" in under
+        assert "transition" in under
+        # The active tab scales the underline up; an inactive one keeps it at 0.
+        active = self._block(css, ".app-nav-link.active::after")
+        assert "scaleX(1)" in active
+        assert "scaleX(0)" in under
+
+    def test_cards_lift_on_hover(self):
+        """Chart/content cards lift slightly on hover so what's interactive is
+        discoverable (PRD: −1px translate)."""
+        block = self._block(self.css, ".chart-card:hover")
+        assert "translateY(-1px)" in block
+
+    def test_drawer_uses_the_apple_sheet_curve(self):
+        """The filter drawer animates on Apple's sheet curve, not Bootstrap's
+        linear default (PRD: cubic-bezier(0.32, 0.72, 0, 1))."""
+        block = self._block(self.css, ".filter-drawer.offcanvas")
+        assert "cubic-bezier(.32, .72, 0, 1)" in block
+        assert "transition" in block
+
+    def test_streak_fire_blaze_is_finite_not_infinite(self):
+        """The blazing-streak pulse settles (a finite iteration count) instead
+        of looping forever — nothing keeps moving after the page settles."""
+        block = self._block(self.css, ".streak-fire.blazing")
+        assert "infinite" not in block
+        assert "animation" in block
+
+    # -- Reduced motion disables everything --------------------------------
+
+    def test_reduced_motion_media_query_exists(self):
+        css = self.css
+        assert "@media (prefers-reduced-motion: reduce)" in css
+
+    def test_reduced_motion_disables_animation_and_transition(self):
+        """Under reduced motion the universal selector zeroes both animation and
+        transition durations — no animation plays, nothing moves."""
+        import re
+        css = self.css
+        start = css.index("@media (prefers-reduced-motion: reduce)")
+        block = css[start:]
+        # The universal selector is targeted (catches every element + pseudo).
+        assert re.search(r"\*\s*,\s*\*::before\s*,\s*\*::after", block)
+        assert "animation-duration: .001ms" in block
+        assert "transition-duration: .001ms" in block
+        assert "animation-iteration-count: 1" in block
+
+    def test_reduced_motion_kills_the_blazing_fire(self):
+        """The decorative streak-fire pulse is switched fully off under reduced
+        motion (animation: none), so the count sits perfectly still."""
+        css = self.css
+        start = css.index("@media (prefers-reduced-motion: reduce)")
+        block = css[start:]
+        assert ".streak-fire.blazing { animation: none" in block
+
+    # -- 44px touch targets ------------------------------------------------
+
+    def test_nav_tabs_meet_the_44px_touch_target(self):
+        block = self._block(self.css, ".app-nav-link")
+        assert "min-height: 44px" in block
+
+    def test_preset_chips_meet_the_44px_touch_target(self):
+        block = self._block(self.css, ".preset-btn")
+        assert "min-height: 44px" in block
+
+    def test_repertoire_tree_rows_meet_the_44px_touch_target(self):
+        block = self._block(self.css, ".rep-node-row")
+        assert "min-height: 44px" in block
+
+    # -- Charts fit a phone ------------------------------------------------
+
+    def test_charts_are_capped_on_a_phone(self):
+        """At phone width the tall desktop chart heights are capped so a plot
+        fills its frame instead of stranding empty space — and content cards
+        (which hold tables) are left to size to their content."""
+        css = self.css
+        # The cap targets real chart cards, never content cards.
+        assert ".chart-card:not(.content-card)" in css
+        # It is declared inside the phone media query (max-width: 768px).
+        phone = css[css.index("/* ── Phone (the chess-club view)"):]
+        assert ".chart-card:not(.content-card)" in phone
+
+    def test_charts_do_not_force_horizontal_scroll_on_a_phone(self):
+        """The responsive Plotly graph is pinned to its card width so a plot
+        never overflows into a sideways scroll at 390px."""
+        phone = self.css[self.css.index("/* ── Phone (the chess-club view)"):]
+        assert ".plot-container" in phone or ".js-plotly-plot" in phone
+
+    # -- Spacing pass: standalone cards never touch ------------------------
+
+    def test_standalone_page_cards_carry_a_bottom_margin(self):
+        """A card placed directly on a page (Openings' Repertoire card above its
+        grid) carries the grid rhythm below it, so it never butts against the
+        next block (spacing polish)."""
+        css = self.css
+        assert ".page > .content-card" in css
+        block = self._block(css, ".page > .content-card")
+        assert "margin-bottom: 14px" in block
+
+    def test_card_stack_spaces_stacked_cards(self):
+        """A vertical stack of cards (Reconciliation's per-kind sections) gets
+        the shared 14px rhythm, so the cards don't touch."""
+        block = self._block(self.css, ".card-stack")
+        assert "gap: 14px" in block
+
+    def test_reconciliation_stacks_its_cards_with_the_shared_rhythm(
+        self, ui_app, ui_data
+    ):
+        """The Reconciliation page (which lists several per-kind cards) wraps
+        them in the spaced card-stack container, so the cards don't touch."""
+        from pages.reconciliation import update_reconciliation
+        rendered = str(update_reconciliation({"seq": 0}))
+        assert "card-stack" in rendered

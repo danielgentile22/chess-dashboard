@@ -13,33 +13,88 @@ from __future__ import annotations
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, callback, dcc, html, no_update
 
-from styles import COLORS
+from styles import COLORS, FONT_SYSTEM, LOSS_WASH, WIN_WASH
 from uscf_core import UscfProfile, UscfRating
 
 # ---------------------------------------------------------------------------
 # Dark DataTable styles (shared by every table in the app)
+#
+# Fonts and colors derive from the theme tokens in styles.py.  Numbers use
+# the system font with tabular numerals (set in CSS) instead of a mono face;
+# headers stay neutral (chrome never carries gold).
 # ---------------------------------------------------------------------------
 
 TABLE_CELL = dict(
-    fontFamily="'IBM Plex Mono', ui-monospace, monospace", fontSize="12px",
+    fontFamily=FONT_SYSTEM, fontSize="12px",
     padding="7px 10px", whiteSpace="normal", height="auto",
     minWidth="70px", maxWidth="200px",
     backgroundColor=COLORS["card"], color=COLORS["text"],
     border=f"1px solid {COLORS['border']}",
 )
 TABLE_HEADER = dict(
-    fontFamily="Inter, system-ui, sans-serif",
+    fontFamily=FONT_SYSTEM,
     fontWeight="700", backgroundColor=COLORS["card2"],
-    color=COLORS["accent"], border=f"1px solid {COLORS['border']}",
+    color=COLORS["muted"], border=f"1px solid {COLORS['border']}",
     fontSize="10px", letterSpacing="0.07em", textTransform="uppercase",
 )
 TABLE_DATA_COND = [
     {"if": {"filter_query": '{Outcome} = "Win"'},
-     "backgroundColor": "rgba(63,185,80,.13)", "color": COLORS["text"]},
+     "backgroundColor": WIN_WASH, "color": COLORS["text"]},
     {"if": {"filter_query": '{Outcome} = "Loss"'},
-     "backgroundColor": "rgba(248,81,73,.11)", "color": COLORS["text"]},
+     "backgroundColor": LOSS_WASH, "color": COLORS["text"]},
     {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]},
 ]
+
+
+# ---------------------------------------------------------------------------
+# Quiet-table treatment (shared — Games now, Events crosstables and Trends
+# upset tables later).  Apple-calm tables: neutral headers (no gold, no
+# uppercase shouting), left-aligned text, hairline row separators instead of a
+# full grid, and the white "focused row" glitch fixed.
+#
+# A DataTable opts in by (1) wrapping it in a `.quiet-table` element and (2)
+# passing these style dicts so the inline Dash styles agree with the CSS.  The
+# visual rules that Dash can't express inline — the per-row hairline, the
+# focused/selected-cell fix — live in the `.quiet-table` block in
+# assets/custom.css so every page that adopts the class gets them for free.
+# ---------------------------------------------------------------------------
+
+QUIET_TABLE_CELL = dict(
+    fontFamily=FONT_SYSTEM, fontSize="12px",
+    padding="9px 12px", whiteSpace="normal", height="auto",
+    minWidth="70px", maxWidth="240px",
+    backgroundColor=COLORS["card"], color=COLORS["text"],
+    textAlign="left", border="none",
+)
+QUIET_TABLE_HEADER = dict(
+    fontFamily=FONT_SYSTEM,
+    fontWeight="600", backgroundColor=COLORS["card"],
+    color=COLORS["muted"], border="none",
+    fontSize="12px", letterSpacing="normal", textTransform="none",
+    textAlign="left",
+)
+# Outcome washes only — no zebra striping.  Hairline separators (in the CSS)
+# carry the row rhythm so alternating fills aren't needed.
+QUIET_TABLE_DATA_COND = [
+    {"if": {"filter_query": '{Outcome} = "Win"'},
+     "backgroundColor": WIN_WASH, "color": COLORS["text"]},
+    {"if": {"filter_query": '{Outcome} = "Loss"'},
+     "backgroundColor": LOSS_WASH, "color": COLORS["text"]},
+]
+
+
+def quiet_table(table, *, clickable: bool = False, scroll: bool = True) -> html.Div:
+    """Wrap a DataTable in the shared quiet-table treatment.
+
+    The returned ``Div`` carries the ``quiet-table`` class (neutral headers,
+    left-aligned text, hairline row separators, focused-row fix) so any page —
+    Games here, Events crosstables and Trends upset tables later — gets the
+    same Apple-calm table by composing this helper.  ``clickable`` adds the
+    row-pointer / hover treatment used by tables whose rows open a Game.
+    """
+    classes = "quiet-table" + (" clickable-rows" if clickable else "")
+    style = {"flex": "1", "overflow": "auto"} if scroll else {}
+    return html.Div(table, className=classes, style=style)
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +102,7 @@ TABLE_DATA_COND = [
 # ---------------------------------------------------------------------------
 
 def page_header(title: str, subtitle: str = "") -> html.Div:
-    """The serif title block at the top of every page."""
+    """The iOS large-title block at the top of every page."""
     children: list = [html.H1(title, className="page-title")]
     if subtitle:
         children.append(html.Div(subtitle, className="page-subtitle"))
@@ -73,20 +128,42 @@ def chart_card(title: str, graph_id: str, *, height: int = 380) -> html.Div:
 
 
 def content_card(title: str, *children, height: int | None = None) -> html.Div:
-    """A dark card holding arbitrary content (tables, stat grids, …)."""
+    """A dark card holding arbitrary content (tables, stat grids, …).
+
+    Carries the ``content-card`` marker in addition to the shared ``chart-card``
+    surface styling.  Unlike a chart card (which holds a fixed-height Plotly
+    graph), a content card sizes to its content — so "Last 20 games" and
+    "Average game length" lose the dead zones they used to inherit from being
+    stretched to a chart neighbour's height in a grid row.
+    """
     style = {"height": f"{height}px"} if height else {}
     return html.Div(
-        className="chart-card",
+        className="chart-card content-card",
         style=style,
         children=[html.Div(title, className="chart-title"), *children],
     )
 
 
-def kpi_card(label: str, value_id: str, value_class: str = "") -> html.Div:
-    """One KPI tile: uppercase label over a big mono numeral."""
+def kpi_card(
+    label: str, value_id: str, value_class: str = "", *, text: bool = False
+) -> html.Div:
+    """One KPI tile: an uppercase label over a big value with tabular figures.
+
+    KPI values are neutral white by default — colour survives only where it is
+    semantic (the win % is green, the loss % is red), passed via *value_class*.
+
+    *text* opts the value into the text variant: a long string value (the
+    favourite opening, "Italian Game: Scotch Gambit") wraps to two lines and
+    shrinks slightly instead of truncating to "Italian Game: Scot…".
+    """
+    classes = ["kpi-value"]
+    if value_class:
+        classes.append(value_class)
+    if text:
+        classes.append("kpi-value-text")
     return html.Div(className="kpi-card", children=[
         html.Div(label, className="kpi-label"),
-        html.Div("—", id=value_id, className=f"kpi-value {value_class}"),
+        html.Div("—", id=value_id, className=" ".join(classes)),
     ])
 
 
@@ -210,6 +287,63 @@ def game_detail_path(chapter_url: str) -> str:
     if not chapter_url:
         return ""
     return f"/game/{chapter_url.rstrip('/').rsplit('/', 1)[-1]}"
+
+
+# ---------------------------------------------------------------------------
+# Mobile game cards (issue #48)
+#
+# On a phone the Games table's ~15 columns force a sideways scroll just to find
+# who I played and whether I won.  At phone widths the page swaps the table for
+# this card list: one tappable card per Game, the things that matter first —
+# opponent, outcome, date, event.  Both presentations are fed by the *same*
+# callback rows (the trimmed player-centric column set), so the card list is a
+# second *rendering*, never a second data path.
+# ---------------------------------------------------------------------------
+
+def _game_card(row: dict) -> html.Div:
+    """One Game as a tappable card: opponent, outcome, date, event.
+
+    *row* is one record from the Games callback (the same dict the table is
+    fed).  A Game with a ChapterURL is a link to its detail view; a Game
+    without one (a Forfeit has a Chapter, but a row could lack the URL) renders
+    as a plain, unlinked card — never an error.
+    """
+    outcome = str(row.get("Outcome") or "")
+    opponent = str(row.get("Opponent") or "Unknown opponent")
+    opp_rating = str(row.get("OpponentRating") or "")
+
+    # The line under the opponent: outcome · date · event, blanks dropped.
+    meta_bits = [b for b in (outcome, str(row.get("Date") or ""),
+                             str(row.get("Event") or "")) if b]
+
+    children = [
+        html.Div(className="game-card-top", children=[
+            html.Span(opponent, className="game-card-opponent"),
+            html.Span(f"{opp_rating}" if opp_rating else "",
+                      className="game-card-opp-rating"),
+        ]),
+        html.Div("  ·  ".join(meta_bits),
+                 className=f"game-card-meta outcome-{outcome.lower()}"),
+    ]
+
+    detail = game_detail_path(row.get("ChapterURL", ""))
+    if detail:
+        return dcc.Link(children, href=detail, className="game-card")
+    # No ChapterURL → a card with no link (and no crash).
+    return html.Div(children, className="game-card game-card-nolink")
+
+
+def game_cards(rows: list[dict]) -> html.Div:
+    """The mobile Games card list: one :func:`_game_card` per Game row.
+
+    Renders the *same* rows the Games table is fed, so the table and the cards
+    can never disagree.  An empty archive (everything filtered out) renders an
+    empty, harmless list rather than erroring.
+    """
+    return html.Div(
+        [_game_card(row) for row in rows],
+        className="game-card-list",
+    )
 
 
 def row_click_to_game(active_cell, viewport_rows, ignore_columns=("Lichess",)):

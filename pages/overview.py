@@ -52,18 +52,21 @@ def layout(**kwargs) -> html.Div:
     return html.Div(className="page", children=[
         page_header("Overview", "Your career at a glance"),
 
-        # KPI bar
+        # KPI bar.  Values are neutral white; colour survives only where it
+        # carries meaning — win % green, loss % red (PRD colour discipline).
+        # Ratings, the streak, and the rest read in plain white now.
         html.Div(className="kpi-bar", children=[
             kpi_card("Total Games",        "kpi-total"),
             kpi_card("Win %",              "kpi-win-pct",  "win"),
             kpi_card("Draw %",             "kpi-draw-pct"),
             kpi_card("Loss %",             "kpi-loss-pct", "loss"),
-            kpi_card("Current Rating",     "kpi-rating",   "accent"),
-            kpi_card("Peak Rating",        "kpi-peak",     "accent"),
-            kpi_card("Performance Rtg",    "kpi-perf",     "primary"),
-            kpi_card("Longest Win Streak", "kpi-streak",   "win"),
+            kpi_card("Current Rating",     "kpi-rating"),
+            kpi_card("Peak Rating",        "kpi-peak"),
+            kpi_card("Performance Rtg",    "kpi-perf"),
+            kpi_card("Longest Win Streak", "kpi-streak"),
             kpi_card("Unique Opponents",   "kpi-opps"),
-            kpi_card("Favourite Opening",  "kpi-fav-opn"),
+            # The favourite opening can be a long name — wrap, never truncate.
+            kpi_card("Favourite Opening",  "kpi-fav-opn", text=True),
         ]),
 
         # The USCF profile card (issue #25) — official identity, follows Syncs
@@ -115,8 +118,9 @@ def update_kpis(colors, outcomes, terminations, start, end, events, moves, _sync
     def _p(x):
         return f"{x}%" if x is not None else "—"
 
-    fav = k["favorite_opening"]
-    fav_short = (fav[:22] + "…") if len(fav) > 24 else fav
+    # The favourite-opening KPI wraps to two lines in its text variant, so the
+    # full name reaches the browser un-truncated ("Italian Game: Scotch
+    # Gambit", not "Italian Game: Scot…").
     return (
         str(k["total_games"]),
         _p(k["win_pct"]),
@@ -127,7 +131,7 @@ def update_kpis(colors, outcomes, terminations, start, end, events, moves, _sync
         _r(k["performance_rating"]),
         str(k["longest_win_streak"]),
         str(k["unique_opponents"]),
-        fav_short,
+        k["favorite_opening"],
     )
 
 
@@ -218,6 +222,9 @@ def update_wdl(colors, outcomes, terminations, start, end, events, moves, _sync=
     if pie_df.empty:
         return empty_fig("No data")
 
+    # Quiet lowercase outcome words for the hover (the wedge color already says
+    # which outcome it is; "wins" / "draws" / "losses" stays short and calm).
+    _WORD = {"Win": "wins", "Draw": "draws", "Loss": "losses"}
     fig = go.Figure(go.Pie(
         labels=pie_df["Outcome"],
         values=pie_df["Games"],
@@ -228,7 +235,8 @@ def update_wdl(colors, outcomes, terminations, start, end, events, moves, _sync=
         ),
         textinfo="percent+label",
         textfont=dict(size=12, color=COLORS["text"]),
-        hovertemplate="%{label}: %{value} games (%{percent})<extra></extra>",
+        customdata=[_WORD.get(o, str(o).lower()) for o in pie_df["Outcome"]],
+        hovertemplate="<b>%{value}</b> %{customdata} · %{percent}<extra></extra>",
     ))
     total = int(pie_df["Games"].sum())
     fig.add_annotation(
@@ -254,8 +262,10 @@ def update_terminations(colors, outcomes, terminations, start, end, events, move
         color_discrete_sequence=[COLORS["primary"]],
         hover_data={"Termination": True, "Games": True, "Label": False},
     )
+    # The y-axis carries a truncated label; the hover shows the full reason
+    # as quiet context after the bold count.
     fig.update_traces(
-        hovertemplate="%{customdata[0]}: %{x} games<extra></extra>",
+        hovertemplate="<b>%{x}</b> games · %{customdata[0]}<extra></extra>",
     )
     apply_dark_theme(fig, xaxis_title="Games")
     fig.update_yaxes(categoryorder="total ascending")
