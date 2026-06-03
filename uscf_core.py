@@ -19,6 +19,7 @@ build_official_series   raw supplement items → the Official Rating series.
 build_live_series       raw section items → the Live Rating series (continuous chain).
 rating_trend_series     both series trimmed to a date range (the Trends chart's data).
 build_game_records      raw game items → typed USCF Game Records.
+build_member_events     raw event items → typed Rated Events (issue #33).
 build_achievements      raw norm + award items → typed UscfAchievements (issue #36).
 achievement_milestones  achievements → Milestone-timeline entries (issue #36).
 match_games             USCF Game Records ↔ Games (the matching engine).
@@ -51,6 +52,7 @@ __all__ = [
     "OfficialRatingPoint",
     "ReconciliationEntry",
     "UscfAchievement",
+    "UscfEvent",
     "UscfGameRecord",
     "UscfProfile",
     "UscfRating",
@@ -59,6 +61,7 @@ __all__ = [
     "build_achievements",
     "build_game_records",
     "build_live_series",
+    "build_member_events",
     "build_official_series",
     "enrich_games",
     "match_games",
@@ -66,6 +69,8 @@ __all__ = [
     "parse_member_profile",
     "rating_trend_series",
     "reconcile",
+    "series_summary",
+    "unplayed_events",
 ]
 
 # Warn this many days before the membership expires — enough time to renew
@@ -364,6 +369,216 @@ def build_game_records(game_items: list[dict]) -> list[UscfGameRecord]:
             opponent_name=" ".join(part for part in (first, last) if part),
         ))
     return records
+
+
+# ---------------------------------------------------------------------------
+# Member events → typed Rated Events (issue #33)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class UscfEvent:
+    """
+    One Rated Event the member entered (CONTEXT.md): USCF's official unit of
+    competition, with its official identity, dates, and field.
+    """
+
+    event_id: str
+    name: str
+    start_date: date | None
+    end_date: date | None
+    section_count: int | None
+    player_count: int | None
+    city: str
+    state: str
+
+
+def build_member_events(event_items: list[dict]) -> list[UscfEvent]:
+    """
+    Interpret raw /members/{id}/events items as typed Rated Events,
+    chronological (the API sends newest first).
+
+    Parsing is tolerant (ADR 0003): missing dates or counts degrade to None,
+    never to errors.
+    """
+    events = [
+        UscfEvent(
+            event_id=str(item.get("id", "")),
+            name=str(item.get("name", "")),
+            start_date=_parse_date(item.get("startDate")),
+            end_date=_parse_date(item.get("endDate")),
+            section_count=item.get("sectionCount"),
+            player_count=item.get("playerCount"),
+            city=str(item.get("city", "")),
+            state=str(item.get("stateCode", "")),
+        )
+        for item in event_items
+    ]
+    return sorted(events, key=lambda e: (e.start_date is None, e.start_date or date.max))
+
+
+# ---------------------------------------------------------------------------
+# Series → Rated Event grouping (issue #33): the Events page's data
+# ---------------------------------------------------------------------------
+
+# The game facts each Rated Event / unmatched row carries for the page's
+# game tables (the same columns the old tournament-detail table used).
+_GAME_ROW_COLUMNS = ["Date", "RoundNum", "Color", "Opponent", "OpponentRating",
+                     "Result", "Outcome", "Termination", "FullMoves",
+                     "ChapterURL", "Forfeit"]
+
+
+def series_summary(
+    df: pd.DataFrame,
+    live_series: list[LiveRatingPoint],
+    member_events: list[UscfEvent],
+) -> list[dict]:
+    """
+    The Events page's data (issue #33): Games grouped **Series → Rated Event**.
+
+    The Series is Daniel's name for the thing (the PGN Event header); each
+    Series contains the Rated Events its matched Games belong to, in
+    chronological order, each with its Section(s), score, game count, and
+    live rating change.  Games with no Rated Event (Forfeits, games USCF
+    hasn't rated) stay under their Series as unmatched rows — enrichment
+    never hides Games (ADR 0003).
+
+    Tournament scores follow the Forfeit rule (issue #29): a Forfeit win
+    counts toward the score but is never a "game" or a win-rate event.
+    """
+    if df.empty:
+        return []
+
+    events_by_id = {e.event_id: e for e in member_events}
+    live_by_event: dict[str, list[LiveRatingPoint]] = {}
+    for point in live_series:  # chronological → chain order per event
+        live_by_event.setdefault(point.event_id, []).append(point)
+
+    summaries = []
+    d = df.copy()
+    d["Event"] = d["Event"].fillna("").astype(str)
+    for series_name, games in d[d["Event"].str.strip() != ""].groupby("Event"):
+        games = games.sort_values(["Date_dt", "Index"], na_position="last")
+        rated_events = [
+            _rated_event_group(event_id, event_games, events_by_id, live_by_event)
+            for event_id, event_games in games[games["UscfEventId"] != ""]
+                                              .groupby("UscfEventId")
+        ]
+        rated_events.sort(key=lambda e: (e["start"] is None, e["start"] or ""))
+
+        unmatched = games[games["UscfEventId"] == ""]
+        first_date = games["Date_dt"].min()
+        summaries.append({
+            "series": str(series_name),
+            "first_date": (str(first_date.date()) if pd.notna(first_date) else ""),
+            **_outcome_counts(games),
+            "win_streak": _longest_win_streak(games),
+            "rated_events": rated_events,
+            "unmatched": _game_rows(unmatched),
+        })
+
+    summaries.sort(key=lambda s: (s["first_date"] == "", s["first_date"]))
+    return summaries
+
+
+def unplayed_events(
+    df: pd.DataFrame,
+    member_events: list[UscfEvent],
+    *,
+    date_start: str | date | None = None,
+    date_end: str | date | None = None,
+) -> list[UscfEvent]:
+    """
+    Rated Events entered but with no Games anywhere in *df* — the
+    "entered, never played" group (issue #33's Rockville case, plus
+    online-only events whose games are never Chapters by design).
+
+    Pass the FULL Games df, not a filtered one: a date filter must never turn
+    a played event into a "never played" one.  The date-range filter applies
+    to the events themselves instead (member-level facts — the same rule as
+    the rating series).
+    """
+    played_ids = (
+        set(df["UscfEventId"]) - {""}
+        if not df.empty and "UscfEventId" in df.columns else set()
+    )
+    start, end = _coerce_date(date_start), _coerce_date(date_end)
+
+    def in_range(event: UscfEvent) -> bool:
+        day = event.start_date
+        if day is None:
+            return True
+        return (start is None or day >= start) and (end is None or day <= end)
+
+    return [e for e in member_events
+            if e.event_id not in played_ids and in_range(e)]
+
+
+def _rated_event_group(
+    event_id: str,
+    games: pd.DataFrame,
+    events_by_id: dict[str, UscfEvent],
+    live_by_event: dict[str, list[LiveRatingPoint]],
+) -> dict:
+    """One Rated Event's entry inside a Series group."""
+    event = events_by_id.get(event_id)
+    name = event.name if event is not None else str(games.iloc[0]["UscfEventName"])
+
+    # The Sections this Series' games were played in, and the live-rating
+    # chain across them (chain order = the live series' chronological order)
+    sections_played = set(games["UscfSection"]) - {""}
+    points = [p for p in live_by_event.get(event_id, [])
+              if p.section_name in sections_played]
+
+    return {
+        "event_id": event_id,
+        "name": name,
+        "start": (event.start_date.isoformat()
+                  if event is not None and event.start_date else None),
+        "end": (event.end_date.isoformat()
+                if event is not None and event.end_date else None),
+        "city": event.city if event is not None else "",
+        "player_count": event.player_count if event is not None else None,
+        "sections": sorted(sections_played),
+        **_outcome_counts(games),
+        "pre": points[0].pre if points else None,
+        "post": points[-1].post if points else None,
+        "rows": _game_rows(games),
+    }
+
+
+def _outcome_counts(games: pd.DataFrame) -> dict:
+    """Game/forfeit counts and the tournament score for a group of Games.
+
+    Forfeits count toward the score (a forfeit win is a tournament point) but
+    never as games or wins — the Forfeit rule from issue #29."""
+    real = games[~games["Forfeit"]]
+    win = int((real["Outcome"] == "Win").sum())
+    draw = int((real["Outcome"] == "Draw").sum())
+    loss = int((real["Outcome"] == "Loss").sum())
+    forfeit_points = float((games[games["Forfeit"]]["Outcome"] == "Win").sum())
+    return {
+        "games": int(len(real)),
+        "forfeits": int(games["Forfeit"].sum()),
+        "win": win, "draw": draw, "loss": loss,
+        "score": win + 0.5 * draw + forfeit_points,
+    }
+
+
+def _longest_win_streak(games: pd.DataFrame) -> int:
+    """The longest run of consecutive wins (date order), Forfeits excluded —
+    a no-show never extends a Streak (issue #29)."""
+    best = current = 0
+    for outcome in games[~games["Forfeit"]]["Outcome"]:
+        current = current + 1 if outcome == "Win" else 0
+        best = max(best, current)
+    return best
+
+
+def _game_rows(games: pd.DataFrame) -> list[dict]:
+    """Game rows for the page's tables (clickable through ChapterURL)."""
+    if games.empty:
+        return []
+    return games[_GAME_ROW_COLUMNS].to_dict("records")
 
 
 # ---------------------------------------------------------------------------
@@ -747,6 +962,7 @@ def _opponent_id(game: pd.Series) -> str:
 _ENRICHMENT_DEFAULTS = {
     "UscfMatched": False,
     "UscfMatchedBy": "",
+    "UscfEventId": "",        # the Rated Event's USCF ID (issue #33)
     "UscfEventName": "",
     "UscfSection": "",
     "UscfRatingSystem": "",
@@ -788,6 +1004,7 @@ def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
         m.chapter_url: {
             "UscfMatched": True,
             "UscfMatchedBy": m.matched_by,
+            "UscfEventId": m.record.event_id,
             "UscfEventName": m.record.event_name,
             "UscfSection": m.record.section_name,
             "UscfRatingSystem": m.record.rating_system,

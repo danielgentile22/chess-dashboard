@@ -947,6 +947,14 @@ class TestEnrichGames:
         assert game["UscfEventName"] == ""
         assert game["UscfOpponentId"] == ""
 
+    def test_matched_games_carry_their_rated_event_id(self):
+        """The Rated Event ID (issue #33): names are ambiguous and carry USCF's
+        own typos — grouping and standings URLs need the ID."""
+        enriched, _ = self._enriched_pair()
+
+        assert enriched.iloc[0]["UscfEventId"] == "202605290393"   # matched
+        assert enriched.iloc[1]["UscfEventId"] == ""               # unmatched
+
     def test_the_input_df_is_never_mutated(self):
         """Pages read the store concurrently — enrichment returns a copy."""
         _, original = self._enriched_pair()
@@ -1462,6 +1470,251 @@ class TestReconcileEdgeCases:
         mismatches = [e for e in entries if e.kind == "rating_mismatch"]
         assert len(mismatches) == 1
 
+
+
+# ---------------------------------------------------------------------------
+# Member events → typed Rated Events (issue #33)
+# ---------------------------------------------------------------------------
+
+class TestBuildMemberEvents:
+    def test_parses_the_real_events_chronologically(self, uscf_events_json):
+        """All 23 Rated Events Daniel entered, oldest first (the API sends
+        newest first — the timeline wants chronological)."""
+        events = uscf_core.build_member_events(uscf_events_json["items"])
+
+        assert len(events) == 23
+        assert events[0].name == "ACC JUNE 2025"
+        assert events[0].start_date == date(2025, 6, 28)
+        assert events[-1].name == "ACC MAY 2026"
+        assert events[-1].event_id == "202605290393"
+        assert events[-1].end_date == date(2026, 5, 29)
+
+    def test_events_carry_field_size_and_section_count(self, uscf_events_json):
+        """The DMV All Ages event: 8 sections, 89 players — what the Events
+        page shows about the field."""
+        events = uscf_core.build_member_events(uscf_events_json["items"])
+        dmv = next(e for e in events if e.event_id == "202603290543")
+
+        assert dmv.section_count == 8
+        assert dmv.player_count == 89
+        assert dmv.city == "ARLINGTON" or dmv.city  # city is carried
+
+    def test_tolerates_missing_fields(self):
+        """The MUIR API is undocumented (ADR 0003): events with missing dates
+        or counts still parse."""
+        events = uscf_core.build_member_events([{"id": "x", "name": "Mystery Open"}])
+
+        assert len(events) == 1
+        assert events[0].name == "Mystery Open"
+        assert events[0].start_date is None
+        assert events[0].player_count is None
+
+    def test_no_events_is_an_empty_list(self):
+        assert uscf_core.build_member_events([]) == []
+
+
+# ---------------------------------------------------------------------------
+# Series → Rated Event grouping (issue #33): the Events page's data
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def real_series_inputs(study_snapshot_df, uscf_games_json, uscf_sections_json,
+                       uscf_events_json):
+    """The real fixture pair, enriched — series_summary's inputs."""
+    records = uscf_core.build_game_records(uscf_games_json["items"])
+    match = uscf_core.match_games(study_snapshot_df, records)
+    return SimpleNamespace(
+        df=uscf_core.enrich_games(study_snapshot_df, match),
+        live=uscf_core.build_live_series(uscf_sections_json["items"]),
+        events=uscf_core.build_member_events(uscf_events_json["items"]),
+    )
+
+
+def _series_named(summary, name):
+    return next(s for s in summary if s["series"] == name)
+
+
+class TestSeriesSummary:
+    def test_the_club_ladder_is_one_series_with_twelve_rated_events(
+        self, real_series_inputs
+    ):
+        """The tracer bullet (issue #33's own example): 'ACC Friday Ladder' is
+        one Series containing its 12 monthly Rated Events, chronological."""
+        summary = uscf_core.series_summary(
+            real_series_inputs.df, real_series_inputs.live, real_series_inputs.events,
+        )
+
+        ladder = _series_named(summary, "ACC Friday Ladder")
+        assert ladder["games"] == 27
+        rated_events = ladder["rated_events"]
+        assert len(rated_events) == 12
+        assert rated_events[0]["name"] == "ACC JUNE 2025"
+        assert rated_events[-1]["name"] == "ACC MAY 2026"
+        assert rated_events[-1]["games"] == 4
+
+    @pytest.fixture()
+    def summary(self, real_series_inputs):
+        return uscf_core.series_summary(
+            real_series_inputs.df, real_series_inputs.live, real_series_inputs.events,
+        )
+
+    def test_a_weekend_tournament_is_a_single_rated_event_series(self, summary):
+        """The Oak Grove Open: one Series containing exactly one Rated Event."""
+        oak_grove = _series_named(summary, "1st Annual Oak Grove Open (U1400)")
+
+        assert len(oak_grove["rated_events"]) == 1
+        assert oak_grove["rated_events"][0]["name"] == "First Annual Oak Grove Open"
+
+    def test_rated_events_carry_official_identity_and_live_rating_change(
+        self, summary
+    ):
+        """Each Rated Event shows USCF's official name (typos included), dates,
+        Section(s), score, game count, and the live pre → post (issue #33)."""
+        thanksgiving = _series_named(summary, "2nd Annual Thanksgiving Open (U1600)")
+        event = thanksgiving["rated_events"][0]
+
+        assert event["name"] == "2nd Annual Thankgiving Day Open"  # USCF's own typo
+        assert event["start"] == "2025-10-31"
+        assert event["end"] == "2025-11-02"
+        assert event["sections"] == ["U1600"]
+        assert event["games"] == 4          # the forfeit is not one of its games
+        assert event["win"] == 2 and event["draw"] == 1 and event["loss"] == 1
+        assert event["score"] == 2.5
+        assert event["pre"] == 1155.4       # raw decimals — display rounds
+        assert event["post"] == 1229.8
+        assert event["player_count"] == 73  # the field, from the events endpoint
+
+    def test_the_first_ever_event_has_no_pre_rating(self, summary):
+        """ACC JUNE 2025: Daniel walked in unrated — pre is None, never invented."""
+        ladder = _series_named(summary, "ACC Friday Ladder")
+        first = ladder["rated_events"][0]
+
+        assert first["pre"] is None
+        assert first["post"] == 695.23
+
+    def test_a_rated_event_with_two_played_sections_shows_both(self, summary):
+        """The DMV All Ages case (issue #33): one Rated Event, two Sections
+        played — both listed, the rating change spanning both in chain order."""
+        adults_only = _series_named(summary, "2nd Annual Adults Only (U1800)")
+        event = adults_only["rated_events"][0]
+
+        assert event["sections"] == ["Extra games - Classical", "Under 1800"]
+        assert event["pre"] == 1465.03      # walking into the Under 1800 Section
+        assert event["post"] == 1470.23     # after the Extra-games Section
+
+    def test_forfeits_stay_under_their_series_and_count_in_the_score(self, summary):
+        """The Feketekuty no-show: not matched to any Rated Event, but it stays
+        under its Series and its point counts toward the tournament score."""
+        thanksgiving = _series_named(summary, "2nd Annual Thanksgiving Open (U1600)")
+
+        assert thanksgiving["forfeits"] == 1
+        assert len(thanksgiving["unmatched"]) == 1
+        assert thanksgiving["unmatched"][0]["Opponent"] == "Dennis Feketekuty"
+        # Series score: 2 wins + 0.5 draw + 1 forfeit win = 3.5 (the crosstable agrees)
+        assert thanksgiving["score"] == 3.5
+        # ...but the forfeit is never a "game" or a win
+        assert thanksgiving["games"] == 4
+        assert thanksgiving["win"] == 2
+
+    def test_the_same_rated_event_can_appear_under_two_series(self, summary):
+        """A real data quirk: Daniel typed two PGN Event names for the DMV All
+        Ages tournament.  The Rated Event appears under both Series, each with
+        its own games — the model tolerates it instead of merging or crashing."""
+        a = _series_named(summary, "2nd Annual Adults Only (U1800)")
+        b = _series_named(summary, "2nd Annual DMV Adults-Only (U1800)")
+
+        assert a["rated_events"][0]["event_id"] == "202603290543"
+        assert b["rated_events"][0]["event_id"] == "202603290543"
+        assert a["rated_events"][0]["games"] == 3
+        assert b["rated_events"][0]["games"] == 1
+
+    def test_series_level_stats_roll_up_and_are_chronological(self, summary):
+        """Series-level W/D/L, score, and Streaks roll up across Rated Events;
+        Series are ordered by their first game."""
+        ladder = _series_named(summary, "ACC Friday Ladder")
+
+        assert ladder["games"] == sum(e["games"] for e in ladder["rated_events"])
+        assert ladder["score"] == sum(e["score"] for e in ladder["rated_events"])
+        assert ladder["win_streak"] >= 1
+        # Chronological by first game date
+        dates = [s["first_date"] for s in summary if s["first_date"]]
+        assert dates == sorted(dates)
+
+    def test_each_rated_event_carries_clickable_game_rows(self, summary):
+        """Game rows carry ChapterURLs so the page can click through (issue #11)."""
+        ladder = _series_named(summary, "ACC Friday Ladder")
+        may = ladder["rated_events"][-1]
+
+        assert len(may["rows"]) == 4
+        assert all(row["ChapterURL"] for row in may["rows"])
+
+    def test_a_filtered_df_filters_the_summary(self, real_series_inputs):
+        """The summary is built from whatever Games it's given — global filters
+        flow through by filtering the input df."""
+        df_2026 = real_series_inputs.df[
+            real_series_inputs.df["Date_dt"] >= "2026-01-01"
+        ]
+        summary = uscf_core.series_summary(
+            df_2026, real_series_inputs.live, real_series_inputs.events,
+        )
+
+        ladder = _series_named(summary, "ACC Friday Ladder")
+        assert {e["name"] for e in ladder["rated_events"]} == {
+            "ACC January 2026", "ACC FEBRUARY 2026", "ACC March 2026",
+            "ACC Aprril 2026", "ACC MAY 2026",
+        }
+
+    def test_an_empty_df_is_an_empty_summary(self, real_series_inputs):
+        import pandas as pd
+
+        assert uscf_core.series_summary(
+            pd.DataFrame(), real_series_inputs.live, real_series_inputs.events,
+        ) == []
+
+    def test_works_without_uscf_data_at_all(self, study_snapshot_df):
+        """ADR 0003: with USCF down/off, every Series still appears — just with
+        no Rated Events inside (all Games unmatched)."""
+        bare = uscf_core.enrich_games(
+            study_snapshot_df, uscf_core.match_games(study_snapshot_df, []),
+        )
+        summary = uscf_core.series_summary(bare, [], [])
+
+        ladder = _series_named(summary, "ACC Friday Ladder")
+        assert ladder["rated_events"] == []
+        assert ladder["games"] == 27          # the Games themselves are all there
+        assert len(ladder["unmatched"]) == 27
+
+
+class TestUnplayedEvents:
+    def test_the_rockville_case(self, real_series_inputs):
+        """Entered, never played (issue #33): Rockville has a Section record but
+        zero Games.  The online-only DMVCHESS ladder also has no Games — its
+        games are online-rated and never become Chapters by design."""
+        unplayed = uscf_core.unplayed_events(
+            real_series_inputs.df, real_series_inputs.events,
+        )
+
+        assert {e.name for e in unplayed} == {
+            "ROCKVILLE ACTION TOURNAMENT",
+            "DMVCHESS.COM JANUARY CLIMB THE RATING LADDER",
+        }
+
+    def test_a_date_filter_never_invents_unplayed_events(self, real_series_inputs):
+        """Filtering to 2026 must NOT turn 2025's played events into 'never
+        played' — unplayed is a fact about the full career."""
+        unplayed = uscf_core.unplayed_events(
+            real_series_inputs.df, real_series_inputs.events,
+            date_start="2026-01-01", date_end="2026-12-31",
+        )
+
+        # Rockville (Aug 2025) falls outside the range → hidden; the DMVCHESS
+        # ladder (Jan 2026) stays.  No 2025 played event sneaks in.
+        assert {e.name for e in unplayed} == {
+            "DMVCHESS.COM JANUARY CLIMB THE RATING LADDER",
+        }
+
+    def test_with_no_uscf_events_there_is_nothing_unplayed(self, study_snapshot_df):
+        assert uscf_core.unplayed_events(study_snapshot_df, []) == []
 
 
 # ---------------------------------------------------------------------------

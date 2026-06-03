@@ -225,14 +225,10 @@ class TestCallbackIntegrity:
             known |= _collect_ids(_render(_page(path)))
 
         # Some components only exist after a user action creates them
-        # dynamically: the Scouting Report (appears once an opponent is chosen),
-        # the event detail table (appears once an event row is selected), and
-        # the review overlay (appears at /lessons?review=1).
-        from pages.events import update_event_table, update_tournament_detail
+        # dynamically: the Scouting Report (appears once an opponent is chosen)
+        # and the review overlay (appears at /lessons?review=1).
         from pages.opponents import update_scouting_report
         known |= _collect_ids(update_scouting_report("Opponent A", *_filter_args()))
-        event_rows = update_event_table(*_filter_args())
-        known |= _collect_ids(update_tournament_detail([0], event_rows, *_filter_args()))
         known |= _collect_ids(_page("/lessons")["layout"](review="1"))
 
         # Force callback registration merge, then check every dependency
@@ -429,6 +425,7 @@ class TestUscfProfileCard:
              mock.patch.object(sync, "fetch_rating_supplements", return_value=[]), \
              mock.patch.object(sync, "fetch_member_sections", return_value=[]), \
              mock.patch.object(sync, "fetch_member_games", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_events", return_value=[]), \
              mock.patch.object(sync, "fetch_member_norms", return_value=[]), \
              mock.patch.object(sync, "fetch_member_awards", return_value=[]):
             data.initialize(
@@ -868,53 +865,128 @@ class TestScoutingReportPage:
 
 
 # ---------------------------------------------------------------------------
-# Events page callbacks (issue #9)
+# Events page: Series → Rated Event (issue #33)
+#
+# With the ui fixtures: SAMPLE_PGN's "Test Open" and "Summer Cup" Series map
+# to the TEST OPEN JANUARY / SUMMER CUP 2024 Rated Events; game 6 stays
+# unmatched under Summer Cup.  real_career_ui exercises the full career.
 # ---------------------------------------------------------------------------
 
-class TestEventsCallbacks:
-    def test_event_chart_and_table(self, ui_app, ui_data):
-        from pages.events import update_event_bar, update_event_table
+class TestEventsSeriesGroups:
+    def test_series_expand_into_their_rated_events(self, ui_app, ui_data):
+        """The two-level structure: Series at the top, official Rated Events
+        (USCF's names) inside."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "Test Open" in rendered            # Series (Daniel's name)
+        assert "Summer Cup" in rendered
+        assert "TEST OPEN JANUARY" in rendered    # Rated Event (USCF's name)
+        assert "SUMMER CUP 2024" in rendered
+
+    def test_rated_events_show_live_rating_change_as_whole_numbers(
+        self, ui_app, ui_data
+    ):
+        """Live pre → post per Rated Event — whole numbers, never decimals
+        (Daniel's display rule overrides the issue wording)."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        # SUMMER CUP 2024's section: 1800.5 → 1812.44, displayed as 1812
+        assert "1812" in rendered
+        assert "1812.44" not in rendered
+        assert "1782.5" not in rendered and "1800.5" not in rendered
+
+    def test_rated_events_show_score_sections_and_field(self, ui_app, ui_data):
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "OPEN" in rendered          # the Section name
+        assert "12 players" in rendered    # the field, from the events endpoint
+
+    def test_each_game_links_to_its_detail_view(self, ui_app, ui_data):
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "/game/chap0001" in rendered
+        assert "/game/chap0005" in rendered
+
+    def test_unmatched_games_stay_under_their_series(self, ui_app, ui_data):
+        """Game 6 (USCF hasn't rated it) still appears under Summer Cup."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        # Game 6's detail link renders even though it matched no Rated Event
+        assert "/game/chap0006" in rendered
+
+    def test_respects_global_filters(self, ui_app, ui_data):
+        from pages.events import update_series_groups
+        january = _filter_args(start="2024-01-01", end="2024-02-01")
+        rendered = str(update_series_groups(*january))
+
+        assert "Test Open" in rendered
+        assert "Summer Cup" not in rendered
+
+    def test_empty_filter_shows_empty_state(self, ui_app, ui_data):
+        from pages.events import update_series_groups
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        rendered = str(update_series_groups(*impossible))
+        assert "empty-state" in rendered
+
+    def test_the_event_bar_still_builds(self, ui_app, ui_data):
+        from pages.events import update_event_bar
         assert update_event_bar(*_filter_args()).data
-        rows = update_event_table(*_filter_args())
-        assert {r["Event"] for r in rows} == {"Test Open", "Summer Cup"}
 
-    def test_tournament_detail_for_selected_row(self, ui_app, ui_data):
-        from pages.events import update_event_table, update_tournament_detail
-        rows = update_event_table(*_filter_args())
-        detail = update_tournament_detail([0], rows, *_filter_args())
-        assert detail is not None
+    def test_the_real_club_ladder_renders_with_its_monthly_events(
+        self, ui_app, real_career_ui
+    ):
+        """The money shot (issue #33): ACC Friday Ladder is one Series holding
+        ACC JUNE 2025 … ACC MAY 2026."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
 
-    def test_no_selection_means_no_detail(self, ui_app, ui_data):
-        from pages.events import update_event_table, update_tournament_detail
-        rows = update_event_table(*_filter_args())
-        assert update_tournament_detail([], rows, *_filter_args()) is None
+        assert "ACC Friday Ladder" in rendered
+        assert "ACC JUNE 2025" in rendered
+        assert "ACC MAY 2026" in rendered
+        # The May event's rating change, whole numbers
+        assert "1544" in rendered and "1571" in rendered
 
-    def test_event_games_sort_by_round_numerically(self, ui_app):
-        """Round 10 belongs after round 2, not between rounds 1 and 2 —
-        the lexical-sort bug fixed in issue #17."""
-        import data
-        import sync
+    def test_the_forfeit_renders_under_its_series(self, ui_app, real_career_ui):
+        """The Feketekuty no-show appears under the Thanksgiving Series,
+        labeled as a Forfeit, not inside any Rated Event."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
 
-        pgn = "\n".join(
-            f'[Event "Blitz Championship"]\n[Site "S"]\n[Date "2024.05.01"]\n'
-            f'[Round "{rnd}"]\n[White "Me"]\n[Black "Opp {rnd}"]\n[Result "1-0"]\n'
-            f"\n1. e4 1-0\n"
-            for rnd in ("2", "10", "1")
-        )
-        data.reset()
-        with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn):
-            data.initialize(["teststudy"], player_name="Me")
-        try:
-            from pages.events import update_event_table, update_tournament_detail
-            rows = update_event_table(*_filter_args())
-            detail = update_tournament_detail([0], rows, *_filter_args())
-            table = next(c for c in _walk_components(detail)
-                         if getattr(c, "id", "") == "event-games-table")
-            # Numeric values under a numeric column: the browser's native
-            # re-sort stays numeric too, not just the default order
-            assert [r["RoundNum"] for r in table.data] == [1, 2, 10]
-        finally:
-            data.reset()
+        assert "Feketekuty" in rendered
+        assert "Forfeit" in rendered
+
+
+class TestEventsUnplayed:
+    def test_entered_but_never_played_events_render(self, ui_app, real_career_ui):
+        """The Rockville case (issue #33): entered, zero games — rendered in
+        its own group without error."""
+        from pages.events import update_unplayed
+        rendered = str(update_unplayed(*_filter_args()))
+
+        assert "ROCKVILLE ACTION TOURNAMENT" in rendered
+
+    def test_played_events_are_never_listed_as_unplayed(self, ui_app, real_career_ui):
+        from pages.events import update_unplayed
+        rendered = str(update_unplayed(*_filter_args()))
+
+        assert "ACC MAY 2026" not in rendered
+
+    def test_a_date_filter_does_not_invent_unplayed_events(
+        self, ui_app, real_career_ui
+    ):
+        """Filtering to 2026 hides 2025's Rockville but never turns played 2025
+        events into 'never played'."""
+        from pages.events import update_unplayed
+        only_2026 = _filter_args(start="2026-01-01", end="2026-12-31")
+        rendered = str(update_unplayed(*only_2026))
+
+        assert "ROCKVILLE" not in rendered          # outside the range
+        assert "ACC JUNE 2025" not in rendered      # played — never "unplayed"
 
 
 # ---------------------------------------------------------------------------
@@ -1238,13 +1310,14 @@ class TestGameNavigation:
         rows = [{"Date": "2024.01.06", "ChapterURL": ""}]
         assert row_click_to_game({"row": 0, "column_id": "Date"}, rows) is no_update
 
-    def test_all_three_tables_have_navigation_callbacks(self, ui_app, ui_data):
-        """Games table, Scouting Report timeline, and event detail all open Games."""
-        from pages.events import navigate_to_game_from_event
+    def test_both_tables_have_navigation_callbacks(self, ui_app, ui_data):
+        """The Games table and the Scouting Report timeline both open Games.
+        (The Events page's game rows are plain links since issue #33 — they
+        need no callback.)"""
         from pages.games import navigate_to_game
         from pages.opponents import navigate_to_game_from_scout
 
-        for fn in (navigate_to_game, navigate_to_game_from_scout, navigate_to_game_from_event):
+        for fn in (navigate_to_game, navigate_to_game_from_scout):
             href, _reset = fn({"row": 0, "column_id": "Date"}, self.ROWS)
             assert href == "/game/chap0003"
 

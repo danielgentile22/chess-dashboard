@@ -44,7 +44,7 @@ def stub_studies(**study_pgns):
 
 @contextlib.contextmanager
 def stub_uscf(profile, supplements=None, sections=None, games=None,
-              norms=None, awards=None):
+              events=None, norms=None, awards=None):
     """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -60,6 +60,8 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
                            side_effect=fake(sections or [])), \
          mock.patch.object(sync, "fetch_member_games",
                            side_effect=fake(games or [])), \
+         mock.patch.object(sync, "fetch_member_events",
+                           side_effect=fake(events or [])), \
          mock.patch.object(sync, "fetch_member_norms",
                            side_effect=fake(norms or [])), \
          mock.patch.object(sync, "fetch_member_awards",

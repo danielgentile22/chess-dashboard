@@ -45,6 +45,7 @@ from uscf_core import (
     OfficialRatingPoint,
     ReconciliationEntry,
     UscfAchievement,
+    UscfEvent,
     UscfProfile,
     enrich_games,
     match_games,
@@ -347,6 +348,12 @@ def get_live_series() -> list[LiveRatingPoint]:
     """The Live Rating series: one point per Regular-rated Section, chronological,
     decimals preserved. Continuous: each post-rating is the next pre-rating."""
     return _uscf.live_series
+
+
+def get_uscf_events() -> list[UscfEvent]:
+    """Every Rated Event the member has entered, chronological (issue #33).
+    Empty when USCF is off/unavailable."""
+    return _uscf.member_events
 
 
 def get_uscf_achievements() -> list[UscfAchievement]:

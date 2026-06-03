@@ -303,6 +303,13 @@ def uscf_games_json() -> dict:
 
 
 @pytest.fixture(scope="session")
+def uscf_events_json() -> dict:
+    """A real /members/{id}/events response: all 23 Rated Events Daniel has
+    entered (issue #33), with official dates, section counts, and player counts."""
+    return json.loads((USCF_FIXTURES_DIR / "events.json").read_text())
+
+
+@pytest.fixture(scope="session")
 def uscf_norms_json() -> dict:
     """A real /members/{id}/norms response: the FourthCategory norm from the
     First Annual Oak Grove Open (issue #36).  Note: no pagination fields —
@@ -433,6 +440,18 @@ SAMPLE_USCF_SECTIONS = [
 ]
 
 
+# The Rated Events that pair with SAMPLE_PGN (issue #33): the two events the
+# sample games/sections reference, in the real /members/{id}/events item shape.
+SAMPLE_USCF_EVENTS = [
+    {"id": "202401070001", "name": "TEST OPEN JANUARY",
+     "startDate": "2024-01-06", "endDate": "2024-01-07",
+     "sectionCount": 1, "playerCount": 12, "stateCode": "VA", "city": "SPRINGFIELD"},
+    {"id": "202406160002", "name": "SUMMER CUP 2024",
+     "startDate": "2024-06-15", "endDate": "2024-06-16",
+     "sectionCount": 1, "playerCount": 16, "stateCode": "VA", "city": "SHELBYVILLE"},
+]
+
+
 @pytest.fixture(scope="session")
 def sample_uscf_games() -> list[dict]:
     """USCF Game Records that pair with SAMPLE_PGN (5 matches + 1 USCF-only)."""
@@ -470,6 +489,7 @@ REAL_USCF_SUPPLEMENTS = json.loads(
     (USCF_FIXTURES_DIR / "rating-supplements.json").read_text()
 )["items"]
 REAL_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())["items"]
+REAL_USCF_EVENTS = json.loads((USCF_FIXTURES_DIR / "events.json").read_text())["items"]
 REAL_USCF_NORMS = json.loads((USCF_FIXTURES_DIR / "norms.json").read_text())["items"]
 REAL_USCF_AWARDS = json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())["items"]
 
@@ -478,6 +498,7 @@ REAL_USCF_AWARDS = json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())["
 # SAMPLE_PGN's Games (so the rating lens has values for them — issue #32).
 _UI_USCF_SUPPLEMENTS = SAMPLE_USCF_SUPPLEMENTS + REAL_USCF_SUPPLEMENTS
 _UI_USCF_SECTIONS = SAMPLE_USCF_SECTIONS + REAL_USCF_SECTIONS
+_UI_USCF_EVENTS = SAMPLE_USCF_EVENTS + REAL_USCF_EVENTS
 
 
 @contextmanager
@@ -485,6 +506,7 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
                     uscf_games: list | None = None,
                     uscf_supplements: list | None = None,
                     uscf_sections: list | None = None,
+                    uscf_events: list | None = None,
                     uscf_norms: list | None = None,
                     uscf_awards: list | None = None):
     """
@@ -493,9 +515,10 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
     Pass an Exception as *uscf_profile* to simulate USCF being down
     (every endpoint raises it).  *uscf_games* defaults to the records that
     pair with SAMPLE_PGN, so UI tests render against matched Games;
-    *uscf_supplements* / *uscf_sections* default to the real career extended
-    with the 2024 sample items that cover SAMPLE_PGN; *uscf_norms* /
-    *uscf_awards* default to the real captured achievements (issue #36).
+    *uscf_supplements* / *uscf_sections* / *uscf_events* default to the real
+    career extended with the 2024 sample items that cover SAMPLE_PGN;
+    *uscf_norms* / *uscf_awards* default to the real captured achievements
+    (issue #36).
     """
     import sync
 
@@ -507,6 +530,8 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
         uscf_supplements = _UI_USCF_SUPPLEMENTS
     if uscf_sections is None:
         uscf_sections = _UI_USCF_SECTIONS
+    if uscf_events is None:
+        uscf_events = _UI_USCF_EVENTS
     if uscf_norms is None:
         uscf_norms = REAL_USCF_NORMS
     if uscf_awards is None:
@@ -529,6 +554,8 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
                            side_effect=fake(uscf_sections)), \
          mock.patch.object(sync, "fetch_member_games",
                            side_effect=fake(uscf_games)), \
+         mock.patch.object(sync, "fetch_member_events",
+                           side_effect=fake(uscf_events)), \
          mock.patch.object(sync, "fetch_member_norms",
                            side_effect=fake(uscf_norms)), \
          mock.patch.object(sync, "fetch_member_awards",
@@ -580,7 +607,8 @@ def real_career_ui(ui_app):
     data.reset()
     with stub_ui_sources(pgn_text, uscf_games=games,
                          uscf_supplements=REAL_USCF_SUPPLEMENTS,
-                         uscf_sections=REAL_USCF_SECTIONS):
+                         uscf_sections=REAL_USCF_SECTIONS,
+                         uscf_events=REAL_USCF_EVENTS):
         data.initialize(["realstudy"], player_name="Daniel Gentile",
                         uscf_member_id="32487228")
     yield

@@ -33,7 +33,7 @@ def stub_studies(**study_pgns):
 
 @contextlib.contextmanager
 def stub_uscf(profile, supplements=None, sections=None, games=None,
-              norms=None, awards=None):
+              events=None, norms=None, awards=None):
     """
     Patch the USCF client inside sync: each value is the raw JSON to return,
     or an Exception to raise.  List endpoints default to empty lists.
@@ -53,6 +53,8 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
                            side_effect=fake(sections or []), create=True), \
          mock.patch.object(sync, "fetch_member_games",
                            side_effect=fake(games or []), create=True), \
+         mock.patch.object(sync, "fetch_member_events",
+                           side_effect=fake(events or []), create=True), \
          mock.patch.object(sync, "fetch_member_norms",
                            side_effect=fake(norms or []), create=True), \
          mock.patch.object(sync, "fetch_member_awards",
@@ -583,6 +585,51 @@ class TestSyncUscfGames:
         assert result.available
         assert len(result.game_records) == 63
         assert "games endpoint broke" in result.failure
+
+
+class TestSyncUscfEvents:
+    """sync_uscf also fetches the member's Rated Events — the Events page's
+    grouping data (issue #33)."""
+
+    def test_successful_sync_returns_typed_events(
+        self, uscf_profile_json, uscf_events_json
+    ):
+        with stub_uscf(uscf_profile_json, events=uscf_events_json["items"]):
+            result = sync.sync_uscf("32487228")
+
+        assert len(result.member_events) == 23
+        assert result.member_events[0].name == "ACC JUNE 2025"     # chronological
+        assert result.member_events[-1].name == "ACC MAY 2026"
+
+    def test_events_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_events_json, tmp_path
+    ):
+        """Rated Events degrade to the cached snapshot like everything else."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, events=uscf_events_json["items"]):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert len(degraded.member_events) == 23
+
+    def test_events_endpoint_failing_degrades_the_whole_uscf_half(
+        self, uscf_profile_json, uscf_events_json, tmp_path
+    ):
+        """All-or-nothing: the events endpoint is part of the member snapshot."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, events=uscf_events_json["items"]):
+            sync.sync_uscf("32487228", cache_path=cache_path)
+
+        with stub_uscf(uscf_profile_json,
+                       events=UscfUnreachableError("events endpoint broke")):
+            result = sync.sync_uscf("32487228", cache_path=cache_path)
+
+        assert result.from_cache is True
+        assert len(result.member_events) == 23
+        assert "events endpoint broke" in result.failure
 
 
 class TestSyncUscfAchievements:

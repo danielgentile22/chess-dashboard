@@ -18,6 +18,7 @@ fetch_member_profile       GET /members/{id} → dict (ratings, ranks, floor, me
 fetch_rating_supplements   GET /members/{id}/rating-supplements → list (Official series)
 fetch_member_sections      GET /members/{id}/sections → list (Live series)
 fetch_member_games         GET /members/{id}/games → list (USCF Game Records)
+fetch_member_events        GET /members/{id}/events → list (Rated Events entered)
 fetch_member_norms         GET /members/{id}/norms → list (official norms)
 fetch_member_awards        GET /members/{id}/awards → list (official awards)
 UscfError                  Base class for anything that goes wrong talking to USCF.
@@ -33,6 +34,7 @@ __all__ = [
     "UscfMemberNotFoundError",
     "UscfUnreachableError",
     "fetch_member_awards",
+    "fetch_member_events",
     "fetch_member_games",
     "fetch_member_norms",
     "fetch_member_profile",
@@ -126,6 +128,23 @@ def fetch_member_games(
     return _get_all_pages(
         f"/members/{member_id}/games",
         what=f"games for member {member_id!r}",
+        timeout=timeout,
+    )
+
+
+def fetch_member_events(
+    member_id: str, *, timeout: float = _DEFAULT_TIMEOUT
+) -> list[dict]:
+    """
+    Fetch every Rated Event *member_id* has entered — official names, dates,
+    section counts, and field sizes (issue #33).  Pagination is handled
+    internally.
+
+    Raises the same typed errors as :func:`fetch_member_profile`.
+    """
+    return _get_all_pages(
+        f"/members/{member_id}/events",
+        what=f"events for member {member_id!r}",
         timeout=timeout,
     )
 

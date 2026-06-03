@@ -43,6 +43,7 @@ from pgn_stats_core import load_games_from_text
 from uscf_client import (
     UscfError,
     fetch_member_awards,
+    fetch_member_events,
     fetch_member_games,
     fetch_member_norms,
     fetch_member_profile,
@@ -53,11 +54,13 @@ from uscf_core import (
     LiveRatingPoint,
     OfficialRatingPoint,
     UscfAchievement,
+    UscfEvent,
     UscfGameRecord,
     UscfProfile,
     build_achievements,
     build_game_records,
     build_live_series,
+    build_member_events,
     build_official_series,
     parse_member_profile,
 )
@@ -292,6 +295,8 @@ class UscfSyncResult:
     live_series: list[LiveRatingPoint] = field(default_factory=list)
     # Every USCF Game Record — the matching engine's input (issue #28)
     game_records: list[UscfGameRecord] = field(default_factory=list)
+    # Every Rated Event entered — the Events page's grouping data (issue #33)
+    member_events: list[UscfEvent] = field(default_factory=list)
     # Official achievements: norms and awards, chronological (issue #36)
     achievements: list[UscfAchievement] = field(default_factory=list)
     # When USCF was last successfully reached: the fetch time for live data,
@@ -326,6 +331,7 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         raw_supplements = fetch_rating_supplements(member_id)
         raw_sections = fetch_member_sections(member_id)
         raw_games = fetch_member_games(member_id)
+        raw_events = fetch_member_events(member_id)
         raw_norms = fetch_member_norms(member_id)
         raw_awards = fetch_member_awards(member_id)
     except UscfError as exc:
@@ -337,6 +343,7 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         "supplements": raw_supplements,
         "sections": raw_sections,
         "games": raw_games,
+        "events": raw_events,
         "norms": raw_norms,
         "awards": raw_awards,
     })
@@ -345,6 +352,7 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         official_series=build_official_series(raw_supplements),
         live_series=build_live_series(raw_sections),
         game_records=build_game_records(raw_games),
+        member_events=build_member_events(raw_events),
         achievements=build_achievements(raw_norms, raw_awards),
         synced_at=datetime.now(timezone.utc),
     )
@@ -362,6 +370,7 @@ def _uscf_from_cache(cache: UscfCache, failure: str) -> UscfSyncResult:
         official_series=build_official_series(cache.get_current("supplements") or []),
         live_series=build_live_series(cache.get_current("sections") or []),
         game_records=build_game_records(cache.get_current("games") or []),
+        member_events=build_member_events(cache.get_current("events") or []),
         achievements=build_achievements(cache.get_current("norms") or [],
                                         cache.get_current("awards") or []),
         synced_at=cache.fetched_at(),
