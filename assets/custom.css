@@ -751,6 +751,28 @@ code {
 }
 .milestone-desc { font-size: 13px; color: var(--cs-text); flex: 1; }
 
+/* Official USCF achievements (issue #36) — the most gold things here:
+   gold reserved for achievements per the design language. */
+.milestone-dot.uscf {
+  background: var(--cs-accent);
+  box-shadow: 0 0 7px rgba(210, 153, 34, .65);
+}
+.milestone-row-uscf {
+  background: linear-gradient(90deg, rgba(210, 153, 34, .07), transparent 65%);
+  border-radius: 4px;
+}
+.milestone-num-uscf {
+  color: var(--cs-accent);
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.milestone-uscf-link {
+  color: var(--cs-accent) !important;
+  text-decoration: none;
+  font-weight: 600;
+}
+.milestone-uscf-link:hover { text-decoration: underline; }
+
 /* ── Pre-game review mode (issue #19) ─────────────────────────
    Full-screen, card-by-card, built for one hand and five minutes. */
 .review-launch-btn {

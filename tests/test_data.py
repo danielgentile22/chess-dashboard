@@ -40,7 +40,8 @@ def stub_studies(**study_pgns):
 
 
 @contextlib.contextmanager
-def stub_uscf(profile, supplements=None, sections=None, games=None):
+def stub_uscf(profile, supplements=None, sections=None, games=None,
+              norms=None, awards=None):
     """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -55,7 +56,11 @@ def stub_uscf(profile, supplements=None, sections=None, games=None):
          mock.patch.object(sync, "fetch_member_sections",
                            side_effect=fake(sections or [])), \
          mock.patch.object(sync, "fetch_member_games",
-                           side_effect=fake(games or [])):
+                           side_effect=fake(games or [])), \
+         mock.patch.object(sync, "fetch_member_norms",
+                           side_effect=fake(norms or [])), \
+         mock.patch.object(sync, "fetch_member_awards",
+                           side_effect=fake(awards or [])):
         yield
 
 
@@ -434,6 +439,135 @@ class TestRatingSeriesInStore:
 
         assert data.get_official_series() == []
         assert data.get_live_series() == []
+
+
+# ---------------------------------------------------------------------------
+# USCF achievements in the data layer (issue #36)
+# ---------------------------------------------------------------------------
+
+class TestAchievementsInStore:
+    def test_data_layer_exposes_achievements(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """After a Sync, the norm and the award are available to every page."""
+        with stub_studies(study1=sample_pgn_text), stub_uscf(
+            uscf_profile_json,
+            norms=uscf_norms_json["items"],
+            awards=uscf_awards_json["items"],
+        ):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="12345678"
+            )
+
+        achievements = data.get_uscf_achievements()
+        assert [a.title for a in achievements] == [
+            "Fourth Category norm", "25th career win",
+        ]
+
+    def test_achievements_are_empty_without_uscf(self, sample_pgn_text):
+        """Lichess-only runs have no achievements — empty list, never an error."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_uscf_achievements() == []
+
+
+class TestNewAchievementDetection:
+    """
+    The celebration check (issue #36): an achievement is reported "new" the
+    first time any Sync sees it — and never again, even across restarts.
+    """
+
+    def _initialize(self, pgn, profile, norms=(), awards=(), cache_path=None):
+        with stub_studies(study1=pgn), \
+             stub_uscf(profile, norms=list(norms), awards=list(awards)):
+            data.initialize(["study1"], player_name="Test Player",
+                            uscf_member_id="12345678",
+                            uscf_cache_path=cache_path)
+
+    def _refresh(self, pgn, profile, norms=(), awards=()):
+        with stub_studies(study1=pgn), \
+             stub_uscf(profile, norms=list(norms), awards=list(awards)):
+            return data.refresh()
+
+    def test_existing_achievements_are_not_reported_new(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """The first Sync that knows about achievements records Daniel's existing
+        norm and award silently — celebrating months-old achievements is noise."""
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"],
+                         awards=uscf_awards_json["items"])
+
+        assert data.get_uscf_achievements() != []      # they ARE in the timeline
+        assert data.get_new_achievements() == []       # but nothing to celebrate
+
+    def test_an_achievement_appearing_in_a_later_sync_is_new(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """The norm existed at startup; the award appears in a later Sync —
+        exactly the 'future norms and awards appear automatically' criterion."""
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"])
+
+        self._refresh(sample_pgn_text, uscf_profile_json,
+                      norms=uscf_norms_json["items"],
+                      awards=uscf_awards_json["items"])
+
+        assert [a.title for a in data.get_new_achievements()] == ["25th career win"]
+
+    def test_an_achievement_is_new_exactly_once(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """Once celebrated, the same achievement never triggers again."""
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"])
+        self._refresh(sample_pgn_text, uscf_profile_json,
+                      norms=uscf_norms_json["items"],
+                      awards=uscf_awards_json["items"])
+
+        self._refresh(sample_pgn_text, uscf_profile_json,
+                      norms=uscf_norms_json["items"],
+                      awards=uscf_awards_json["items"])
+
+        assert data.get_new_achievements() == []
+
+    def test_seen_achievements_survive_restarts(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json,
+        tmp_path
+    ):
+        """With a cache path, what one run celebrated stays celebrated after a
+        restart; only the genuinely-new award gets reported."""
+        cache = str(tmp_path / "uscf_cache.json")
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"], cache_path=cache)
+        data.reset()
+
+        # The app restarts; USCF now also has the award
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"],
+                         awards=uscf_awards_json["items"], cache_path=cache)
+
+        assert [a.title for a in data.get_new_achievements()] == ["25th career win"]
+
+    def test_uscf_being_down_does_not_forget_or_recelebrate(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, tmp_path
+    ):
+        """A USCF outage mid-run neither wipes the seen-state nor causes the
+        cached achievements to be re-celebrated when USCF comes back."""
+        cache = str(tmp_path / "uscf_cache.json")
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"], cache_path=cache)
+
+        with stub_studies(study1=sample_pgn_text), \
+             stub_uscf(UscfUnreachableError("USCF is down")):
+            data.refresh()
+        assert data.get_new_achievements() == []
+
+        # USCF recovers, same norm as before → still not new
+        self._refresh(sample_pgn_text, uscf_profile_json,
+                      norms=uscf_norms_json["items"])
+        assert data.get_new_achievements() == []
 
 
 # ---------------------------------------------------------------------------

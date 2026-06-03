@@ -15,7 +15,7 @@ from datetime import date
 import dash
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Input, Output, callback, html
+from dash import Input, Output, callback, dcc, html
 
 import data
 from components import (
@@ -37,7 +37,7 @@ from pgn_stats_core import (
     win_draw_loss_counts,
 )
 from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
-from uscf_core import membership_alert
+from uscf_core import achievement_milestones, membership_alert
 
 dash.register_page(
     __name__, path="/", name="Overview", title="Overview — Chess Stats", order=0,
@@ -262,19 +262,38 @@ def update_terminations(colors, outcomes, terminations, start, end, events, move
     return fig
 
 
+def _milestone_row(m: dict) -> html.Div:
+    """One timeline row.  Game milestones show their game number; official
+    USCF achievements (issue #36) show a gold USCF badge and link to the
+    Events page, where their Rated Event lives."""
+    is_uscf = m["kind"] == "uscf"
+    num = html.Div("USCF" if is_uscf else f"#{m['game_num']}",
+                   className="milestone-num" + (" milestone-num-uscf" if is_uscf else ""))
+    description: html.Div = html.Div(
+        dcc.Link(m["description"], href="/events", className="milestone-uscf-link")
+        if is_uscf else m["description"],
+        className="milestone-desc",
+    )
+    return html.Div(className="milestone-row" + (" milestone-row-uscf" if is_uscf else ""),
+                    children=[
+                        html.Div(className=f"milestone-dot {m['kind']}"),
+                        html.Div(m["date"], className="milestone-date"),
+                        num,
+                        description,
+                    ])
+
+
 @callback(Output("milestones-content", "children"), FILTER_INPUTS)
 def update_milestones(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     ms = compute_milestones(df_f)
+    # Official achievements join the timeline (issue #36).  They aren't Games,
+    # so only the date range applies to them — never the game filters.
+    ms += achievement_milestones(data.get_uscf_achievements(),
+                                 date_start=start, date_end=end)
     if not ms:
         return html.Div("No milestone data", style={"color": COLORS["dim"]})
-    rows = [
-        html.Div(className="milestone-row", children=[
-            html.Div(className=f"milestone-dot {m['kind']}"),
-            html.Div(m["date"],           className="milestone-date"),
-            html.Div(f"#{m['game_num']}", className="milestone-num"),
-            html.Div(m["description"],    className="milestone-desc"),
-        ])
-        for m in ms
-    ]
-    return html.Div(rows, className="milestone-list")
+    # Chronological across both kinds; game milestones break date ties by
+    # game number, achievements (no game number) go after them.
+    ms.sort(key=lambda m: (m["date"], m["game_num"] is None, m["game_num"] or 0))
+    return html.Div([_milestone_row(m) for m in ms], className="milestone-list")

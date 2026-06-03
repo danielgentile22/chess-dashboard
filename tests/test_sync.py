@@ -32,7 +32,8 @@ def stub_studies(**study_pgns):
 
 
 @contextlib.contextmanager
-def stub_uscf(profile, supplements=None, sections=None, games=None):
+def stub_uscf(profile, supplements=None, sections=None, games=None,
+              norms=None, awards=None):
     """
     Patch the USCF client inside sync: each value is the raw JSON to return,
     or an Exception to raise.  List endpoints default to empty lists.
@@ -51,7 +52,11 @@ def stub_uscf(profile, supplements=None, sections=None, games=None):
          mock.patch.object(sync, "fetch_member_sections",
                            side_effect=fake(sections or []), create=True), \
          mock.patch.object(sync, "fetch_member_games",
-                           side_effect=fake(games or []), create=True):
+                           side_effect=fake(games or []), create=True), \
+         mock.patch.object(sync, "fetch_member_norms",
+                           side_effect=fake(norms or []), create=True), \
+         mock.patch.object(sync, "fetch_member_awards",
+                           side_effect=fake(awards or []), create=True):
         yield
 
 
@@ -339,6 +344,47 @@ class TestUscfCacheDismissals:
         assert cache.dismissals() == ["conflict:url"]
 
 
+class TestUscfCacheSeenAchievements:
+    """
+    Seen-achievement memory (issue #36): which norms/awards every previous
+    Sync has already seen, so a fresh one is celebrated exactly once — and
+    never again after restarts.  Like dismissals, this is bookkeeping state
+    that must survive replace_current.
+    """
+
+    def test_never_recorded_is_none_not_empty(self, tmp_path):
+        """None = 'never recorded' (first run); [] = 'recorded, member has none'.
+        The distinction decides whether existing achievements get celebrated."""
+        cache = sync.UscfCache(str(tmp_path / "uscf_cache.json"))
+        assert cache.seen_achievements() is None
+
+    def test_recorded_achievements_round_trip(self, tmp_path):
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.record_achievements(["norm:FourthCategory:202512140213"])
+
+        reopened = sync.UscfCache(path)
+        assert reopened.seen_achievements() == ["norm:FourthCategory:202512140213"]
+
+    def test_recording_an_empty_list_is_not_none(self, tmp_path):
+        """A member with no achievements still gets their seen-state recorded,
+        so their first-ever norm celebrates."""
+        path = str(tmp_path / "uscf_cache.json")
+        sync.UscfCache(path).record_achievements([])
+
+        assert sync.UscfCache(path).seen_achievements() == []
+
+    def test_seen_achievements_survive_replace_current(self, tmp_path):
+        """replace_current wipes API data every Sync — never bookkeeping state."""
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.record_achievements(["award:01KRQV7CN2Z2KXA7V8EV9MAJVM"])
+
+        cache.replace_current({"profile": {"id": "x"}})
+
+        assert cache.seen_achievements() == ["award:01KRQV7CN2Z2KXA7V8EV9MAJVM"]
+
+
 class TestSyncUscf:
     """The USCF half of a Sync (issue #25, ADR 0003)."""
 
@@ -537,6 +583,56 @@ class TestSyncUscfGames:
         assert result.available
         assert len(result.game_records) == 63
         assert "games endpoint broke" in result.failure
+
+
+class TestSyncUscfAchievements:
+    """sync_uscf also fetches norms and awards — official achievements that
+    become Milestones (issue #36)."""
+
+    def test_successful_sync_returns_typed_achievements(
+        self, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        with stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"],
+                       awards=uscf_awards_json["items"]):
+            result = sync.sync_uscf("12345678")
+
+        assert [a.title for a in result.achievements] == [
+            "Fourth Category norm", "25th career win",
+        ]
+
+    def test_achievements_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_norms_json, uscf_awards_json, tmp_path
+    ):
+        """Previously seen norms/awards remain when USCF is unavailable —
+        issue #36's acceptance criterion, via the cached snapshot (ADR 0003)."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"],
+                       awards=uscf_awards_json["items"]):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert [a.title for a in degraded.achievements] == [
+            "Fourth Category norm", "25th career win",
+        ]
+
+    def test_norms_endpoint_failing_degrades_the_whole_uscf_half(
+        self, uscf_profile_json, uscf_norms_json, tmp_path
+    ):
+        """All-or-nothing: norms/awards are part of the member snapshot."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"]):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(uscf_profile_json,
+                       norms=UscfUnreachableError("norms endpoint broke")):
+            result = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert result.from_cache is True
+        assert [a.title for a in result.achievements] == ["Fourth Category norm"]
+        assert "norms endpoint broke" in result.failure
 
 
 class TestDetectNewGames:

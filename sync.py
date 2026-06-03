@@ -42,7 +42,9 @@ from lichess_client import LichessError, fetch_study_pgn
 from pgn_stats_core import load_games_from_text
 from uscf_client import (
     UscfError,
+    fetch_member_awards,
     fetch_member_games,
+    fetch_member_norms,
     fetch_member_profile,
     fetch_member_sections,
     fetch_rating_supplements,
@@ -50,8 +52,10 @@ from uscf_client import (
 from uscf_core import (
     LiveRatingPoint,
     OfficialRatingPoint,
+    UscfAchievement,
     UscfGameRecord,
     UscfProfile,
+    build_achievements,
     build_game_records,
     build_live_series,
     build_official_series,
@@ -163,6 +167,9 @@ class UscfCache:
       cache forever — ``fetch_immutable`` never re-fetches them.
     * **dismissals** — Reconciliation entries Daniel has judged (issue #30).
       User state, not API responses: never touched by ``replace_current``.
+    * **seen achievements** — which norms/awards previous Syncs have already
+      seen (issue #36), so a fresh one is celebrated exactly once.  Like
+      dismissals: bookkeeping, never touched by ``replace_current``.
     """
 
     def __init__(self, path: str | None):
@@ -227,6 +234,26 @@ class UscfCache:
             dismissals.append(entry_id)
             self._write()
 
+    # -- seen achievements (celebration bookkeeping — issue #36) -------------
+
+    def seen_achievements(self) -> list[str] | None:
+        """
+        Achievement IDs every previous Sync has seen, or None if never recorded.
+
+        The None/[] distinction matters: None means this is the first Sync
+        that knows about achievements (record them silently — celebrating
+        months-old norms would be noise); [] means the member verifiably had
+        none, so their next achievement is genuinely new.
+        """
+        seen = self._data.get("seen_achievements")
+        return list(seen) if seen is not None else None
+
+    def record_achievements(self, achievement_ids: list[str]) -> None:
+        """Remember these achievement IDs as seen.  Best-effort persistence,
+        like dismissals."""
+        self._data["seen_achievements"] = list(achievement_ids)
+        self._write()
+
     # -- file I/O (failures degrade, never raise) ----------------------------
 
     def _read(self) -> dict[str, Any]:
@@ -265,6 +292,8 @@ class UscfSyncResult:
     live_series: list[LiveRatingPoint] = field(default_factory=list)
     # Every USCF Game Record — the matching engine's input (issue #28)
     game_records: list[UscfGameRecord] = field(default_factory=list)
+    # Official achievements: norms and awards, chronological (issue #36)
+    achievements: list[UscfAchievement] = field(default_factory=list)
     # When USCF was last successfully reached: the fetch time for live data,
     # the cached data's age when degraded (None if USCF has never been reached)
     synced_at: datetime | None = None
@@ -297,6 +326,8 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         raw_supplements = fetch_rating_supplements(member_id)
         raw_sections = fetch_member_sections(member_id)
         raw_games = fetch_member_games(member_id)
+        raw_norms = fetch_member_norms(member_id)
+        raw_awards = fetch_member_awards(member_id)
     except UscfError as exc:
         logger.warning("USCF unavailable — continuing without it (ADR 0003): %s", exc)
         return _uscf_from_cache(cache, failure=str(exc))
@@ -306,12 +337,15 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         "supplements": raw_supplements,
         "sections": raw_sections,
         "games": raw_games,
+        "norms": raw_norms,
+        "awards": raw_awards,
     })
     return UscfSyncResult(
         profile=parse_member_profile(raw_profile),
         official_series=build_official_series(raw_supplements),
         live_series=build_live_series(raw_sections),
         game_records=build_game_records(raw_games),
+        achievements=build_achievements(raw_norms, raw_awards),
         synced_at=datetime.now(timezone.utc),
     )
 
@@ -328,6 +362,8 @@ def _uscf_from_cache(cache: UscfCache, failure: str) -> UscfSyncResult:
         official_series=build_official_series(cache.get_current("supplements") or []),
         live_series=build_live_series(cache.get_current("sections") or []),
         game_records=build_game_records(cache.get_current("games") or []),
+        achievements=build_achievements(cache.get_current("norms") or [],
+                                        cache.get_current("awards") or []),
         synced_at=cache.fetched_at(),
         failure=failure,
         from_cache=True,

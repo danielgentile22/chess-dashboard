@@ -449,12 +449,20 @@ def uscf_unavailable_card(reason: str) -> html.Div:
 def celebration_banner(deltas: list[dict]) -> dbc.Alert:
     """
     The gold milestone celebration (issue #15): shown once after a Sync that
-    set a personal best, dismissible, and gone for good once dismissed.
+    set a personal best — or that USCF first recognized with a norm or award
+    (issue #36) — dismissible, and gone for good once dismissed.
 
-    Takes the ``milestone_deltas()`` list — one line per record broken.
+    Takes the ``milestone_deltas()`` list — one line per record broken —
+    plus any new-achievement deltas (kind ``uscf_achievement``).
     """
-    headline = ("New personal best!" if len(deltas) == 1
-                else f"{len(deltas)} new personal bests!")
+    all_official = all(d["kind"] == "uscf_achievement" for d in deltas)
+    if all_official:
+        # An official achievement isn't a "personal best" — say what it is
+        headline = ("New official USCF achievement!" if len(deltas) == 1
+                    else f"{len(deltas)} new official USCF achievements!")
+    else:
+        headline = ("New personal best!" if len(deltas) == 1
+                    else f"{len(deltas)} new personal bests!")
     return dbc.Alert(
         [
             html.Div(className="celebration-headline", children=[

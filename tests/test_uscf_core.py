@@ -1465,6 +1465,118 @@ class TestReconcileEdgeCases:
 
 
 # ---------------------------------------------------------------------------
+# Norms and awards → achievements (issue #36)
+#
+# build_achievements turns raw /norms and /awards responses into one
+# chronological list of typed UscfAchievement records — what the Milestones
+# timeline and the celebration check consume.
+# ---------------------------------------------------------------------------
+
+class TestBuildAchievements:
+    def test_the_real_norm_becomes_an_achievement(self, uscf_norms_json):
+        """Daniel's FourthCategory norm from the Oak Grove Open (Dec 2025)."""
+        achievements = uscf_core.build_achievements(uscf_norms_json["items"], [])
+
+        assert len(achievements) == 1
+        norm = achievements[0]
+        assert norm.kind == "norm"
+        assert norm.title == "Fourth Category norm"
+        assert norm.date == date(2025, 12, 14)  # the Rated Event's end date
+        assert norm.event_id == "202512140213"
+        assert norm.event_name == "First Annual Oak Grove Open"
+        assert "4.5" in norm.detail
+
+    def test_the_real_award_becomes_an_achievement(self, uscf_awards_json):
+        """Daniel's 25th-career-win WinMilestone (Newcomb Memorial, Jan 2026)."""
+        achievements = uscf_core.build_achievements([], uscf_awards_json["items"])
+
+        assert len(achievements) == 1
+        award = achievements[0]
+        assert award.kind == "award"
+        assert award.title == "25th career win"
+        assert award.date == date(2026, 1, 25)  # the award's own date
+        assert award.event_name == "Fourth Annual Newcomb Memorial Tournament"
+
+    def test_norms_and_awards_merge_chronologically(self, uscf_norms_json,
+                                                    uscf_awards_json):
+        """One timeline: the Dec 2025 norm comes before the Jan 2026 award."""
+        achievements = uscf_core.build_achievements(
+            uscf_norms_json["items"], uscf_awards_json["items"],
+        )
+
+        assert [a.kind for a in achievements] == ["norm", "award"]
+        assert achievements[0].date < achievements[1].date
+
+    def test_each_achievement_has_a_stable_identity(self, uscf_norms_json,
+                                                    uscf_awards_json):
+        """New-vs-seen detection across Syncs needs identities that never change
+        between two fetches of the same data."""
+        first = uscf_core.build_achievements(
+            uscf_norms_json["items"], uscf_awards_json["items"])
+        second = uscf_core.build_achievements(
+            uscf_norms_json["items"], uscf_awards_json["items"])
+
+        assert [a.achievement_id for a in first] == [a.achievement_id for a in second]
+        # And distinct from each other — dismissing one can never hide another
+        assert len({a.achievement_id for a in first}) == len(first)
+
+    def test_tolerates_missing_event_and_unknown_category(self):
+        """The MUIR API is undocumented (ADR 0003): an award of a category we've
+        never seen, with no event attached, still becomes a sensible entry."""
+        achievements = uscf_core.build_achievements(
+            [{"level": "ThirdCategory"}],   # norm with no event at all
+            [{"category": "GamesPlayedMilestone", "date": "2026-03-01"}],
+        )
+
+        norm, award = achievements[-1], achievements[0]  # undated norm sorts last
+        assert norm.title == "Third Category norm"
+        assert norm.date is None
+        assert norm.event_name == ""
+        assert award.title == "Games Played Milestone award"
+        assert award.date == date(2026, 3, 1)
+
+    def test_no_norms_or_awards_is_an_empty_list(self):
+        """Most members have neither — the common case is empty, never an error."""
+        assert uscf_core.build_achievements([], []) == []
+
+
+class TestAchievementMilestones:
+    """Achievements as Milestone-timeline entries (issue #36): what the
+    Overview page renders, gold-flagged and date-filterable."""
+
+    @pytest.fixture()
+    def achievements(self, uscf_norms_json, uscf_awards_json):
+        return uscf_core.build_achievements(
+            uscf_norms_json["items"], uscf_awards_json["items"])
+
+    def test_each_achievement_becomes_a_gold_timeline_entry(self, achievements):
+        entries = uscf_core.achievement_milestones(achievements)
+
+        assert len(entries) == 2
+        norm, award = entries
+        # The shape compute_milestones() entries have, so the page renders both
+        # through one code path — but flagged as official USCF achievements
+        assert norm["kind"] == "uscf"
+        assert norm["date"] == "2025-12-14"
+        assert "Fourth Category norm" in norm["description"]
+        assert "First Annual Oak Grove Open" in norm["description"]
+        assert award["kind"] == "uscf"
+        assert "25th career win" in award["description"]
+
+    def test_entries_respect_the_date_range_filter(self, achievements):
+        """Achievements are member-level facts: only the date-range filter
+        applies (the same rule as rating_trend_series — they aren't Games)."""
+        only_2025 = uscf_core.achievement_milestones(
+            achievements, date_start="2025-01-01", date_end="2025-12-31")
+
+        assert len(only_2025) == 1
+        assert "Fourth Category norm" in only_2025[0]["description"]
+
+    def test_no_achievements_is_an_empty_list(self):
+        assert uscf_core.achievement_milestones([]) == []
+
+
+# ---------------------------------------------------------------------------
 # The rating lens (issue #32)
 #
 # apply_rating_lens rewrites a Games DataFrame's player-rating columns per

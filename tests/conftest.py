@@ -303,6 +303,21 @@ def uscf_games_json() -> dict:
 
 
 @pytest.fixture(scope="session")
+def uscf_norms_json() -> dict:
+    """A real /members/{id}/norms response: the FourthCategory norm from the
+    First Annual Oak Grove Open (issue #36).  Note: no pagination fields —
+    the norms endpoint returns bare items."""
+    return json.loads((USCF_FIXTURES_DIR / "norms.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def uscf_awards_json() -> dict:
+    """A real /members/{id}/awards response: the 25th-career-win WinMilestone
+    award (issue #36)."""
+    return json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())
+
+
+@pytest.fixture(scope="session")
 def study_snapshot_df():
     """
     Daniel's real Study (63 chapters), captured the same day as games.json —
@@ -455,6 +470,8 @@ REAL_USCF_SUPPLEMENTS = json.loads(
     (USCF_FIXTURES_DIR / "rating-supplements.json").read_text()
 )["items"]
 REAL_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())["items"]
+REAL_USCF_NORMS = json.loads((USCF_FIXTURES_DIR / "norms.json").read_text())["items"]
+REAL_USCF_AWARDS = json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())["items"]
 
 # What UI fixtures feed by default: the real 2025–26 career (so the profile
 # card and the rating series are real) plus the 2024 sample items that cover
@@ -467,7 +484,9 @@ _UI_USCF_SECTIONS = SAMPLE_USCF_SECTIONS + REAL_USCF_SECTIONS
 def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
                     uscf_games: list | None = None,
                     uscf_supplements: list | None = None,
-                    uscf_sections: list | None = None):
+                    uscf_sections: list | None = None,
+                    uscf_norms: list | None = None,
+                    uscf_awards: list | None = None):
     """
     Patch both clients at sync's module boundary for UI fixtures/tests:
     Lichess returns *pgn_text*; USCF returns the real captured responses.
@@ -475,7 +494,8 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
     (every endpoint raises it).  *uscf_games* defaults to the records that
     pair with SAMPLE_PGN, so UI tests render against matched Games;
     *uscf_supplements* / *uscf_sections* default to the real career extended
-    with the 2024 sample items that cover SAMPLE_PGN.
+    with the 2024 sample items that cover SAMPLE_PGN; *uscf_norms* /
+    *uscf_awards* default to the real captured achievements (issue #36).
     """
     import sync
 
@@ -487,6 +507,10 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
         uscf_supplements = _UI_USCF_SUPPLEMENTS
     if uscf_sections is None:
         uscf_sections = _UI_USCF_SECTIONS
+    if uscf_norms is None:
+        uscf_norms = REAL_USCF_NORMS
+    if uscf_awards is None:
+        uscf_awards = REAL_USCF_AWARDS
     uscf_down = uscf_profile if isinstance(uscf_profile, Exception) else None
 
     def fake(value):
@@ -504,7 +528,11 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
          mock.patch.object(sync, "fetch_member_sections",
                            side_effect=fake(uscf_sections)), \
          mock.patch.object(sync, "fetch_member_games",
-                           side_effect=fake(uscf_games)):
+                           side_effect=fake(uscf_games)), \
+         mock.patch.object(sync, "fetch_member_norms",
+                           side_effect=fake(uscf_norms)), \
+         mock.patch.object(sync, "fetch_member_awards",
+                           side_effect=fake(uscf_awards)):
         yield
 
 

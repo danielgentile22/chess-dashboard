@@ -43,7 +43,8 @@ def stub_studies(**study_pgns):
 
 
 @contextlib.contextmanager
-def stub_uscf(profile, supplements=None, sections=None, games=None):
+def stub_uscf(profile, supplements=None, sections=None, games=None,
+              norms=None, awards=None):
     """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -58,7 +59,11 @@ def stub_uscf(profile, supplements=None, sections=None, games=None):
          mock.patch.object(sync, "fetch_member_sections",
                            side_effect=fake(sections or [])), \
          mock.patch.object(sync, "fetch_member_games",
-                           side_effect=fake(games or [])):
+                           side_effect=fake(games or [])), \
+         mock.patch.object(sync, "fetch_member_norms",
+                           side_effect=fake(norms or [])), \
+         mock.patch.object(sync, "fetch_member_awards",
+                           side_effect=fake(awards or [])):
         yield
 
 
@@ -139,6 +144,74 @@ class TestCelebrations:
         from shell import run_sync
         with stub_studies(teststudy=LichessUnreachableError("down")):
             outputs = run_sync(1, {"seq": 0, "new_games": 0})
+        assert outputs[-1] is no_update
+
+
+# ---------------------------------------------------------------------------
+# Official achievement celebrations (issue #36)
+# ---------------------------------------------------------------------------
+
+class TestAchievementCelebrations:
+    """A Sync that first sees a new norm or award earns the gold banner —
+    official achievements get the same treatment as personal bests."""
+
+    def test_a_new_award_is_celebrated(self, sample_pgn_text, uscf_profile_json,
+                                       uscf_norms_json, uscf_awards_json):
+        from shell import run_sync
+
+        # Boot knowing only the norm...
+        data.reset()
+        with stub_studies(teststudy=sample_pgn_text), \
+             stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"]):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="12345678")
+
+        # ...then a Sync brings the 25th-win award for the first time
+        with stub_studies(teststudy=sample_pgn_text), \
+             stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"],
+                       awards=uscf_awards_json["items"]):
+            outputs = run_sync(1, {"seq": 0, "new_games": 0})
+
+        rendered = str(outputs[-1])
+        assert "25th career win" in rendered
+        assert "Newcomb" in rendered                     # where it was earned
+        # The norm was already known at boot — only the fresh award celebrates
+        assert "Fourth Category norm" not in rendered
+
+    def test_achievement_only_celebrations_say_official_not_personal_best(
+        self, sample_pgn_text, uscf_profile_json, uscf_awards_json
+    ):
+        """An official USCF achievement is not a 'personal best' — the banner
+        says what it actually is."""
+        from shell import run_sync
+
+        data.reset()
+        with stub_studies(teststudy=sample_pgn_text), stub_uscf(uscf_profile_json):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="12345678")
+
+        with stub_studies(teststudy=sample_pgn_text), \
+             stub_uscf(uscf_profile_json, awards=uscf_awards_json["items"]):
+            outputs = run_sync(1, {"seq": 0, "new_games": 0})
+
+        rendered = str(outputs[-1])
+        assert "official" in rendered.lower()
+        assert "personal best" not in rendered.lower()
+
+    def test_resyncing_known_achievements_celebrates_nothing(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """Achievements known since boot never re-celebrate on routine Syncs."""
+        from shell import run_sync
+
+        data.reset()
+        with stub_studies(teststudy=sample_pgn_text), \
+             stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"],
+                       awards=uscf_awards_json["items"]):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="12345678")
+            outputs = run_sync(1, {"seq": 0, "new_games": 0})
+
         assert outputs[-1] is no_update
 
 
