@@ -1648,6 +1648,42 @@ class TestSeriesSummary:
         assert len(may["rows"]) == 4
         assert all(row["ChapterURL"] for row in may["rows"])
 
+    def test_game_rows_sort_by_round_numerically(self):
+        """Round 10 belongs after round 2, not between 1 and 2 — the invariant
+        the old Events detail panel enforced (issue #17's lexical-sort fix)."""
+        df = games_df(
+            chapter(opponent_id="16441708", result="1-0", date="2026.05.01"),
+            chapter(opponent_id="16846267", result="1-0", date="2026.05.01"),
+            chapter(opponent_id="30481750", result="1-0", date="2026.05.01"),
+        )
+        # All same-day games; hand-typed rounds 2, 10, 1 in chapter order
+        df["Round"] = ["2", "10", "1"]
+        df["RoundNum"] = [2.0, 10.0, 1.0]
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708"),
+            uscf_game(opponent_id="16846267", opponent_first="WADE",
+                      opponent_last="ROBERTSON"),
+            uscf_game(opponent_id="30481750", opponent_first="JIN",
+                      opponent_last="SHAO"),
+        ])
+        enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, records))
+
+        summary = uscf_core.series_summary(enriched, [], [])
+
+        rows = summary[0]["rated_events"][0]["rows"]
+        assert [row["RoundNum"] for row in rows] == [1.0, 2.0, 10.0]
+
+    def test_works_on_a_df_without_enrichment_columns(self, study_snapshot_df):
+        """The mid-Sync race: a filter callback can fire between the Lichess
+        swap and USCF enrichment, handing series_summary a raw df with no
+        enrichment columns.  Every Game is simply unmatched — never a KeyError
+        (the same guard get_reconciliation has)."""
+        summary = uscf_core.series_summary(study_snapshot_df, [], [])
+
+        ladder = _series_named(summary, "ACC Friday Ladder")
+        assert ladder["rated_events"] == []
+        assert ladder["games"] == 27
+
     def test_a_filtered_df_filters_the_summary(self, real_series_inputs):
         """The summary is built from whatever Games it's given — global filters
         flow through by filtering the input df."""
@@ -1907,6 +1943,36 @@ class TestAttachRoundNumbers:
         uscf_core.attach_round_numbers(real_enriched, real_standings, "32487228")
         assert "UscfRound" not in real_enriched.columns
 
+    def test_repeat_opponent_same_outcome_games_get_distinct_rounds(self):
+        """Beating the same opponent twice in one Section (both Wins): each
+        Game gets its own round, never the same round twice."""
+        df = games_df(
+            chapter(opponent_id="16441708", result="1-0", date="2026.05.01"),
+            chapter(opponent_id="16441708", result="1-0", date="2026.05.22"),
+        )
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="16441708", player_outcome="Win"),
+            uscf_game(opponent_id="16441708", player_outcome="Win"),
+        ])
+        enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, records))
+        standings = {("202605290393", "LADDER"): uscf_core.build_standings([{
+            "ordinal": 1, "memberId": "99999999",
+            "firstName": "Test", "lastName": "Player", "score": 2,
+            "roundOutcomes": [
+                {"roundNumber": 2, "outcome": "Win", "color": "White",
+                 "opponentMemberId": "16441708", "opponentLastName": "FONTAINE"},
+                {"roundNumber": 5, "outcome": "Win", "color": "Black",
+                 "opponentMemberId": "16441708", "opponentLastName": "FONTAINE"},
+            ],
+            "ratings": [{"ratingSystem": "R", "preRatingDecimal": 1500.0,
+                         "postRatingDecimal": 1520.0}],
+        }])}
+
+        attached = uscf_core.attach_round_numbers(enriched, standings, "99999999")
+
+        # Both rounds assigned, each exactly once
+        assert sorted(attached["UscfRound"]) == [2, 5]
+
 
 # ---------------------------------------------------------------------------
 # Norms and awards → achievements (issue #36)
@@ -1978,6 +2044,22 @@ class TestBuildAchievements:
         assert norm.event_name == ""
         assert award.title == "Games Played Milestone award"
         assert award.date == date(2026, 3, 1)
+
+    def test_tolerates_explicit_null_event_and_zero_score(self):
+        """More API quirks (ADR 0003): an explicit "event": null (not just a
+        missing key) and a legitimate score of 0 both parse — never crash,
+        never silently dropped."""
+        achievements = uscf_core.build_achievements(
+            [{"level": "FourthCategory", "score": 0, "playedGames": 5,
+              "event": None}],
+            [{"category": "WinMilestone", "winCount": 25, "event": None,
+              "date": "2026-01-25"}],
+        )
+
+        norm = next(a for a in achievements if a.kind == "norm")
+        award = next(a for a in achievements if a.kind == "award")
+        assert "0" in norm.detail            # a real score of 0 is still shown
+        assert award.title == "25th career win"
 
     def test_no_norms_or_awards_is_an_empty_list(self):
         """Most members have neither — the common case is empty, never an error."""

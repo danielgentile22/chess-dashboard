@@ -441,14 +441,18 @@ def celebration_banner(deltas: list[dict]) -> dbc.Alert:
     Takes the ``milestone_deltas()`` list — one line per record broken —
     plus any new-achievement deltas (kind ``uscf_achievement``).
     """
-    all_official = all(d["kind"] == "uscf_achievement" for d in deltas)
-    if all_official:
+    official = sum(1 for d in deltas if d["kind"] == "uscf_achievement")
+    personal = len(deltas) - official
+    if personal and official:
+        # A Sync can bring both — name both, mislabel neither
+        headline = "New personal bests and official USCF achievements!"
+    elif official:
         # An official achievement isn't a "personal best" — say what it is
-        headline = ("New official USCF achievement!" if len(deltas) == 1
-                    else f"{len(deltas)} new official USCF achievements!")
+        headline = ("New official USCF achievement!" if official == 1
+                    else f"{official} new official USCF achievements!")
     else:
-        headline = ("New personal best!" if len(deltas) == 1
-                    else f"{len(deltas)} new personal bests!")
+        headline = ("New personal best!" if personal == 1
+                    else f"{personal} new personal bests!")
     return dbc.Alert(
         [
             html.Div(className="celebration-headline", children=[

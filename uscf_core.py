@@ -20,17 +20,25 @@ build_live_series       raw section items → the Live Rating series (continuous
 rating_trend_series     both series trimmed to a date range (the Trends chart's data).
 build_game_records      raw game items → typed USCF Game Records.
 build_member_events     raw event items → typed Rated Events (issue #33).
+build_standings         raw standings items → typed crosstables (issue #34).
 build_achievements      raw norm + award items → typed UscfAchievements (issue #36).
 achievement_milestones  achievements → Milestone-timeline entries (issue #36).
 match_games             USCF Game Records ↔ Games (the matching engine).
 enrich_games            Games df + MatchResult → df with USCF enrichment columns.
-apply_rating_lens       Games df with player ratings rewritten per the Official/Live lens.
+attach_round_numbers    Games df + crosstables → df with real round numbers (issue #34).
+apply_rating_lens       Games df with ratings rewritten per the Official/Live lens.
+series_summary          Games grouped Series → Rated Event (issue #33).
+unplayed_events         Rated Events entered but never played (issue #33).
 reconcile               Every disagreement between the Studies and USCF.
+ordinal                 5 → '5th' (placements, career-win milestones).
 UscfProfile             Who the member is according to USCF.
 UscfRating              One rating system's entry (rating, provisional, floor).
 OfficialRatingPoint     One supplement month's Official Rating.
 LiveRatingPoint         One Section's pre→post Live Rating change.
 UscfGameRecord          USCF's official record of one rated game (CONTEXT.md).
+UscfEvent               One Rated Event the member entered (issue #33).
+StandingEntry           One player's crosstable row (issue #34).
+RoundOutcome            One round in a crosstable row (issue #34).
 UscfAchievement         One official achievement — a norm or an award.
 GameMatch               One Game ↔ USCF Game Record pairing.
 MatchResult             Everything matching produced: matches + both leftovers.
@@ -70,6 +78,7 @@ __all__ = [
     "enrich_games",
     "match_games",
     "membership_alert",
+    "ordinal",
     "parse_member_profile",
     "rating_trend_series",
     "reconcile",
@@ -549,7 +558,11 @@ def attach_round_numbers(
 def _real_round(
     game: pd.Series, my_rounds: dict[tuple[str, str, str], list[RoundOutcome]]
 ) -> int | None:
-    """One Game's real round number from the crosstables, or None."""
+    """One Game's real round number from the crosstables, or None.
+
+    Each crosstable round is consumed when assigned, so two Games against the
+    same opponent in one Section (with the same result) get their own rounds,
+    never the same one twice."""
     if game["UscfMatched"]:
         candidates = my_rounds.get(
             (game["UscfEventId"], game["UscfSection"], game["UscfOpponentId"]), [])
@@ -557,8 +570,11 @@ def _real_round(
         # opponents in one Section); a single candidate wins regardless.
         for outcome in candidates:
             if _ROUND_OUTCOME_AS_GAME.get(outcome.outcome) == game["Outcome"]:
+                candidates.remove(outcome)        # consumed — never reused
                 return outcome.round_number
-        return candidates[0].round_number if len(candidates) == 1 else None
+        if len(candidates) == 1:
+            return candidates.pop().round_number
+        return None
 
     if game["Forfeit"]:
         opponent_id = _opponent_id(game)
@@ -616,6 +632,12 @@ def series_summary(
 
     summaries = []
     d = df.copy()
+    # A filter callback can fire mid-Sync, before enrichment runs (the same
+    # window data.get_reconciliation guards): no enrichment columns → every
+    # Game is simply unmatched, never a KeyError.
+    for column, default in _ENRICHMENT_DEFAULTS.items():
+        if column not in d.columns:
+            d[column] = default
     d["Event"] = d["Event"].fillna("").astype(str)
     for series_name, games in d[d["Event"].str.strip() != ""].groupby("Event"):
         games = games.sort_values(["Date_dt", "Index"], na_position="last")
@@ -736,11 +758,20 @@ def _longest_win_streak(games: pd.DataFrame) -> int:
 
 
 def _game_rows(games: pd.DataFrame) -> list[dict]:
-    """Game rows for the page's tables (clickable through ChapterURL)."""
+    """Game rows for the page's tables (clickable through ChapterURL), in
+    round order — real rounds (UscfRound) outrank typed ones; round 10 sorts
+    after round 9, never after round 1."""
     if games.empty:
         return []
-    columns = [c for c in _GAME_ROW_COLUMNS if c in games.columns]
-    return games[columns].to_dict("records")
+    ordered = games.copy()
+    effective_round = ordered["RoundNum"]
+    if "UscfRound" in ordered.columns:
+        effective_round = ordered["UscfRound"].fillna(ordered["RoundNum"])
+    ordered = ordered.assign(_round_order=effective_round).sort_values(
+        ["Date_dt", "_round_order"], na_position="last",
+    )
+    columns = [c for c in _GAME_ROW_COLUMNS if c in ordered.columns]
+    return ordered[columns].to_dict("records")
 
 
 # ---------------------------------------------------------------------------
@@ -784,10 +815,12 @@ def build_achievements(
 
 def _norm_achievement(item: dict) -> UscfAchievement:
     """A norm: level + score, earned at its event's end date."""
-    event = item.get("event", {})
+    event = item.get("event") or {}   # tolerate an explicit "event": null
     level = str(item.get("level", ""))
     score, games = item.get("score"), item.get("playedGames")
-    detail = f"Scored {score} in {games} games" if score and games else ""
+    # `is not None`, not truthiness: a real score of 0 is still a score
+    detail = (f"Scored {score} in {games} games"
+              if score is not None and games else "")
 
     return UscfAchievement(
         achievement_id=f"norm:{level}:{event.get('id', '')}",
@@ -802,12 +835,12 @@ def _norm_achievement(item: dict) -> UscfAchievement:
 
 def _award_achievement(item: dict) -> UscfAchievement:
     """An award: USCF's own milestones, like the 25th career win."""
-    event = item.get("event", {})
+    event = item.get("event") or {}   # tolerate an explicit "event": null
     category = str(item.get("category", ""))
     win_count = item.get("winCount")
 
     if category == "WinMilestone" and win_count:
-        title = f"{_ordinal(win_count)} career win"
+        title = f"{ordinal(win_count)} career win"
     else:
         title = f"{_split_camel_case(category)} award"
 
@@ -865,8 +898,9 @@ def _split_camel_case(value: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", " ", value)
 
 
-def _ordinal(n: int) -> str:
-    """25 → '25th', 1 → '1st', 22 → '22nd' (career-win milestone wording)."""
+def ordinal(n: int) -> str:
+    """25 → '25th', 1 → '1st', 22 → '22nd' — career-win milestones (issue #36)
+    and crosstable placements (issue #34) share this wording."""
     if 11 <= n % 100 <= 13:
         suffix = "th"
     else:

@@ -293,7 +293,14 @@ def update_milestones(colors, outcomes, terminations, start, end, events, moves,
                                  date_start=start, date_end=end)
     if not ms:
         return html.Div("No milestone data", style={"color": COLORS["dim"]})
+
+    def _chronological(m: dict):
+        # Undated entries go last (nothing to place them by), and PGN-style
+        # dates ('2026.05.01') compare correctly against ISO ('2026-05-01').
+        date_str = (m["date"] or "").replace(".", "-")
+        return (date_str == "", date_str, m["game_num"] is None, m["game_num"] or 0)
+
     # Chronological across both kinds; game milestones break date ties by
     # game number, achievements (no game number) go after them.
-    ms.sort(key=lambda m: (m["date"], m["game_num"] is None, m["game_num"] or 0))
+    ms.sort(key=_chronological)
     return html.Div([_milestone_row(m) for m in ms], className="milestone-list")
