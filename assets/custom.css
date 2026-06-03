@@ -169,12 +169,6 @@ code {
 .form-dot.draw    { background: var(--cs-draw); }
 .form-dot.loss    { background: var(--cs-loss); box-shadow: 0 0 5px var(--cs-loss-glow); }
 .form-dot.unknown { background: var(--cs-border); }
-.app-header-stat {
-  font-family: var(--cs-font-data);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-.app-header-stat strong { color: var(--cs-text); font-weight: 600; }
 
 /* Header buttons (Filters / Sync) */
 .header-btn {
@@ -530,6 +524,13 @@ code {
   background: var(--cs-card) !important;
   color: var(--cs-text) !important;
   border-bottom: 1px solid var(--cs-border);
+}
+/* Sync freshness restated in the toast (issue #45) — quiet, secondary line */
+.sync-toast-freshness {
+  margin-top: 6px;
+  font-family: var(--cs-font-data);
+  font-size: 11.5px;
+  color: var(--cs-muted);
 }
 .cache-notice-alert {
   border-radius: 0 !important;
@@ -1143,14 +1144,55 @@ code {
   font-size: 11px !important;
 }
 
-/* Checklists / checkboxes */
+/* Checklists / checkboxes (issue #45)
+   The filter drawer's checkboxes are drawn by the design system — not the
+   browser's native blue box.  appearance:none strips the native control, then
+   we paint a token-colored box and a checkmark for the :checked state.  Touch
+   targets stay generous so taps land on a phone. */
 .dash-checklist .dash-options-list-option {
   background: transparent !important;
   color: var(--cs-text) !important;
   font-size: 13px !important;
-  padding: 3px 0 !important;
+  padding: 5px 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
 }
-input[type="checkbox"] { accent-color: var(--cs-primary); }
+.filter-section input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 0 !important;
+  border: 1.5px solid var(--cs-dim);
+  border-radius: 5px;
+  background: var(--cs-card2);
+  cursor: pointer;
+  position: relative;
+  transition: background .15s, border-color .15s;
+}
+.filter-section input[type="checkbox"]:hover { border-color: var(--cs-muted); }
+.filter-section input[type="checkbox"]:checked {
+  background: var(--cs-primary);
+  border-color: var(--cs-primary);
+}
+.filter-section input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--cs-bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.filter-section input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--cs-primary-line);
+  outline-offset: 2px;
+}
 
 /* ── Loading ─────────────────────────────────────────────── */
 ._dash-loading-callback { background: var(--cs-bg-scrim) !important; }
@@ -2126,7 +2168,6 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .app-header-titles { display: none; }
   .header-form { margin-left: 4px; gap: 8px; }
   .form-dot { width: 8px; height: 8px; }
-  .app-header-stat-wide { display: none; }   /* date range + freshness collapse */
   .app-header-right { gap: 10px; }
   .header-btn { padding: 6px 10px; }
   .header-btn-text { display: none; }        /* icon-only buttons */
@@ -2192,6 +2233,11 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .filter-section-date,
   .filter-section-moves { grid-column: 1 / -1; }
   .filter-section { margin-bottom: 16px; }
+
+  /* Generous tap targets at the chess club (issue #45): preset chips and
+     checkboxes get phone-sized so taps land on the first try. */
+  .preset-btn { padding: 9px 15px; }
+  .dash-checklist .dash-options-list-option { padding: 8px 0 !important; }
 
   /* Repertoire tree thumbs-on-phone: tighter rows, shorter bars,
      shallower indents so deep lines stay on screen (issue #16) */

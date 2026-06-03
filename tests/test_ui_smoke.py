@@ -141,10 +141,19 @@ class TestShell:
         layout = ui_app.layout
         return _collect_ids(layout() if callable(layout) else layout)
 
-    def test_header_has_sync_and_freshness(self, shell_ids):
-        assert "sync-button" in shell_ids
-        assert "sync-freshness" in shell_ids
-        assert "header-games-count" in shell_ids
+    def test_header_holds_exactly_the_calm_set(self, shell_ids):
+        """The simplified header (issue #45): brand, form/streak, reconciliation
+        badge, the Official/Live lens, Filters, Sync — and nothing else."""
+        for present in ("header-form", "reconciliation-badge", "rating-lens",
+                        "filter-drawer-button", "sync-button"):
+            assert present in shell_ids, f"header is missing {present}"
+
+    def test_header_metadata_relocated_out_of_header(self, shell_ids):
+        """Game count, date range, and the standalone freshness label moved
+        into the filter drawer / Sync tooltip (issue #45) — gone from the header."""
+        assert "header-games-count" not in shell_ids
+        assert "header-date-range" not in shell_ids
+        assert "sync-freshness" not in shell_ids
 
     def test_header_has_form_indicators(self, shell_ids):
         assert "header-form" in shell_ids  # streak fire + form dots (issue #10)
@@ -189,6 +198,14 @@ class TestShell:
         assert "celebration-zone" in shell_ids
         for path, _ in PAGES:
             assert "celebration-zone" not in _collect_ids(_render(_page(path)))
+
+    def test_freshness_is_wired_to_the_sync_button_tooltip(self, ui_app, ui_data):
+        """Sync freshness moved onto the Sync button's tooltip (issue #45):
+        a callback must drive ``sync-button.title``, not a header stat span."""
+        ui_app.server.test_client().get("/")
+        assert any("sync-button.title" in key for key in ui_app.callback_map), (
+            "no callback feeds the Sync button tooltip"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1760,10 +1777,11 @@ class TestRatingLensToggle:
         assert ("rating-lens", "value") in dependencies
 
     def test_the_lens_triggers_no_data_callbacks(self, ui_app, ui_data):
-        """Toggling the lens changes no data — the freshness label, the cache
-        notice, and the Reconciliation badge must not re-fire on it."""
+        """Toggling the lens changes no data — the freshness label (now the Sync
+        button's tooltip, issue #45), the cache notice, and the Reconciliation
+        badge must not re-fire on it."""
         ui_app.server.test_client().get("/")
-        data_outputs = ("sync-freshness", "reconciliation-badge", "cache-notice")
+        data_outputs = ("sync-button.title", "reconciliation-badge", "cache-notice")
         for key, cb in ui_app.callback_map.items():
             if not any(output in key for output in data_outputs):
                 continue
