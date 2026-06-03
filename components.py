@@ -205,20 +205,6 @@ def uscf_status_label(matched_by: str, forfeit: bool, conflict: bool = False) ->
     return {"id": "✓", "name": "≈"}.get(matched_by, "")
 
 
-def rating_basis_note() -> html.Div:
-    """
-    The opponent-rating limitation (issue #32), shown wherever rating-diff
-    appears: your rating follows the Official/Live lens, but opponent ratings
-    stay the typed values from your chapters until crosstable enrichment
-    (Phase D) supplies their live ratings.
-    """
-    return html.Div(
-        "Your rating follows the Official/Live lens; opponent ratings are the "
-        "typed values from your chapters until crosstable enrichment lands.",
-        className="rating-basis-note",
-    )
-
-
 def game_detail_path(chapter_url: str) -> str:
     """The in-app detail route for a Game ('' if it has no ChapterURL)."""
     if not chapter_url:
@@ -449,12 +435,24 @@ def uscf_unavailable_card(reason: str) -> html.Div:
 def celebration_banner(deltas: list[dict]) -> dbc.Alert:
     """
     The gold milestone celebration (issue #15): shown once after a Sync that
-    set a personal best, dismissible, and gone for good once dismissed.
+    set a personal best — or that USCF first recognized with a norm or award
+    (issue #36) — dismissible, and gone for good once dismissed.
 
-    Takes the ``milestone_deltas()`` list — one line per record broken.
+    Takes the ``milestone_deltas()`` list — one line per record broken —
+    plus any new-achievement deltas (kind ``uscf_achievement``).
     """
-    headline = ("New personal best!" if len(deltas) == 1
-                else f"{len(deltas)} new personal bests!")
+    official = sum(1 for d in deltas if d["kind"] == "uscf_achievement")
+    personal = len(deltas) - official
+    if personal and official:
+        # A Sync can bring both — name both, mislabel neither
+        headline = "New personal bests and official USCF achievements!"
+    elif official:
+        # An official achievement isn't a "personal best" — say what it is
+        headline = ("New official USCF achievement!" if official == 1
+                    else f"{official} new official USCF achievements!")
+    else:
+        headline = ("New personal best!" if personal == 1
+                    else f"{personal} new personal bests!")
     return dbc.Alert(
         [
             html.Div(className="celebration-headline", children=[

@@ -225,14 +225,10 @@ class TestCallbackIntegrity:
             known |= _collect_ids(_render(_page(path)))
 
         # Some components only exist after a user action creates them
-        # dynamically: the Scouting Report (appears once an opponent is chosen),
-        # the event detail table (appears once an event row is selected), and
-        # the review overlay (appears at /lessons?review=1).
-        from pages.events import update_event_table, update_tournament_detail
+        # dynamically: the Scouting Report (appears once an opponent is chosen)
+        # and the review overlay (appears at /lessons?review=1).
         from pages.opponents import update_scouting_report
         known |= _collect_ids(update_scouting_report("Opponent A", *_filter_args()))
-        event_rows = update_event_table(*_filter_args())
-        known |= _collect_ids(update_tournament_detail([0], event_rows, *_filter_args()))
         known |= _collect_ids(_page("/lessons")["layout"](review="1"))
 
         # Force callback registration merge, then check every dependency
@@ -428,7 +424,10 @@ class TestUscfProfileCard:
                                return_value=_UI_USCF_PROFILE), \
              mock.patch.object(sync, "fetch_rating_supplements", return_value=[]), \
              mock.patch.object(sync, "fetch_member_sections", return_value=[]), \
-             mock.patch.object(sync, "fetch_member_games", return_value=[]):
+             mock.patch.object(sync, "fetch_member_games", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_events", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_norms", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_awards", return_value=[]):
             data.initialize(
                 ["teststudy"], player_name="Test Player", uscf_member_id="12345678"
             )
@@ -477,6 +476,94 @@ class TestUscfProfileCard:
             data.initialize(["teststudy"], player_name="Test Player")
         try:
             assert update_uscf_card({"seq": 0}) is None
+        finally:
+            data.reset()
+
+
+# ---------------------------------------------------------------------------
+# USCF achievements as Milestones (issue #36)
+#
+# ui fixtures include the real captured norm (Oak Grove, Dec 2025) and award
+# (25th win, Jan 2026), so the Overview timeline carries gold official rows
+# alongside the personal-best milestones.
+# ---------------------------------------------------------------------------
+
+class TestUscfAchievementMilestones:
+    def test_norm_and_award_appear_as_gold_milestones(self, ui_app, ui_data):
+        """Daniel's official achievements join the timeline, gold-flagged
+        (the design language reserves gold for achievements)."""
+        from pages.overview import update_milestones
+        rendered = str(update_milestones(*_filter_args()))
+
+        assert "Fourth Category norm" in rendered
+        assert "First Annual Oak Grove Open" in rendered
+        assert "25th career win" in rendered
+        assert "uscf" in rendered           # the gold milestone class
+
+    def test_achievements_interleave_chronologically(self, ui_app, ui_data):
+        """Sample Games are 2024, achievements 2025–26 → official rows last,
+        in their own date order."""
+        from pages.overview import update_milestones
+        rendered = str(update_milestones(*_filter_args()))
+
+        assert rendered.index("First recorded game") < rendered.index("Fourth Category norm")
+        assert rendered.index("Fourth Category norm") < rendered.index("25th career win")
+
+    def test_achievements_ignore_game_filters_but_respect_dates(self, ui_app, ui_data):
+        """Official achievements aren't Games: color/outcome filters never hide
+        them; the global date range does (it bounds the whole timeline)."""
+        from pages.overview import update_milestones
+
+        game_hiding = _filter_args(colors=["White"], outcomes=["Draw"])
+        assert "Fourth Category norm" in str(update_milestones(*game_hiding))
+
+        only_2024 = _filter_args(start="2024-01-01", end="2024-12-31")
+        assert "Fourth Category norm" not in str(update_milestones(*only_2024))
+
+    def test_norms_link_to_the_events_page(self, ui_app, ui_data):
+        """A norm links to where its Rated Event lives in the dashboard."""
+        from pages.overview import update_milestones
+        rendered = str(update_milestones(*_filter_args()))
+        assert "/events" in rendered
+
+    def test_without_uscf_the_timeline_is_unchanged(self, ui_app, sample_pgn_text):
+        """Lichess-only runs: no gold rows, no errors — exactly the old timeline."""
+        import data
+        import sync
+        from pages.overview import update_milestones
+
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text):
+            data.initialize(["teststudy"], player_name="Test Player")
+        try:
+            rendered = str(update_milestones(*_filter_args()))
+            assert "First recorded game" in rendered
+            assert "uscf" not in rendered
+        finally:
+            data.reset()
+
+    def test_an_undated_achievement_sorts_last_never_first(
+        self, ui_app, sample_pgn_text
+    ):
+        """An achievement USCF sends with no date at all goes to the END of the
+        timeline (nothing to place it by) — never to the top."""
+        import data
+        from pages.overview import update_milestones
+        from tests.conftest import stub_ui_sources
+
+        undated_award = [{"category": "WinMilestone", "winCount": 10}]
+        data.reset()
+        with stub_ui_sources(sample_pgn_text, uscf_norms=[],
+                             uscf_awards=undated_award):
+            data.initialize(["teststudy"], player_name="Test Player",
+                            uscf_member_id="12345678")
+        try:
+            rendered = str(update_milestones(*_filter_args()))
+            # The undated 10th-win award renders after every dated milestone —
+            # including the latest one (peak rating)
+            for dated_description in ("First recorded game", "peak rating"):
+                assert rendered.rindex(dated_description) \
+                    < rendered.index("10th career win")
         finally:
             data.reset()
 
@@ -803,53 +890,198 @@ class TestScoutingReportPage:
 
 
 # ---------------------------------------------------------------------------
-# Events page callbacks (issue #9)
+# Events page: Series → Rated Event (issue #33)
+#
+# With the ui fixtures: SAMPLE_PGN's "Test Open" and "Summer Cup" Series map
+# to the TEST OPEN JANUARY / SUMMER CUP 2024 Rated Events; game 6 stays
+# unmatched under Summer Cup.  real_career_ui exercises the full career.
 # ---------------------------------------------------------------------------
 
-class TestEventsCallbacks:
-    def test_event_chart_and_table(self, ui_app, ui_data):
-        from pages.events import update_event_bar, update_event_table
+class TestEventsSeriesGroups:
+    def test_series_expand_into_their_rated_events(self, ui_app, ui_data):
+        """The two-level structure: Series at the top, official Rated Events
+        (USCF's names) inside."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "Test Open" in rendered            # Series (Daniel's name)
+        assert "Summer Cup" in rendered
+        assert "TEST OPEN JANUARY" in rendered    # Rated Event (USCF's name)
+        assert "SUMMER CUP 2024" in rendered
+
+    def test_rated_events_show_live_rating_change_as_whole_numbers(
+        self, ui_app, ui_data
+    ):
+        """Live pre → post per Rated Event — whole numbers, never decimals
+        (Daniel's display rule overrides the issue wording)."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        # SUMMER CUP 2024's section: 1800.5 → 1812.44, displayed as 1812
+        assert "1812" in rendered
+        assert "1812.44" not in rendered
+        assert "1782.5" not in rendered and "1800.5" not in rendered
+
+    def test_rated_events_show_score_sections_and_field(self, ui_app, ui_data):
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "OPEN" in rendered          # the Section name
+        assert "12 players" in rendered    # the field, from the events endpoint
+
+    def test_each_game_links_to_its_detail_view(self, ui_app, ui_data):
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "/game/chap0001" in rendered
+        assert "/game/chap0005" in rendered
+
+    def test_unmatched_games_stay_under_their_series(self, ui_app, ui_data):
+        """Game 6 (USCF hasn't rated it) still appears under Summer Cup."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        # Game 6's detail link renders even though it matched no Rated Event
+        assert "/game/chap0006" in rendered
+
+    def test_respects_global_filters(self, ui_app, ui_data):
+        from pages.events import update_series_groups
+        january = _filter_args(start="2024-01-01", end="2024-02-01")
+        rendered = str(update_series_groups(*january))
+
+        assert "Test Open" in rendered
+        assert "Summer Cup" not in rendered
+
+    def test_empty_filter_shows_empty_state(self, ui_app, ui_data):
+        from pages.events import update_series_groups
+        impossible = _filter_args(start="2030-01-01", end="2030-12-31")
+        rendered = str(update_series_groups(*impossible))
+        assert "empty-state" in rendered
+
+    def test_the_event_bar_still_builds(self, ui_app, ui_data):
+        from pages.events import update_event_bar
         assert update_event_bar(*_filter_args()).data
-        rows = update_event_table(*_filter_args())
-        assert {r["Event"] for r in rows} == {"Test Open", "Summer Cup"}
 
-    def test_tournament_detail_for_selected_row(self, ui_app, ui_data):
-        from pages.events import update_event_table, update_tournament_detail
-        rows = update_event_table(*_filter_args())
-        detail = update_tournament_detail([0], rows, *_filter_args())
-        assert detail is not None
+    def test_the_real_club_ladder_renders_with_its_monthly_events(
+        self, ui_app, real_career_ui
+    ):
+        """The money shot (issue #33): ACC Friday Ladder is one Series holding
+        ACC JUNE 2025 … ACC MAY 2026."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
 
-    def test_no_selection_means_no_detail(self, ui_app, ui_data):
-        from pages.events import update_event_table, update_tournament_detail
-        rows = update_event_table(*_filter_args())
-        assert update_tournament_detail([], rows, *_filter_args()) is None
+        assert "ACC Friday Ladder" in rendered
+        assert "ACC JUNE 2025" in rendered
+        assert "ACC MAY 2026" in rendered
+        # The May event's rating change, whole numbers
+        assert "1544" in rendered and "1571" in rendered
 
-    def test_event_games_sort_by_round_numerically(self, ui_app):
-        """Round 10 belongs after round 2, not between rounds 1 and 2 —
-        the lexical-sort bug fixed in issue #17."""
-        import data
-        import sync
+    def test_the_forfeit_renders_under_its_series(self, ui_app, real_career_ui):
+        """The Baker no-show appears under the Thanksgiving Series,
+        labeled as a Forfeit, not inside any Rated Event."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
 
-        pgn = "\n".join(
-            f'[Event "Blitz Championship"]\n[Site "S"]\n[Date "2024.05.01"]\n'
-            f'[Round "{rnd}"]\n[White "Me"]\n[Black "Opp {rnd}"]\n[Result "1-0"]\n'
-            f"\n1. e4 1-0\n"
-            for rnd in ("2", "10", "1")
-        )
-        data.reset()
-        with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn):
-            data.initialize(["teststudy"], player_name="Me")
-        try:
-            from pages.events import update_event_table, update_tournament_detail
-            rows = update_event_table(*_filter_args())
-            detail = update_tournament_detail([0], rows, *_filter_args())
-            table = next(c for c in _walk_components(detail)
-                         if getattr(c, "id", "") == "event-games-table")
-            # Numeric values under a numeric column: the browser's native
-            # re-sort stays numeric too, not just the default order
-            assert [r["RoundNum"] for r in table.data] == [1, 2, 10]
-        finally:
-            data.reset()
+        assert "Baker" in rendered
+        assert "Forfeit" in rendered
+
+
+class TestEventsCrosstables:
+    """Standings inside each Rated Event (issue #34): placement, the full
+    crosstable with Daniel's row highlighted, and real round numbers."""
+
+    def test_rated_events_show_official_placement(self, ui_app, real_career_ui):
+        """'Finished 5th of 116' — straight from the ACC MAY crosstable."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "5th of 116" in rendered
+
+    def test_crosstable_lists_every_player_with_daniel_highlighted(
+        self, ui_app, real_career_ui
+    ):
+        """The full field renders — the winner (an unrated walk-in who won the
+        section!) down to last place — with Daniel's own row flagged."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "JOHN DAVIS" in rendered          # the ACC MAY winner
+        assert "crosstable-row-me" in rendered      # Daniel's row highlight
+
+    def test_crosstable_ratings_display_as_whole_numbers(
+        self, ui_app, real_career_ui
+    ):
+        """Every player's pre → post shows whole, never with decimals."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "1357" in rendered          # Anderson's post, rounded
+        assert "1357.47" not in rendered
+        assert "1544.47" not in rendered   # Daniel's pre stays whole too
+
+    def test_game_rows_show_real_round_numbers(self, ui_app, real_career_ui):
+        """ACC MAY games: Daniel typed rounds 24–27; the cards show the real
+        rounds 1, 3, 4, 5 from the crosstable."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        # The May card shows R1/R3/R4/R5, not R24-R27
+        assert "R24" not in rendered
+        assert "R27" not in rendered
+
+    def test_daniels_crosstable_rounds_link_to_his_games(
+        self, ui_app, real_career_ui
+    ):
+        """Round outcomes in Daniel's crosstable row click through to the Games
+        where one exists (issue #34's acceptance criterion)."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        # His ACC MAY round-1 win vs Baker has a Game; the crosstable links it
+        df = __import__("data").get_df()
+        may_r1 = df[(df["UscfEventId"] == "202605290393") & (df["UscfRound"] == 1)]
+        chapter_id = may_r1.iloc[0]["ChapterURL"].rsplit("/", 1)[-1]
+        assert rendered.count(f"/game/{chapter_id}") >= 2   # game row + crosstable
+
+    def test_events_without_a_cached_crosstable_degrade_gracefully(
+        self, ui_app, ui_data
+    ):
+        """Sample events have no crosstables — cards render without placement,
+        no errors (ADR 0003)."""
+        from pages.events import update_series_groups
+        rendered = str(update_series_groups(*_filter_args()))
+
+        assert "TEST OPEN JANUARY" in rendered
+        assert "Finished" not in rendered
+        assert "crosstable" not in rendered.lower()
+
+
+class TestEventsUnplayed:
+    def test_entered_but_never_played_events_render(self, ui_app, real_career_ui):
+        """The Rockville case (issue #33): entered, zero games — rendered in
+        its own group without error."""
+        from pages.events import update_unplayed
+        rendered = str(update_unplayed(*_filter_args()))
+
+        assert "ROCKVILLE ACTION TOURNAMENT" in rendered
+
+    def test_played_events_are_never_listed_as_unplayed(self, ui_app, real_career_ui):
+        from pages.events import update_unplayed
+        rendered = str(update_unplayed(*_filter_args()))
+
+        assert "ACC MAY 2026" not in rendered
+
+    def test_a_date_filter_does_not_invent_unplayed_events(
+        self, ui_app, real_career_ui
+    ):
+        """Filtering to 2026 hides 2025's Rockville but never turns played 2025
+        events into 'never played'."""
+        from pages.events import update_unplayed
+        only_2026 = _filter_args(start="2026-01-01", end="2026-12-31")
+        rendered = str(update_unplayed(*only_2026))
+
+        assert "ROCKVILLE" not in rendered          # outside the range
+        assert "ACC JUNE 2025" not in rendered      # played — never "unplayed"
 
 
 # ---------------------------------------------------------------------------
@@ -1173,13 +1405,14 @@ class TestGameNavigation:
         rows = [{"Date": "2024.01.06", "ChapterURL": ""}]
         assert row_click_to_game({"row": 0, "column_id": "Date"}, rows) is no_update
 
-    def test_all_three_tables_have_navigation_callbacks(self, ui_app, ui_data):
-        """Games table, Scouting Report timeline, and event detail all open Games."""
-        from pages.events import navigate_to_game_from_event
+    def test_both_tables_have_navigation_callbacks(self, ui_app, ui_data):
+        """The Games table and the Scouting Report timeline both open Games.
+        (The Events page's game rows are plain links since issue #33 — they
+        need no callback.)"""
         from pages.games import navigate_to_game
         from pages.opponents import navigate_to_game_from_scout
 
-        for fn in (navigate_to_game, navigate_to_game_from_scout, navigate_to_game_from_event):
+        for fn in (navigate_to_game, navigate_to_game_from_scout):
             href, _reset = fn({"row": 0, "column_id": "Date"}, self.ROWS)
             assert href == "/game/chap0003"
 
@@ -1648,15 +1881,18 @@ class TestRatingLensAcrossStats:
 
     def test_the_upset_tracker_follows_the_lens(self, ui_app, real_career_ui):
         """'Upset' means the same thing as the rating basis you're looking at
-        (PRD #24): the two lenses see different giant kills."""
+        (PRD #24): the two lenses see different giant kills.  Phase D changes
+        both world views: Forfeit wins are never upsets (the Baker
+        '+170 kill' is gone), and the Live lens rates opponents by their
+        crosstable pre-ratings where cached (issue #35)."""
         from pages.trends import update_upsets
         official_wins, _, official_losses, _ = update_upsets(
             *_filter_args(lens="official"))
         live_wins, _, live_losses, _ = update_upsets(*_filter_args(lens="live"))
 
-        assert len(official_wins) == 10
+        assert len(official_wins) == 9        # was 10 before the Forfeit rule
         assert len(official_losses) == 4
-        assert len(live_wins) == 14
+        assert len(live_wins) == 12           # was 14: −1 Forfeit, −1 crosstable
         assert len(live_losses) == 2
         # The biggest kill is a different game in each world view; margins
         # are computed from the whole-number basis (1047 − 695 = 352), so
@@ -1665,6 +1901,20 @@ class TestRatingLensAcrossStats:
         assert official_wins[0]["Margin"] == "+303"
         assert live_wins[0]["Opponent"] == "Kyle Davis"
         assert live_wins[0]["Margin"] == "+352"
+        # Clark beat Daniel as the crosstable underdog: 1366 vs 1544
+        clark = next(loss for loss in live_losses
+                          if loss["Opponent"] == "Carter Clark")
+        assert clark["Margin"] == "−178"
+        assert clark["OpponentRating"] == "1366"     # crosstable, whole
+
+    def test_upset_ratings_never_display_decimals(self, ui_app, real_career_ui):
+        """Typed fallback ratings stay whole too — never '1047.0'."""
+        from pages.trends import update_upsets
+        live_wins, _, _, _ = update_upsets(*_filter_args(lens="live"))
+
+        vandeventer = live_wins[0]
+        assert vandeventer["OpponentRating"] == "1047"
+        assert ".0" not in str(vandeventer["OpponentRating"])
 
     def test_opponent_strength_buckets_follow_the_lens(self, ui_app, real_career_ui):
         """The strength-bucket distribution is built on rating-diff, so the
@@ -1692,15 +1942,17 @@ class TestRatingLensAcrossStats:
         assert rating_of(update_games_table(*_filter_args(lens="official"))) == "1470"
         assert rating_of(update_games_table(*_filter_args(lens="live"))) == "1544"
 
-    def test_performance_rating_stays_opponent_based(self, ui_app, real_career_ui):
-        """The documented limitation, visible in numbers: performance rating
-        and average-opponent strength are built from opponent ratings, which
-        stay typed under both lenses until Phase D."""
+    def test_performance_rating_follows_the_lens(self, ui_app, real_career_ui):
+        """Phase D closes the Phase C limitation: performance rating is built
+        from opponent ratings, which now follow the lens too — typed values
+        under Official (the pairing sheet), crosstable pre-ratings under Live
+        (issue #35).  The two world views give different numbers."""
         from pages.overview import update_kpis
         official = update_kpis(*_filter_args(lens="official"))
         live = update_kpis(*_filter_args(lens="live"))
 
-        assert official[6] == live[6] == "1344"   # performance rating
+        assert official[6] == "1344"     # performance vs typed opponent ratings
+        assert live[6] == "1330"         # vs what opponents were really rated
 
     def test_the_pre_supplement_era_shows_no_official_rating(
         self, ui_app, real_career_ui
@@ -1722,21 +1974,67 @@ class TestRatingLensAcrossStats:
         wins, _, losses, _ = update_upsets(
             *_filter_args(lens="live", outcomes=["Win"]))
 
-        assert len(wins) == 14        # giant kills are wins — all still here
+        assert len(wins) == 12        # giant kills are wins — all still here
         assert losses == []           # losses filtered out entirely
 
 
-class TestRatingDiffLimitationNote:
-    def test_the_note_appears_where_rating_diff_appears(self, ui_app, ui_data):
-        """Issue #32: the opponent-rating limitation is documented in the UI,
-        on both surfaces built from rating-diff (upsets, strength charts)."""
+# ---------------------------------------------------------------------------
+# Opponent USCF enrichment in the Scouting Report (issue #35)
+# ---------------------------------------------------------------------------
+
+class TestScoutingReportUscf:
+    def test_the_report_links_to_the_opponents_uscf_page(
+        self, ui_app, real_career_ui
+    ):
+        """Every opponent with a known member ID gets a deep link to their
+        page on ratings.uschess.org."""
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("John Baker", *_filter_args()))
+
+        assert "ratings.uschess.org/members/20000056" in rendered
+
+    def test_then_vs_now_ratings(self, ui_app, real_career_ui):
+        """The insight the issue is named for: you beat Baker at 1433
+        (his crosstable rating that day, under the Live lens) — he's 1400 now
+        (his current profile)."""
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("John Baker",
+                                              *_filter_args(lens="live")))
+
+        assert "1433" in rendered       # then: crosstable pre-rating in May
+        assert "1400" in rendered       # now: his current profile rating
+
+    def test_opponents_with_no_fetched_profile_degrade_gracefully(
+        self, ui_app, real_career_ui
+    ):
+        """An opponent whose current profile isn't cached still gets their
+        USCF link — just no 'now' rating (ADR 0003)."""
+        from pages.opponents import update_scouting_report
+        # Wade Harris is matched (ID 20000061) but his profile isn't fetched
+        rendered = str(update_scouting_report("Wade Harris", *_filter_args()))
+
+        assert "ratings.uschess.org/members/20000061" in rendered
+        assert "now" not in rendered.lower() or "20000061" in rendered
+
+    def test_unmatched_opponents_get_no_uscf_section(self, ui_app, ui_data):
+        """An opponent with no USCF identity (never matched) → no link, no
+        crash — the dossier renders exactly as before."""
+        from pages.opponents import update_scouting_report
+        rendered = str(update_scouting_report("Opponent E", *_filter_args()))
+
+        assert "ratings.uschess.org" not in rendered
+        assert "scout-dossier" not in rendered or rendered  # renders without error
+
+
+class TestLimitationNoteIsGone:
+    def test_no_rating_basis_note_anywhere(self, ui_app, ui_data):
+        """Issue #35 closed the Phase C limitation — the note documenting it
+        is gone from both pages that carried it."""
         trends = str(_render(_page("/trends")))
         opponents = str(_render(_page("/opponents")))
 
         for rendered in (trends, opponents):
-            assert "typed" in rendered.lower()
-            assert "opponent" in rendered.lower()
-            assert "rating-basis-note" in rendered
+            assert "rating-basis-note" not in rendered
 
 
 # ---------------------------------------------------------------------------

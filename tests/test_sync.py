@@ -31,11 +31,24 @@ def stub_studies(**study_pgns):
     return mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch)
 
 
+class UnstubbedStandingsError(UscfUnreachableError):
+    """Raised when a test fetches a crosstable it didn't stub — sync treats it
+    like any per-crosstable failure (skip that Section's standings)."""
+
+
 @contextlib.contextmanager
-def stub_uscf(profile, supplements=None, sections=None, games=None):
+def stub_uscf(profile, supplements=None, sections=None, games=None,
+              events=None, norms=None, awards=None, standings=None,
+              opponent_profiles=None):
     """
     Patch the USCF client inside sync: each value is the raw JSON to return,
     or an Exception to raise.  List endpoints default to empty lists.
+
+    *standings* maps (event_id, section_number) → raw item list (or an
+    Exception); *opponent_profiles* maps member_id → raw profile (or an
+    Exception).  Unstubbed crosstables/opponents raise (sync skips them
+    gracefully).  Yields a namespace of mocks so tests can assert on fetch
+    counts (``.standings``, ``.profiles``).
     """
     def fake(value):
         def fetch(member_id, **kwargs):
@@ -44,15 +57,48 @@ def stub_uscf(profile, supplements=None, sections=None, games=None):
             return value
         return fetch
 
+    def fake_profile(member_id, **kwargs):
+        # The member's own profile, or a stubbed opponent's (issue #35)
+        if isinstance(profile, Exception):
+            raise profile
+        if str(profile.get("id", "")) == str(member_id):
+            return profile
+        value = (opponent_profiles or {}).get(member_id)
+        if value is None:
+            raise UscfUnreachableError(f"no profile stubbed for {member_id!r}")
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    def fake_standings(event_id, section_number, **kwargs):
+        value = (standings or {}).get((event_id, section_number))
+        if value is None:
+            raise UnstubbedStandingsError(
+                f"no standings stubbed for {event_id}/{section_number}")
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    standings_mock = mock.Mock(side_effect=fake_standings)
+    profile_mock = mock.Mock(side_effect=fake_profile)
+
     with mock.patch.object(sync, "fetch_member_profile",
-                           side_effect=fake(profile), create=True), \
+                           profile_mock, create=True), \
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(supplements or []), create=True), \
          mock.patch.object(sync, "fetch_member_sections",
                            side_effect=fake(sections or []), create=True), \
          mock.patch.object(sync, "fetch_member_games",
-                           side_effect=fake(games or []), create=True):
-        yield
+                           side_effect=fake(games or []), create=True), \
+         mock.patch.object(sync, "fetch_member_events",
+                           side_effect=fake(events or []), create=True), \
+         mock.patch.object(sync, "fetch_member_norms",
+                           side_effect=fake(norms or []), create=True), \
+         mock.patch.object(sync, "fetch_member_awards",
+                           side_effect=fake(awards or []), create=True), \
+         mock.patch.object(sync, "fetch_event_standings",
+                           standings_mock, create=True):
+        yield mock.Mock(standings=standings_mock, profiles=profile_mock)
 
 
 class TestSyncSingleStudy:
@@ -339,6 +385,118 @@ class TestUscfCacheDismissals:
         assert cache.dismissals() == ["conflict:url"]
 
 
+class TestUscfCacheAged:
+    """
+    Aged entries (issue #35): data that changes slowly — opponent current
+    ratings — refreshed at most every *max_age*, never on every Sync.
+    The fourth cache kind: not current (per-Sync), not immutable (forever),
+    not user state.
+    """
+
+    def test_first_fetch_stores_and_returns(self, tmp_path):
+        cache = sync.UscfCache(str(tmp_path / "uscf_cache.json"))
+        fetcher = mock.Mock(return_value={"id": "20000056", "rating": 1400})
+
+        value = cache.fetch_aged("opponent:20000056", fetcher,
+                                 max_age=__import__("datetime").timedelta(days=7))
+
+        assert value == {"id": "20000056", "rating": 1400}
+        fetcher.assert_called_once()
+
+    def test_fresh_entries_are_served_without_fetching(self, tmp_path):
+        """Within the freshness window, the cache answers — politeness toward
+        an API we were not invited to use."""
+        from datetime import timedelta
+        path = str(tmp_path / "uscf_cache.json")
+        sync.UscfCache(path).fetch_aged(
+            "opponent:20000056", lambda: {"rating": 1400}, max_age=timedelta(days=7))
+
+        never_called = mock.Mock(side_effect=AssertionError("refetched fresh data"))
+        value = sync.UscfCache(path).fetch_aged(
+            "opponent:20000056", never_called, max_age=timedelta(days=7))
+
+        assert value == {"rating": 1400}
+        never_called.assert_not_called()
+
+    def test_stale_entries_are_refetched(self, tmp_path):
+        """Past the freshness window the fetcher runs again — max_age=0 makes
+        everything stale, exercising the refresh path."""
+        from datetime import timedelta
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.fetch_aged("opponent:20000056", lambda: {"rating": 1400},
+                         max_age=timedelta(days=7))
+
+        refreshed = cache.fetch_aged("opponent:20000056", lambda: {"rating": 1412},
+                                     max_age=timedelta(0))
+
+        assert refreshed == {"rating": 1412}
+
+    def test_get_aged_serves_any_age_without_fetching(self, tmp_path):
+        """The USCF-down path: whatever is stored is better than nothing,
+        however old."""
+        from datetime import timedelta
+        path = str(tmp_path / "uscf_cache.json")
+        sync.UscfCache(path).fetch_aged(
+            "opponent:20000056", lambda: {"rating": 1400}, max_age=timedelta(days=7))
+
+        assert sync.UscfCache(path).get_aged("opponent:20000056") == {"rating": 1400}
+        assert sync.UscfCache(path).get_aged("opponent:99999999") is None
+
+    def test_aged_entries_survive_replace_current(self, tmp_path):
+        """A routine Sync's replace_current never wipes opponent profiles."""
+        from datetime import timedelta
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.fetch_aged("opponent:20000056", lambda: {"rating": 1400},
+                         max_age=timedelta(days=7))
+
+        cache.replace_current({"profile": {"id": "x"}})
+
+        assert cache.get_aged("opponent:20000056") == {"rating": 1400}
+
+
+class TestUscfCacheSeenAchievements:
+    """
+    Seen-achievement memory (issue #36): which norms/awards every previous
+    Sync has already seen, so a fresh one is celebrated exactly once — and
+    never again after restarts.  Like dismissals, this is bookkeeping state
+    that must survive replace_current.
+    """
+
+    def test_never_recorded_is_none_not_empty(self, tmp_path):
+        """None = 'never recorded' (first run); [] = 'recorded, member has none'.
+        The distinction decides whether existing achievements get celebrated."""
+        cache = sync.UscfCache(str(tmp_path / "uscf_cache.json"))
+        assert cache.seen_achievements() is None
+
+    def test_recorded_achievements_round_trip(self, tmp_path):
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.record_achievements(["norm:FourthCategory:202512140213"])
+
+        reopened = sync.UscfCache(path)
+        assert reopened.seen_achievements() == ["norm:FourthCategory:202512140213"]
+
+    def test_recording_an_empty_list_is_not_none(self, tmp_path):
+        """A member with no achievements still gets their seen-state recorded,
+        so their first-ever norm celebrates."""
+        path = str(tmp_path / "uscf_cache.json")
+        sync.UscfCache(path).record_achievements([])
+
+        assert sync.UscfCache(path).seen_achievements() == []
+
+    def test_seen_achievements_survive_replace_current(self, tmp_path):
+        """replace_current wipes API data every Sync — never bookkeeping state."""
+        path = str(tmp_path / "uscf_cache.json")
+        cache = sync.UscfCache(path)
+        cache.record_achievements(["award:01KRQV7CN2Z2KXA7V8EV9MAJVM"])
+
+        cache.replace_current({"profile": {"id": "x"}})
+
+        assert cache.seen_achievements() == ["award:01KRQV7CN2Z2KXA7V8EV9MAJVM"]
+
+
 class TestSyncUscf:
     """The USCF half of a Sync (issue #25, ADR 0003)."""
 
@@ -537,6 +695,305 @@ class TestSyncUscfGames:
         assert result.available
         assert len(result.game_records) == 63
         assert "games endpoint broke" in result.failure
+
+
+class TestSyncUscfEvents:
+    """sync_uscf also fetches the member's Rated Events — the Events page's
+    grouping data (issue #33)."""
+
+    def test_successful_sync_returns_typed_events(
+        self, uscf_profile_json, uscf_events_json
+    ):
+        with stub_uscf(uscf_profile_json, events=uscf_events_json["items"]):
+            result = sync.sync_uscf("12345678")
+
+        assert len(result.member_events) == 23
+        assert result.member_events[0].name == "ACC JUNE 2025"     # chronological
+        assert result.member_events[-1].name == "ACC MAY 2026"
+
+    def test_events_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_events_json, tmp_path
+    ):
+        """Rated Events degrade to the cached snapshot like everything else."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, events=uscf_events_json["items"]):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert len(degraded.member_events) == 23
+
+    def test_events_endpoint_failing_degrades_the_whole_uscf_half(
+        self, uscf_profile_json, uscf_events_json, tmp_path
+    ):
+        """All-or-nothing: the events endpoint is part of the member snapshot."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, events=uscf_events_json["items"]):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(uscf_profile_json,
+                       events=UscfUnreachableError("events endpoint broke")):
+            result = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert result.from_cache is True
+        assert len(result.member_events) == 23
+        assert "events endpoint broke" in result.failure
+
+
+class TestSyncUscfStandings:
+    """sync_uscf also fetches crosstables — one per OTB Section played,
+    cached permanently (issue #34)."""
+
+    @pytest.fixture()
+    def raw_standings(self, uscf_standings_json):
+        """The captured crosstables as the stub wants them: raw item lists."""
+        return {key: raw["items"] for key, raw in uscf_standings_json.items()}
+
+    def test_standings_are_fetched_per_played_otb_section(
+        self, uscf_profile_json, uscf_sections_json, raw_standings
+    ):
+        with stub_uscf(uscf_profile_json, sections=uscf_sections_json["items"],
+                       standings=raw_standings):
+            result = sync.sync_uscf("12345678")
+
+        # The 5 captured crosstables come back typed, keyed by section NAME
+        # (what the enriched Games carry)
+        assert ("202605290393", "LADDER") in result.standings
+        assert ("202603290543", "Under 1800") in result.standings
+        acc_may = result.standings[("202605290393", "LADDER")]
+        assert len(acc_may) == 116
+        assert acc_may[0].ordinal == 1
+
+    def test_online_sections_never_fetch_a_crosstable(
+        self, uscf_profile_json, uscf_sections_json, raw_standings
+    ):
+        """The OR section (DMVCHESS WEDNESDAY CLASS) is online-rated: its games
+        are never Chapters, so its crosstable is never fetched (politeness)."""
+        with stub_uscf(uscf_profile_json, sections=uscf_sections_json["items"],
+                       standings=raw_standings) as mocks:
+            sync.sync_uscf("12345678")
+
+        fetched = {call.args for call in mocks.standings.call_args_list}
+        assert ("202601300323", 6) not in fetched      # the online section
+
+    def test_crosstables_are_cached_permanently(
+        self, uscf_profile_json, uscf_sections_json, raw_standings, tmp_path
+    ):
+        """Issue #34's acceptance criterion: repeat Syncs make ZERO crosstable
+        calls for already-cached events — they are immutable once rated."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        # Only the Sections whose crosstables were captured as fixtures
+        sections = [s for s in uscf_sections_json["items"]
+                    if (s["event"]["id"], s["sectionNumber"]) in raw_standings]
+
+        with stub_uscf(uscf_profile_json, sections=sections,
+                       standings=raw_standings) as first_mocks:
+            sync.sync_uscf("12345678", cache_path=cache_path)
+        assert first_mocks.standings.call_count == len(raw_standings)   # first-ever Sync fetches
+
+        with stub_uscf(uscf_profile_json, sections=sections,
+                       standings=raw_standings) as second_mocks:
+            second = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert second_mocks.standings.call_count == 0          # everything served from cache
+        assert ("202605290393", "LADDER") in second.standings
+
+    def test_a_failed_crosstable_is_retried_on_the_next_sync(
+        self, uscf_profile_json, uscf_sections_json, raw_standings, tmp_path
+    ):
+        """Only a SUCCESSFUL fetch is cached forever — a transient failure never
+        permanently loses that Section's standings."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        sections = [s for s in uscf_sections_json["items"]
+                    if (s["event"]["id"], s["sectionNumber"]) in raw_standings]
+
+        broken = dict(raw_standings)
+        broken[("202605290393", 1)] = UscfUnreachableError("transient failure")
+        with stub_uscf(uscf_profile_json, sections=sections, standings=broken):
+            first = sync.sync_uscf("12345678", cache_path=cache_path)
+        assert ("202605290393", "LADDER") not in first.standings
+
+        # USCF recovers → the next Sync fetches the one that failed, only that
+        with stub_uscf(uscf_profile_json, sections=sections,
+                       standings=raw_standings) as retry_mocks:
+            second = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert {call.args for call in retry_mocks.standings.call_args_list} == {("202605290393", 1)}
+        assert ("202605290393", "LADDER") in second.standings
+
+    def test_one_crosstable_failing_skips_only_that_section(
+        self, uscf_profile_json, uscf_sections_json, raw_standings
+    ):
+        """Crosstable failures degrade individually (unlike the member
+        snapshot): one Section's standings missing never costs the others."""
+        broken = dict(raw_standings)
+        broken[("202605290393", 1)] = UscfUnreachableError("crosstable broke")
+
+        with stub_uscf(uscf_profile_json, sections=uscf_sections_json["items"],
+                       standings=broken):
+            result = sync.sync_uscf("12345678")
+
+        assert result.available                           # the Sync itself is fine
+        assert ("202605290393", "LADDER") not in result.standings
+        assert ("202603290543", "Under 1800") in result.standings
+
+    def test_cached_crosstables_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_sections_json, raw_standings, tmp_path
+    ):
+        """USCF down: the member snapshot degrades to cache — and so do the
+        crosstables (they're immutable; the cache is always correct)."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, sections=uscf_sections_json["items"],
+                       standings=raw_standings):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert ("202605290393", "LADDER") in degraded.standings
+        assert len(degraded.standings[("202605290393", "LADDER")]) == 116
+
+
+class TestSyncOpponentProfiles:
+    """sync_uscf also fetches opponent current ratings — politely (issue #35):
+    one call per unique opponent, refreshed at most weekly."""
+
+    @pytest.fixture()
+    def opponent_fixtures(self, uscf_games_json):
+        """Two real opponent profiles + the games that reference them."""
+        import json
+        from pathlib import Path
+        fixtures = Path("tests/fixtures/uscf")
+        return {
+            "20000056": json.loads((fixtures / "opponent-baker.json").read_text()),
+            "20000144": json.loads((fixtures / "opponent-clark.json").read_text()),
+        }
+
+    def test_one_call_per_unique_opponent(
+        self, uscf_profile_json, uscf_games_json, opponent_fixtures
+    ):
+        """Daniel played Baker 5 times — his profile is fetched once."""
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"],
+                       opponent_profiles=opponent_fixtures) as mocks:
+            result = sync.sync_uscf("12345678")
+
+        opponent_calls = [call.args[0] for call in mocks.profiles.call_args_list
+                          if call.args[0] != "12345678"]
+        assert len(opponent_calls) == len(set(opponent_calls))  # no duplicates
+
+        # The stubbed opponents come back typed; Baker is rated 1400 now
+        assert result.opponent_profiles["20000056"].rating("R").rating == 1400
+        assert result.opponent_profiles["20000144"].name == "Carver Clark"
+
+    def test_profiles_are_not_refetched_within_a_week(
+        self, uscf_profile_json, uscf_games_json, opponent_fixtures, tmp_path
+    ):
+        """The politeness criterion: cached, not re-fetched on every Sync."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"],
+                       opponent_profiles=opponent_fixtures):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"],
+                       opponent_profiles=opponent_fixtures) as mocks:
+            second = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        # The opponents fetched last week are NOT asked for again...
+        second_calls = [call.args[0] for call in mocks.profiles.call_args_list]
+        assert "20000056" not in second_calls
+        assert "20000144" not in second_calls
+        # ...their cached profiles are simply served.  (Opponents whose fetch
+        # FAILED last time are retried — a failure is never cached.)
+        assert second.opponent_profiles["20000056"].rating("R").rating == 1400
+
+    def test_an_unreachable_opponent_is_skipped_not_fatal(
+        self, uscf_profile_json, uscf_games_json, opponent_fixtures
+    ):
+        """One opponent's profile failing never costs the others (ADR 0003) —
+        the unstubbed 51 opponents here are exactly that case."""
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"],
+                       opponent_profiles=opponent_fixtures):
+            result = sync.sync_uscf("12345678")
+
+        assert result.available
+        # The two stubbed opponents made it; the rest are simply absent
+        assert set(result.opponent_profiles) == {"20000056", "20000144"}
+
+    def test_opponent_profiles_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_games_json, opponent_fixtures, tmp_path
+    ):
+        """Stale beats nothing: cached opponent ratings outlive a USCF outage."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, games=uscf_games_json["items"],
+                       opponent_profiles=opponent_fixtures):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert degraded.opponent_profiles["20000056"].rating("R").rating == 1400
+
+    def test_no_games_means_no_opponent_calls(self, uscf_profile_json):
+        """A member with no USCF Game Records triggers zero opponent fetches."""
+        with stub_uscf(uscf_profile_json) as mocks:
+            result = sync.sync_uscf("12345678")
+
+        assert [call.args[0] for call in mocks.profiles.call_args_list] == ["12345678"]
+        assert result.opponent_profiles == {}
+
+
+class TestSyncUscfAchievements:
+    """sync_uscf also fetches norms and awards — official achievements that
+    become Milestones (issue #36)."""
+
+    def test_successful_sync_returns_typed_achievements(
+        self, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        with stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"],
+                       awards=uscf_awards_json["items"]):
+            result = sync.sync_uscf("12345678")
+
+        assert [a.title for a in result.achievements] == [
+            "Fourth Category norm", "25th career win",
+        ]
+
+    def test_achievements_survive_uscf_being_down(
+        self, uscf_profile_json, uscf_norms_json, uscf_awards_json, tmp_path
+    ):
+        """Previously seen norms/awards remain when USCF is unavailable —
+        issue #36's acceptance criterion, via the cached snapshot (ADR 0003)."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"],
+                       awards=uscf_awards_json["items"]):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(UscfUnreachableError("USCF is down")):
+            degraded = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert degraded.from_cache is True
+        assert [a.title for a in degraded.achievements] == [
+            "Fourth Category norm", "25th career win",
+        ]
+
+    def test_norms_endpoint_failing_degrades_the_whole_uscf_half(
+        self, uscf_profile_json, uscf_norms_json, tmp_path
+    ):
+        """All-or-nothing: norms/awards are part of the member snapshot."""
+        cache_path = str(tmp_path / "uscf_cache.json")
+        with stub_uscf(uscf_profile_json, norms=uscf_norms_json["items"]):
+            sync.sync_uscf("12345678", cache_path=cache_path)
+
+        with stub_uscf(uscf_profile_json,
+                       norms=UscfUnreachableError("norms endpoint broke")):
+            result = sync.sync_uscf("12345678", cache_path=cache_path)
+
+        assert result.from_cache is True
+        assert [a.title for a in result.achievements] == ["Fourth Category norm"]
+        assert "norms endpoint broke" in result.failure
 
 
 class TestDetectNewGames:
