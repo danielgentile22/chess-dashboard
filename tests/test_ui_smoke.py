@@ -863,6 +863,17 @@ class TestOpponentsCallbacks:
         # Opponents A and B are both played more than once in the fixture
         assert update_opponents(*_filter_args()).data
 
+    def test_opponent_bar_is_horizontal(self, ui_app, ui_data):
+        """E7: opponent names read down the y-axis (horizontal bars), so the
+        labels never rotate into an overlapping diagonal."""
+        from pages.opponents import update_opponents
+        fig = update_opponents(*_filter_args())
+        # Every W/D/L trace is a horizontal bar with opponent names on y.
+        assert fig.data
+        for trace in fig.data:
+            assert trace.orientation == "h"
+            assert _axis_vals(trace.y)        # opponent names live on the y-axis
+
     def test_strength_charts_build(self, ui_app, ui_data):
         from pages.opponents import update_bucket, update_scatter
         assert update_bucket(*_filter_args()).data

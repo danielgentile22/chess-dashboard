@@ -592,8 +592,7 @@ code {
 }
 .h2h-stat {
   background: var(--cs-card2);
-  border: 1px solid var(--cs-border);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px 12px;
   text-align: center;
 }
@@ -618,20 +617,21 @@ code {
 }
 .scout-dossier { animation: pageIn .32s cubic-bezier(.2, .8, .2, 1) both; }
 .scout-stat-grid { grid-template-columns: repeat(6, 1fr); }
-.scout-section { margin-top: 18px; }
+.scout-section { margin-top: 22px; }
 
-/* The opponent's official USCF identity + then-vs-now (issue #35) */
+/* The opponent's official USCF identity + then-vs-now (issue #35).
+   Token-driven, native — no mono font, no bordered card.  The opponent's
+   name reads as the dossier's heading; a single hairline below separates
+   it from the stats by fill, not by a box. */
 .scout-uscf-identity {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 6px 16px;
-  margin-bottom: 14px;
-  padding: 10px 14px;
-  background: var(--cs-card2);
-  border: 1px solid var(--cs-border);
-  border-radius: 8px;
+  gap: 4px 16px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--cs-border);
 }
 .scout-uscf-link {
   display: inline-flex;
@@ -641,35 +641,40 @@ code {
   text-decoration: none !important;
 }
 .scout-uscf-link:hover .scout-uscf-name { text-decoration: underline; }
-.scout-uscf-name { font-weight: 600; }
+.scout-uscf-name {
+  font-family: var(--cs-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--cs-text);
+}
 .scout-uscf-id {
-  font-family: var(--cs-font-data);
-  font-size: 11.5px;
-  color: var(--cs-muted);
+  font-size: 12px;
+  color: var(--cs-dim);
 }
-.scout-uscf-ext { font-size: 11px; color: var(--cs-primary); }
+.scout-uscf-ext { font-size: 12px; color: var(--cs-primary); }
 .scout-then-vs-now {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--cs-muted);
 }
-.scout-then-vs-now .scout-now { font-family: var(--cs-font-data); }
 .scout-then-vs-now .scout-now.win  { color: var(--cs-win); }   /* they dropped */
 .scout-then-vs-now .scout-now.loss { color: var(--cs-loss); }  /* they climbed */
 .scout-section-title {
   font-family: var(--cs-font-display);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
+  letter-spacing: -.01em;
   color: var(--cs-text);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
-.scout-openings { margin-top: 18px; margin-bottom: 0; }
+.scout-openings { margin-top: 22px; margin-bottom: 0; }
 .scout-openings-panel {
   background: var(--cs-card2);
-  border: 1px solid var(--cs-border);
-  border-radius: 6px;
+  border-radius: 10px;
   padding: 14px 16px;
 }
-.scout-openings-panel .scout-section-title { margin-bottom: 8px; font-size: 13.5px; }
+/* Sub-heading: one tier below a section title in the system hierarchy. */
+.scout-openings-panel .scout-section-title { margin-bottom: 8px; font-size: 14px; }
 .scout-opening-row {
   display: flex;
   align-items: baseline;
@@ -694,14 +699,12 @@ code {
 .scout-terminations { display: flex; flex-wrap: wrap; gap: 8px; }
 .scout-term-chip {
   background: var(--cs-card2);
-  border: 1px solid var(--cs-border);
   border-radius: 999px;
-  padding: 4px 12px;
-  font-size: 12px;
+  padding: 5px 14px;
+  font-size: 12.5px;
   color: var(--cs-text);
 }
 .scout-term-count {
-  font-family: var(--cs-font-data);
   color: var(--cs-muted);
   margin-left: 6px;
 }
@@ -2223,9 +2226,17 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .sync-toast { top: auto; bottom: 16px; right: 16px; }
   .celebration-banner.alert { margin: 14px 12px 0; padding: 14px 16px; }
 
-  /* Scouting Report on a phone: stat tiles go 3-up, openings stack */
+  /* Scouting Report on a phone (pre-game prep happens here): stat tiles go
+     3-up, the picker spans the screen, openings stack (via .g2), and the
+     USCF identity reads top-to-bottom — opponent name first, then-vs-now on
+     its own line — instead of justified across a too-narrow row. */
   .scout-stat-grid { grid-template-columns: repeat(3, 1fr); }
   .scout-picker { max-width: none; }
+  .scout-uscf-identity { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .scout-uscf-name { font-size: 20px; }
+  .scout-section-title { font-size: 16px; }
+  .h2h-stat-val { font-size: 21px; }
+  .h2h-stat { padding: 9px 8px; }
 
   /* Game detail: board scales, metadata stacks below (issue #11) */
   .game-detail-grid { grid-template-columns: 1fr; }
