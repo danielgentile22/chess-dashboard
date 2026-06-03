@@ -374,10 +374,26 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Win % green, loss % red — the only semantic colour on the KPI row.  Accent
+   and primary survive for any caller that still asks, but Overview's KPIs are
+   now neutral white (PRD colour discipline). */
 .kpi-value.win     { color: var(--cs-win); }
 .kpi-value.loss    { color: var(--cs-loss); }
 .kpi-value.accent  { color: var(--cs-accent); }
 .kpi-value.primary { color: var(--cs-primary); }
+
+/* The text variant: a long string value (the favourite opening) wraps to two
+   lines and shrinks a touch instead of truncating to an ellipsis. */
+.kpi-value-text {
+  font-size: 16px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
 
 /* ── Chart cards ─────────────────────────────────────────── */
 .chart-card {
@@ -583,6 +599,41 @@ code {
 .streak-stat-value.win  { color: var(--cs-win); }
 .streak-stat-value.loss { color: var(--cs-loss); }
 
+/* ── Compact stat strip ──────────────────────────────────────
+   A row of small value-over-label tiles (Trends' "Average game
+   length": avg moves for Wins / Draws / Losses).  The card sizes
+   to this strip's height — no dead zone beside its chart. */
+.stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+.stat-strip-item {
+  flex: 1 1 0;
+  min-width: 80px;
+  background: var(--cs-card2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stat-strip-value {
+  font-family: var(--cs-font-data);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--cs-text);
+  line-height: 1.1;
+}
+.stat-strip-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--cs-muted);
+  font-weight: 600;
+}
+
 /* ── H2H breakdown cards ─────────────────────────────────── */
 .h2h-stat-grid {
   display: grid;
@@ -727,19 +778,23 @@ code {
   align-items: flex-start;
 }
 .milestone-row:last-child { border-bottom: none; }
+/* Game-milestone dots are neutral — gold is reserved for the official USCF
+   achievement rows below (the only true achievements here).  Outcome dots
+   (first win/draw/loss) keep their semantic colour; every other game
+   milestone reads in calm grey. */
 .milestone-dot {
   width: 10px; height: 10px;
   border-radius: 50%;
-  background: var(--cs-accent);
+  background: var(--cs-dim);
   flex-shrink: 0;
   margin-top: 4px;
 }
 .milestone-dot.win     { background: var(--cs-win); }
 .milestone-dot.loss    { background: var(--cs-loss); }
 .milestone-dot.draw    { background: var(--cs-muted); }
-.milestone-dot.peak    { background: var(--cs-primary); }
-.milestone-dot.streak  { background: var(--cs-accent); }
-.milestone-dot.first   { background: var(--cs-accent); }
+.milestone-dot.peak    { background: var(--cs-muted); }
+.milestone-dot.streak  { background: var(--cs-muted); }
+.milestone-dot.first   { background: var(--cs-muted); }
 .milestone-dot.milestone { background: var(--cs-dim); }
 .milestone-date {
   font-family: var(--cs-font-data);
@@ -1297,10 +1352,16 @@ a.game-card:hover { background: var(--cs-hover); }
 ._dash-loading { color: var(--cs-primary) !important; }
 
 /* ── Responsive grid helpers ──────────────────────────────── */
-.g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
-.g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; }
+/* align-items: start so a grid item sizes to its own content instead of
+   stretching to match its tallest row-mate.  A content card next to a chart
+   then sits at its natural height — no dead zone. */
+.g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; align-items: start; }
+.g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; align-items: start; }
 .g1 { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 14px; }
-.g3 > .chart-card, .g2 > .chart-card { min-height: 360px; }
+/* Only chart cards (which hold a fixed-height Plotly graph) need a floor.
+   Content cards size to their content — that's what removes the dead zones. */
+.g3 > .chart-card:not(.content-card),
+.g2 > .chart-card:not(.content-card) { min-height: 360px; }
 @media (max-width: 1100px) { .g3 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 760px)  { .g3, .g2 { grid-template-columns: 1fr; } }
 

@@ -2342,6 +2342,198 @@ class TestQuietTableTreatment:
         assert "quiet-table" in str(layout())
 
 
+class TestOverviewTrendsContentDiscipline:
+    """E8: Overview + Trends adopt the content-first rules — KPI colour
+    discipline, the wrapping favourite-opening KPI, content-sized cards, neutral
+    game-milestone rows (gold stays on USCF achievements), and the upset tables
+    on the shared quiet-table treatment."""
+
+    @property
+    def css(self) -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parent.parent
+                / "assets" / "custom.css").read_text()
+
+    @staticmethod
+    def _block(css: str, selector: str) -> str:
+        """The declaration block for *selector* (whitespace-tolerant before the
+        opening brace), so multi-space selectors like '.milestone-dot.first'
+        still match."""
+        import re
+        m = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css)
+        assert m, f"selector {selector} not found in CSS"
+        return m.group(1)
+
+    @staticmethod
+    def _value_card(tree, value_id: str):
+        """The KPI card whose value Div carries *value_id*."""
+        for node in _walk_components(tree):
+            if getattr(node, "id", None) == value_id:
+                return node
+        raise AssertionError(f"no KPI value with id {value_id}")
+
+    # -- KPI colour discipline ---------------------------------------------
+
+    def test_kpi_values_are_neutral_except_win_and_loss(self, ui_app, ui_data):
+        """Only the win % and loss % KPIs carry a semantic colour class; every
+        other value (ratings, performance, streak, opponents) is neutral."""
+        tree = _render(_page("/"))
+        # The two coloured ones.
+        assert "win" in self._value_card(tree, "kpi-win-pct").className
+        assert "loss" in self._value_card(tree, "kpi-loss-pct").className
+        # Everything that used to wear accent / primary / win is neutral now.
+        for neutral in ("kpi-rating", "kpi-peak", "kpi-perf", "kpi-streak",
+                        "kpi-total", "kpi-draw-pct", "kpi-opps"):
+            cls = self._value_card(tree, neutral).className
+            assert "accent" not in cls, f"{neutral} still carries accent"
+            assert "primary" not in cls, f"{neutral} still carries primary"
+            assert "win" not in cls and "loss" not in cls, \
+                f"{neutral} carries a semantic colour it shouldn't"
+
+    # -- Favourite-opening KPI wraps, never truncates ----------------------
+
+    def test_favourite_opening_kpi_uses_the_wrapping_text_variant(
+        self, ui_app, ui_data
+    ):
+        tree = _render(_page("/"))
+        assert "kpi-value-text" in self._value_card(tree, "kpi-fav-opn").className
+
+    def test_favourite_opening_value_is_not_truncated(self, ui_app, ui_data):
+        """The KPI callback emits the full opening name — no '…' ellipsis."""
+        from pages.overview import update_kpis
+        fav = update_kpis(*_filter_args())[-1]   # last KPI output is the opening
+        assert "…" not in fav
+
+    def test_long_favourite_opening_reaches_the_browser_whole(
+        self, ui_app, sample_pgn_text
+    ):
+        """A long opening name survives the callback intact — the CSS wraps it,
+        Python never clips it."""
+        import data
+        import sync
+        from pages.overview import update_kpis
+        from pgn_stats_core import kpi_stats
+
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text):
+            data.initialize(["teststudy"], player_name="Test Player")
+        try:
+            full = kpi_stats(data.get_df())["favorite_opening"]
+            assert update_kpis(*_filter_args())[-1] == full
+        finally:
+            data.reset()
+
+    def test_kpi_text_variant_wraps_in_css(self):
+        """The text variant wraps (no nowrap / ellipsis) — the truncation bug
+        is fixed at the source."""
+        block = self._block(self.css, ".kpi-value-text")
+        assert "white-space: normal" in block
+        assert "nowrap" not in block
+
+    # -- Content-sized cards (no dead zones) -------------------------------
+
+    def test_content_cards_carry_the_content_marker(self):
+        """content_card marks itself so the grid can size it to content rather
+        than stretch it to a chart neighbour's height."""
+        from dash import html
+
+        from components import content_card
+        card = content_card("X", html.Div("y"))
+        assert "content-card" in card.className
+        assert "chart-card" in card.className   # still the shared surface
+
+    def test_grid_does_not_stretch_content_cards(self):
+        """The grid only floors real chart cards; content cards size to content
+        (align-items: start), so 'Last 20 games' / 'Average game length' lose
+        their dead zones."""
+        css = self.css
+        assert "align-items: start" in css
+        assert ".g3 > .chart-card:not(.content-card)" in css
+
+    def test_last_20_games_card_is_a_content_card(self, ui_app, ui_data):
+        """The Overview 'Last 20 games' card (holding the streak badges) is a
+        content card, so it sizes to content instead of stretching to its chart
+        neighbours' height."""
+        tree = _render(_page("/"))
+        badges = self._value_card(tree, "streak-badges")  # the streak-badges Div
+        # Walk up: the enclosing content card is the nearest ancestor with the
+        # marker class.  Easiest robust check: a content card carrying the
+        # streak-badges id exists in the rendered tree.
+        card = next(
+            node for node in _walk_components(tree)
+            if "content-card" in (getattr(node, "className", "") or "")
+            and "streak-badges" in _collect_ids(node)
+        )
+        assert "content-card" in card.className
+        assert badges is not None
+
+    # -- Trends: average game length is a compact stat strip ----------------
+
+    def test_average_game_length_is_a_compact_stat_strip(self, ui_app, ui_data):
+        from pages.trends import update_length_stats
+        rendered = str(update_length_stats(*_filter_args()))
+        assert "stat-strip" in rendered
+        assert "stat-strip-value" in rendered
+
+    def test_stat_strip_styled_in_css(self):
+        assert ".stat-strip" in self.css
+        assert ".stat-strip-value" in self.css
+
+    # -- Milestones: game rows neutral, USCF achievements gold -------------
+
+    def test_uscf_achievement_rows_are_gold(self, ui_app, ui_data):
+        """The official-achievement rows keep gold (they're achievements)."""
+        from pages.overview import update_milestones
+        rendered = str(update_milestones(*_filter_args()))
+        assert "milestone-row-uscf" in rendered
+        assert "milestone-num-uscf" in rendered
+
+    def test_uscf_milestone_dot_keeps_gold_in_css(self):
+        block = self._block(self.css, ".milestone-dot.uscf")
+        assert "var(--cs-accent)" in block
+
+    def test_game_milestone_dots_are_neutral_not_gold(self):
+        """The game-milestone rows (first / streak / peak / every-10th) go
+        neutral — gold survives only on the USCF achievement rows."""
+        css = self.css
+        for selector in (".milestone-dot.first", ".milestone-dot.streak",
+                         ".milestone-dot.peak", ".milestone-dot.milestone"):
+            block = self._block(css, selector)
+            assert "var(--cs-accent)" not in block, \
+                f"{selector} still gold — game milestones must be neutral"
+
+    def test_base_milestone_dot_is_neutral(self):
+        """A milestone row with no extra kind class defaults to a neutral dot,
+        not the old gold default."""
+        block = self._block(self.css, ".milestone-dot")
+        assert "var(--cs-accent)" not in block
+
+    # -- Trends upset tables adopt the shared quiet-table treatment --------
+
+    def test_upset_tables_adopt_the_quiet_treatment(self, ui_app, ui_data):
+        """Both upset tables sit inside a .quiet-table wrapper."""
+        from pages.trends import layout
+        rendered = str(layout())
+        # Two upset tables, each wrapped — the shared class appears for both.
+        assert rendered.count("quiet-table") >= 2
+
+    def test_upset_tables_use_the_quiet_header_style(self):
+        from components import QUIET_TABLE_HEADER
+        from pages.trends import _upset_table
+        table = _upset_table("upset-test")
+        assert table.style_header == QUIET_TABLE_HEADER
+
+    def test_upset_rows_still_click_through_to_games(self, ui_app, ui_data):
+        """The quiet treatment keeps the click-to-open behaviour (issue #11)."""
+        from pages.trends import navigate_to_game_from_upset_loss
+        rows = [{"Opponent": "X",
+                 "ChapterURL": "https://lichess.org/study/s/chap0009"}]
+        href, cleared = navigate_to_game_from_upset_loss(
+            {"row": 0, "column_id": "Opponent"}, rows)
+        assert href == "/game/chap0009"
+        assert cleared is None
+
+
 class TestEventsGoldDiscipline:
     """E6: the Events crosstables apply the gold-discipline decision — the
     'Finished Nth of M' placement stays gold (it's an achievement); the sticky

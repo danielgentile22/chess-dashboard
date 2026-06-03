@@ -23,12 +23,14 @@ from dash import Output, callback, dash_table, dcc, html
 
 import data
 from components import (
-    TABLE_CELL,
-    TABLE_HEADER,
+    QUIET_TABLE_CELL,
+    QUIET_TABLE_DATA_COND,
+    QUIET_TABLE_HEADER,
     chart_card,
     content_card,
     empty_state,
     page_header,
+    quiet_table,
     register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
@@ -45,7 +47,6 @@ from pgn_stats_core import (
 from styles import (
     COLORS,
     DRAW_FILL,
-    FONT_SYSTEM,
     LOSS_FILL,
     WDL_COLOR_MAP,
     WIN_AREA,
@@ -76,18 +77,22 @@ _UPSET_TABLE_COLS = [
 
 
 def _upset_table(table_id: str) -> dash_table.DataTable:
-    """One of the two upset tables — rows click through to the Game (issue #11)."""
+    """One of the two upset tables — rows click through to the Game (issue #11).
+
+    Uses the shared quiet-table treatment (neutral headers, left-aligned text,
+    hairline separators, focused-row fix) so the upset tables read like every
+    other table in the app.  ``_upset_table`` builds the DataTable; the caller
+    wraps it in :func:`quiet_table` for the wrapper class and click behaviour.
+    """
     return dash_table.DataTable(
         id=table_id,
         columns=_UPSET_TABLE_COLS,
         data=[],
         page_size=8,
         style_table={"overflowX": "auto"},
-        style_cell={**TABLE_CELL, "fontSize": "11px", "padding": "5px 8px"},
-        style_header=TABLE_HEADER,
-        style_data_conditional=[
-            {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]}
-        ],
+        style_cell={**QUIET_TABLE_CELL, "fontSize": "11px", "padding": "7px 10px"},
+        style_header=QUIET_TABLE_HEADER,
+        style_data_conditional=QUIET_TABLE_DATA_COND,
     )
 
 
@@ -122,16 +127,14 @@ def layout(**kwargs) -> html.Div:
             content_card(
                 "Giant kills — wins over higher-rated opponents",
                 html.Div(id="upset-wins-status"),
-                html.Div(className="clickable-rows", children=[
-                    _upset_table("upset-wins-table"),
-                ]),
+                quiet_table(_upset_table("upset-wins-table"),
+                            clickable=True, scroll=False),
             ),
             content_card(
                 "Upset losses — losses to lower-rated opponents",
                 html.Div(id="upset-losses-status"),
-                html.Div(className="clickable-rows", children=[
-                    _upset_table("upset-losses-table"),
-                ]),
+                quiet_table(_upset_table("upset-losses-table"),
+                            clickable=True, scroll=False),
             ),
         ]),
     ])
@@ -603,29 +606,28 @@ navigate_to_game_from_upset_loss = register_game_navigation(
 
 @callback(Output("length-stats", "children"), FILTER_INPUTS)
 def update_length_stats(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    """Average game length as a compact stat strip — Win / Draw / Loss side by
+    side, each a small tile (value over label) instead of full-width rows.
+
+    Collapsing the old stacked rows into a strip lets the card size to its
+    content, so the "Average game length" card no longer stretches into a dead
+    zone beside its chart neighbour (PRD content-sized cards)."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     _, avgs = game_length_data(df_f)
     if not avgs:
         return html.Div("No data", style={"color": COLORS["dim"]})
 
-    def _row(label, val, cls=""):
+    def _stat(label, val, cls=""):
         if val is None:
             return None
-        return html.Div(
-            style={"display": "flex", "justifyContent": "space-between",
-                   "padding": "10px 0", "borderBottom": f"1px solid {COLORS['border']}"},
-            children=[
-                html.Span(label, style={"color": COLORS["muted"], "fontSize": "13px"}),
-                html.Span(f"{val} moves", className=cls,
-                          style={"fontWeight": "700", "fontSize": "16px",
-                                 "fontFamily": FONT_SYSTEM,
-                                 "fontVariantNumeric": "tabular-nums"}),
-            ],
-        )
+        return html.Div(className="stat-strip-item", children=[
+            html.Div(f"{val}", className=f"stat-strip-value {cls}".strip()),
+            html.Div(label, className="stat-strip-label"),
+        ])
 
-    rows = [
-        _row("Avg moves (Wins)",   avgs.get("Win"),  "text-win"),
-        _row("Avg moves (Draws)",  avgs.get("Draw"), "text-muted"),
-        _row("Avg moves (Losses)", avgs.get("Loss"), "text-loss"),
+    stats = [
+        _stat("Wins",   avgs.get("Win"),  "text-win"),
+        _stat("Draws",  avgs.get("Draw"), "text-muted"),
+        _stat("Losses", avgs.get("Loss"), "text-loss"),
     ]
-    return html.Div([r for r in rows if r is not None])
+    return html.Div([s for s in stats if s is not None], className="stat-strip")
