@@ -282,8 +282,10 @@ def _typed_rating_fig(pr: pd.DataFrame) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=pr["Date_dt"], y=pr["PlayerRating"],
         mode="lines+markers",
-        line=dict(color=COLORS["accent"], width=2),
-        marker=dict(size=5, color=COLORS["accent"]),
+        # The rating line is data, not an achievement — neutral white, matching
+        # the Official series in the dual-line chart.
+        line=dict(color=COLORS["text"], width=2),
+        marker=dict(size=5, color=COLORS["text"]),
         hovertemplate="<b>%{y}</b> · %{x|%b %-d, %Y}<extra></extra>",
         name="Rating",
     ))
