@@ -42,6 +42,7 @@ from lichess_client import LichessError, fetch_study_pgn
 from pgn_stats_core import load_games_from_text
 from uscf_client import (
     UscfError,
+    fetch_event_standings,
     fetch_member_awards,
     fetch_member_events,
     fetch_member_games,
@@ -53,6 +54,7 @@ from uscf_client import (
 from uscf_core import (
     LiveRatingPoint,
     OfficialRatingPoint,
+    StandingEntry,
     UscfAchievement,
     UscfEvent,
     UscfGameRecord,
@@ -62,6 +64,7 @@ from uscf_core import (
     build_live_series,
     build_member_events,
     build_official_series,
+    build_standings,
     parse_member_profile,
 )
 
@@ -220,6 +223,11 @@ class UscfCache:
         self._write()
         return value
 
+    def get_immutable(self, key: str) -> Any | None:
+        """The immutable entry for *key* if already stored, else None — never
+        fetches.  The degraded path (USCF down) reads crosstables this way."""
+        return self._data.get("immutable", {}).get(key)
+
     # -- dismissals (user judgements — survive every Sync) -------------------
 
     def dismissals(self) -> list[str]:
@@ -297,6 +305,9 @@ class UscfSyncResult:
     game_records: list[UscfGameRecord] = field(default_factory=list)
     # Every Rated Event entered — the Events page's grouping data (issue #33)
     member_events: list[UscfEvent] = field(default_factory=list)
+    # Crosstables of played OTB Sections, keyed by (event_id, section name) —
+    # standings, placements, and real round numbers (issue #34)
+    standings: dict[tuple[str, str], list[StandingEntry]] = field(default_factory=dict)
     # Official achievements: norms and awards, chronological (issue #36)
     achievements: list[UscfAchievement] = field(default_factory=list)
     # When USCF was last successfully reached: the fetch time for live data,
@@ -353,9 +364,56 @@ def sync_uscf(member_id: str, cache_path: str | None = None) -> UscfSyncResult:
         live_series=build_live_series(raw_sections),
         game_records=build_game_records(raw_games),
         member_events=build_member_events(raw_events),
+        standings=_fetch_standings(cache, raw_sections),
         achievements=build_achievements(raw_norms, raw_awards),
         synced_at=datetime.now(timezone.utc),
     )
+
+
+def _fetch_standings(
+    cache: UscfCache, raw_sections: list[dict], *, allow_fetch: bool = True
+) -> dict[tuple[str, str], list[StandingEntry]]:
+    """
+    The crosstables of every OTB Section the member played (issue #34),
+    keyed by (event_id, section name) — how the enriched Games know them.
+
+    Crosstables of rated events are immutable: each is fetched exactly once,
+    ever, and served from the permanent cache after that (ADR 0003).  Unlike
+    the member snapshot, failures degrade *individually* — one unreachable
+    crosstable costs that Section's standings, never the whole Sync.  With
+    *allow_fetch* False (the USCF-down path), only already-cached crosstables
+    are served.
+    """
+    standings: dict[tuple[str, str], list[StandingEntry]] = {}
+    for item in raw_sections:
+        # Online sections (OR/OQ/OB) never have Games — the Study is OTB-only
+        if item.get("ratingSystem") not in ("R", "D"):
+            continue
+        event_id = str(item.get("event", {}).get("id", ""))
+        section_number = item.get("sectionNumber")
+        section_name = str(item.get("sectionName", ""))
+        if not event_id or section_number is None:
+            continue
+
+        key = f"standings:{event_id}:{section_number}"
+        if allow_fetch:
+            try:
+                raw = cache.fetch_immutable(
+                    key,
+                    lambda eid=event_id, n=section_number: fetch_event_standings(eid, n),
+                )
+            except UscfError as exc:
+                logger.warning(
+                    "Could not fetch standings for event %s section %s "
+                    "(skipping — ADR 0003): %s", event_id, section_number, exc,
+                )
+                continue
+        else:
+            raw = cache.get_immutable(key)
+            if raw is None:
+                continue
+        standings[(event_id, section_name)] = build_standings(raw)
+    return standings
 
 
 def _uscf_from_cache(cache: UscfCache, failure: str) -> UscfSyncResult:
@@ -371,6 +429,9 @@ def _uscf_from_cache(cache: UscfCache, failure: str) -> UscfSyncResult:
         live_series=build_live_series(cache.get_current("sections") or []),
         game_records=build_game_records(cache.get_current("games") or []),
         member_events=build_member_events(cache.get_current("events") or []),
+        # Crosstables are immutable — the cached ones are always still correct
+        standings=_fetch_standings(cache, cache.get_current("sections") or [],
+                                   allow_fetch=False),
         achievements=build_achievements(cache.get_current("norms") or [],
                                         cache.get_current("awards") or []),
         synced_at=cache.fetched_at(),

@@ -309,6 +309,31 @@ def uscf_events_json() -> dict:
     return json.loads((USCF_FIXTURES_DIR / "events.json").read_text())
 
 
+# The real crosstables captured for issue #34, keyed by (event_id, section
+# number).  Each covers a distinct real-world case:
+#   ACC MAY 2026 ............ a 116-player section with an Unpaired round
+#   DMV Under 1800 .......... a full-point bye (ByeFull) + the two-Section event
+#   DMV Extra games ......... the second Section of the same Rated Event
+#   Rockville U1500 ......... Daniel entered, never played (Forfeit + Unpaired)
+#   Thanksgiving U1600 ...... the Baker forfeit win (WinForfeit)
+USCF_STANDINGS_FIXTURES = {
+    ("202605290393", 1): "standings-acc-may-2026.json",
+    ("202603290543", 2): "standings-dmv-under-1800.json",
+    ("202603290543", 7): "standings-dmv-extra-games.json",
+    ("202508311982", 2): "standings-rockville-u1500.json",
+    ("202511020583", 3): "standings-thanksgiving-u1600.json",
+}
+
+
+@pytest.fixture(scope="session")
+def uscf_standings_json() -> dict:
+    """The real captured crosstables, keyed by (event_id, section_number)."""
+    return {
+        key: json.loads((USCF_FIXTURES_DIR / filename).read_text())
+        for key, filename in USCF_STANDINGS_FIXTURES.items()
+    }
+
+
 @pytest.fixture(scope="session")
 def uscf_norms_json() -> dict:
     """A real /members/{id}/norms response: the FourthCategory norm from the
@@ -492,6 +517,12 @@ REAL_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text(
 REAL_USCF_EVENTS = json.loads((USCF_FIXTURES_DIR / "events.json").read_text())["items"]
 REAL_USCF_NORMS = json.loads((USCF_FIXTURES_DIR / "norms.json").read_text())["items"]
 REAL_USCF_AWARDS = json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())["items"]
+# The 5 captured crosstables (issue #34), as raw item lists keyed by
+# (event_id, section_number) — what the fetch_event_standings stub serves.
+REAL_USCF_STANDINGS = {
+    key: json.loads((USCF_FIXTURES_DIR / filename).read_text())["items"]
+    for key, filename in USCF_STANDINGS_FIXTURES.items()
+}
 
 # What UI fixtures feed by default: the real 2025–26 career (so the profile
 # card and the rating series are real) plus the 2024 sample items that cover
@@ -508,7 +539,8 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
                     uscf_sections: list | None = None,
                     uscf_events: list | None = None,
                     uscf_norms: list | None = None,
-                    uscf_awards: list | None = None):
+                    uscf_awards: list | None = None,
+                    uscf_standings: dict | None = None):
     """
     Patch both clients at sync's module boundary for UI fixtures/tests:
     Lichess returns *pgn_text*; USCF returns the real captured responses.
@@ -518,9 +550,12 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
     *uscf_supplements* / *uscf_sections* / *uscf_events* default to the real
     career extended with the 2024 sample items that cover SAMPLE_PGN;
     *uscf_norms* / *uscf_awards* default to the real captured achievements
-    (issue #36).
+    (issue #36); *uscf_standings* defaults to the 5 real captured crosstables
+    keyed by (event_id, section_number) — Sections without one degrade
+    gracefully, exactly like live (issue #34).
     """
     import sync
+    from uscf_client import UscfUnreachableError
 
     if uscf_profile is None:
         uscf_profile = _UI_USCF_PROFILE
@@ -536,6 +571,8 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
         uscf_norms = REAL_USCF_NORMS
     if uscf_awards is None:
         uscf_awards = REAL_USCF_AWARDS
+    if uscf_standings is None:
+        uscf_standings = REAL_USCF_STANDINGS
     uscf_down = uscf_profile if isinstance(uscf_profile, Exception) else None
 
     def fake(value):
@@ -544,6 +581,15 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
                 raise uscf_down
             return value
         return fetch
+
+    def fake_standings(event_id, section_number, **kwargs):
+        if uscf_down is not None:
+            raise uscf_down
+        value = uscf_standings.get((event_id, section_number))
+        if value is None:
+            raise UscfUnreachableError(
+                f"no standings fixture for {event_id}/{section_number}")
+        return value
 
     with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn_text), \
          mock.patch.object(sync, "fetch_member_profile",
@@ -559,7 +605,9 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
          mock.patch.object(sync, "fetch_member_norms",
                            side_effect=fake(uscf_norms)), \
          mock.patch.object(sync, "fetch_member_awards",
-                           side_effect=fake(uscf_awards)):
+                           side_effect=fake(uscf_awards)), \
+         mock.patch.object(sync, "fetch_event_standings",
+                           side_effect=fake_standings):
         yield
 
 

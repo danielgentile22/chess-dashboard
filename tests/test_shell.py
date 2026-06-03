@@ -44,14 +44,28 @@ def stub_studies(**study_pgns):
 
 @contextlib.contextmanager
 def stub_uscf(profile, supplements=None, sections=None, games=None,
-              events=None, norms=None, awards=None):
-    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
+              events=None, norms=None, awards=None, standings=None):
+    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise.
+
+    *standings* maps (event_id, section_number) → raw item list; unstubbed
+    crosstables raise (sync skips them gracefully, per-crosstable degradation)."""
+    from uscf_client import UscfUnreachableError
+
     def fake(value):
         def fetch(member_id, **kwargs):
             if isinstance(value, Exception):
                 raise value
             return value
         return fetch
+
+    def fake_standings(event_id, section_number, **kwargs):
+        value = (standings or {}).get((event_id, section_number))
+        if value is None:
+            raise UscfUnreachableError(
+                f"no standings stubbed for {event_id}/{section_number}")
+        if isinstance(value, Exception):
+            raise value
+        return value
 
     with mock.patch.object(sync, "fetch_member_profile", side_effect=fake(profile)), \
          mock.patch.object(sync, "fetch_rating_supplements",
@@ -65,7 +79,9 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
          mock.patch.object(sync, "fetch_member_norms",
                            side_effect=fake(norms or [])), \
          mock.patch.object(sync, "fetch_member_awards",
-                           side_effect=fake(awards or [])):
+                           side_effect=fake(awards or [])), \
+         mock.patch.object(sync, "fetch_event_standings",
+                           side_effect=fake_standings):
         yield
 
 

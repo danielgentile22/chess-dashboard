@@ -25,7 +25,13 @@ from components import chart_card, content_card, empty_state, page_header
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import event_summary, performance_rating_stats
 from styles import WDL_COLOR_MAP, apply_dark_theme, empty_fig
-from uscf_core import UscfEvent, series_summary, unplayed_events
+from uscf_core import (
+    RoundOutcome,
+    StandingEntry,
+    UscfEvent,
+    series_summary,
+    unplayed_events,
+)
 
 dash.register_page(
     __name__, path="/events", name="Events", title="Events — Chess Stats", order=4,
@@ -88,8 +94,13 @@ def _event_dates(event: dict) -> str:
 
 
 def _game_row(row: dict):
-    """One Game line inside a Rated Event — a link into its detail view."""
-    round_num = row.get("RoundNum")
+    """One Game line inside a Rated Event — a link into its detail view.
+
+    The round shown is the REAL one from the crosstable when known
+    (issue #34), falling back to the hand-typed Round header."""
+    round_num = row.get("UscfRound")
+    if round_num is None or pd.isna(round_num):
+        round_num = row.get("RoundNum")
     round_label = f"R{int(round_num)}" if pd.notna(round_num) else "—"
     outcome = str(row.get("Outcome", ""))
 
@@ -111,15 +122,107 @@ def _game_row(row: dict):
     return html.Div(children, className="event-game-row")
 
 
-def _rated_event_card(event: dict, performance_rating: int | None = None) -> html.Div:
+def _ordinal_label(n: int) -> str:
+    """5 → '5th', 1 → '1st', 22 → '22nd' (placement wording)."""
+    if 11 <= n % 100 <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def _round_result(outcome: RoundOutcome, games_by_round: dict[int, str]):
+    """One round in a crosstable row: a result letter, linked to the Game when
+    this is the member's own row and a Game exists for that round."""
+    letters = {"Win": "W", "Loss": "L", "Draw": "D", "WinForfeit": "W",
+               "Forfeit": "F", "ByeFull": "B", "ByeHalf": "b", "Unpaired": "·"}
+    letter = letters.get(outcome.outcome, "·")
+    title = f"R{outcome.round_number}: {outcome.outcome}"
+    if outcome.opponent_name:
+        title += f" vs {outcome.opponent_name}"
+
+    chapter_url = games_by_round.get(outcome.round_number, "")
+    css = f"crosstable-round {letters.get(outcome.outcome, '').lower() or 'none'}"
+    if chapter_url:
+        chapter_id = chapter_url.rstrip("/").rsplit("/", 1)[-1]
+        return dcc.Link(letter, href=f"/game/{chapter_id}", title=title,
+                        className=css + " crosstable-round-link")
+    return html.Span(letter, title=title, className=css)
+
+
+def _crosstable_row(entry: StandingEntry, member_id: str,
+                    games_by_round: dict[int, str]) -> html.Div:
+    """One player's crosstable line; the member's own row is highlighted and
+    its rounds link to his Games."""
+    is_me = entry.member_id == member_id
+    rounds = [_round_result(r, games_by_round if is_me else {})
+              for r in entry.rounds]
+    return html.Div(
+        className="crosstable-row" + (" crosstable-row-me" if is_me else ""),
+        children=[
+            html.Span(str(entry.ordinal), className="crosstable-ordinal"),
+            html.Span(entry.name, className="crosstable-player"),
+            html.Span(_rating_change(entry.pre_rating, entry.post_rating),
+                      className="crosstable-rating"),
+            html.Span(f"{entry.score:g}", className="crosstable-score"),
+            html.Span(rounds, className="crosstable-rounds"),
+        ],
+    )
+
+
+def _crosstable(section_name: str, standings: list[StandingEntry],
+                member_id: str, games_by_round: dict[int, str]) -> html.Details:
+    """The full standings of one Section, expandable (issue #34)."""
+    me = next((s for s in standings if s.member_id == member_id), None)
+    placement = (f"Finished {_ordinal_label(me.ordinal)} of {len(standings)}"
+                 if me else f"{len(standings)} players")
+    return html.Details(className="crosstable", children=[
+        html.Summary(className="crosstable-summary", children=[
+            html.Span(placement, className="crosstable-placement"),
+            html.Span(f"{section_name} · full crosstable",
+                      className="crosstable-hint"),
+        ]),
+        html.Div(className="crosstable-table", children=[
+            html.Div(className="crosstable-row crosstable-header", children=[
+                html.Span("#", className="crosstable-ordinal"),
+                html.Span("Player", className="crosstable-player"),
+                html.Span("Rating", className="crosstable-rating"),
+                html.Span("Score", className="crosstable-score"),
+                html.Span("Rounds", className="crosstable-rounds"),
+            ]),
+            *[_crosstable_row(entry, member_id, games_by_round)
+              for entry in standings],
+        ]),
+    ])
+
+
+def _rated_event_card(event: dict, performance_rating: int | None = None,
+                      standings: dict | None = None, member_id: str = "",
+                      extra_rows: list[dict] | None = None) -> html.Div:
     """One Rated Event inside a Series: official identity, score, rating change,
-    and its Games."""
+    its Games, and — when its crosstables are cached — the full standings with
+    the member's placement (issue #34)."""
     meta_bits = [
         " · ".join(event["sections"]),
         f"{event['player_count']} players" if event["player_count"] else "",
         _score_label(event),
         f"Performance {performance_rating}" if performance_rating else "",
     ]
+
+    # Real round → ChapterURL, for crosstable round links.  The Series'
+    # unmatched rows ride along so a Forfeit's crosstable round links too.
+    games_by_round = {
+        int(row["UscfRound"]): row["ChapterURL"]
+        for row in [*event["rows"], *(extra_rows or [])]
+        if pd.notna(row.get("UscfRound")) and row.get("ChapterURL")
+    }
+    crosstables = [
+        _crosstable(section, (standings or {})[(event["event_id"], section)],
+                    member_id, games_by_round)
+        for section in event["sections"]
+        if (event["event_id"], section) in (standings or {})
+    ]
+
     return html.Div(className="rated-event-card", children=[
         html.Div(className="rated-event-head", children=[
             html.Div(children=[
@@ -134,6 +237,7 @@ def _rated_event_card(event: dict, performance_rating: int | None = None) -> htm
                  className="rated-event-meta"),
         html.Div([_game_row(row) for row in event["rows"]],
                  className="rated-event-games"),
+        *crosstables,
     ])
 
 
@@ -161,10 +265,13 @@ def _series_stats_label(series: dict) -> str:
     return " · ".join(bits)
 
 
-def _series_group(series: dict, performance_by_event: dict) -> html.Details:
+def _series_group(series: dict, performance_by_event: dict,
+                  standings: dict, member_id: str) -> html.Details:
     """One Series as a native expandable group."""
     body: list = [
-        _rated_event_card(event, performance_by_event.get(event["event_id"]))
+        _rated_event_card(event, performance_by_event.get(event["event_id"]),
+                          standings=standings, member_id=member_id,
+                          extra_rows=series["unmatched"])
         for event in series["rated_events"]
     ]
     if series["unmatched"]:
@@ -235,6 +342,11 @@ def update_series_groups(colors, outcomes, terminations, start, end, events, mov
                 performance_rating_stats(games)["performance_rating"]
             )
 
+    # Crosstables + whose row to highlight in them (issue #34)
+    standings = data.get_uscf_standings()
+    profile = data.get_uscf_profile()
+    member_id = profile.member_id if profile else ""
+
     return html.Div(className="series-list", children=[
         content_card(
             "Series → Rated Events",
@@ -243,7 +355,8 @@ def update_series_groups(colors, outcomes, terminations, start, end, events, mov
                 "Rated Events USCF actually rated, with your official results.",
                 className="series-list-hint",
             ),
-            *[_series_group(s, performance_by_event) for s in summary],
+            *[_series_group(s, performance_by_event, standings, member_id)
+              for s in summary],
         ),
     ])
 

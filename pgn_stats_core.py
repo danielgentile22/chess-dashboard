@@ -1332,11 +1332,20 @@ def round_performance(df: pd.DataFrame, *, min_games: int = 3) -> pd.DataFrame:
     ScorePct ((W + D/2) / Games — fatigue shows up as draws too),
     Reliable (Games >= *min_games* — rounds below the threshold can't support
     a fatigue conclusion and should render dimmed).
+
+    When a Game carries its real round number from the USCF crosstable
+    (UscfRound — issue #34), that takes precedence over the hand-typed Round
+    header; Games without one fall back to the typed round per Game.
     """
     if df.empty or "RoundNum" not in df.columns:
         return pd.DataFrame(columns=_ROUND_COLS)
 
-    d = df[df["RoundNum"].notna() & df["Outcome"].isin(["Win", "Draw", "Loss"])].copy()
+    d = df.copy()
+    # Real round numbers (USCF crosstables) outrank hand-typed ones (issue #34)
+    if "UscfRound" in d.columns:
+        d["RoundNum"] = d["UscfRound"].fillna(d["RoundNum"])
+
+    d = d[d["RoundNum"].notna() & d["Outcome"].isin(["Win", "Draw", "Loss"])]
     if d.empty:
         return pd.DataFrame(columns=_ROUND_COLS)
 

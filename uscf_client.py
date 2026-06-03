@@ -21,6 +21,7 @@ fetch_member_games         GET /members/{id}/games → list (USCF Game Records)
 fetch_member_events        GET /members/{id}/events → list (Rated Events entered)
 fetch_member_norms         GET /members/{id}/norms → list (official norms)
 fetch_member_awards        GET /members/{id}/awards → list (official awards)
+fetch_event_standings      GET /rated-events/{id}/sections/{n}/standings → list (crosstable)
 UscfError                  Base class for anything that goes wrong talking to USCF.
 UscfMemberNotFoundError    The member ID does not exist.
 UscfUnreachableError       Network failure / timeout — USCF is unreachable.
@@ -33,6 +34,7 @@ __all__ = [
     "UscfError",
     "UscfMemberNotFoundError",
     "UscfUnreachableError",
+    "fetch_event_standings",
     "fetch_member_awards",
     "fetch_member_events",
     "fetch_member_games",
@@ -179,6 +181,26 @@ def fetch_member_awards(
     return _get_all_pages(
         f"/members/{member_id}/awards",
         what=f"awards for member {member_id!r}",
+        timeout=timeout,
+    )
+
+
+def fetch_event_standings(
+    event_id: str, section_number: int, *, timeout: float = _DEFAULT_TIMEOUT
+) -> list[dict]:
+    """
+    Fetch the full crosstable of one Rated Event Section (issue #34): every
+    player with their score, pre/post ratings, and round-by-round outcomes.
+
+    Crosstables of rated events are immutable — callers cache them forever
+    (``UscfCache.fetch_immutable``) so this is called at most once per
+    Section, ever.  Pagination is handled internally.
+
+    Raises the same typed errors as :func:`fetch_member_profile`.
+    """
+    return _get_all_pages(
+        f"/rated-events/{event_id}/sections/{section_number}/standings",
+        what=f"standings for event {event_id!r} section {section_number}",
         timeout=timeout,
     )
 

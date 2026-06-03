@@ -1988,6 +1988,105 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   padding: 1px 6px;
 }
 
+/* The full crosstable inside a Rated Event (issue #34) */
+.crosstable {
+  margin-top: 10px;
+  border-top: 1px solid var(--cs-border);
+  padding-top: 8px;
+}
+.crosstable-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  cursor: pointer;
+  padding: 4px 0;
+  list-style-position: inside;
+}
+.crosstable-summary::marker { color: var(--cs-primary); font-size: 11px; }
+.crosstable-placement {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--cs-accent);    /* a placement is an achievement — gold */
+}
+.crosstable-hint {
+  font-size: 11.5px;
+  color: var(--cs-dim);
+}
+.crosstable-table {
+  margin-top: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--cs-border);
+  border-radius: 6px;
+}
+.crosstable-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--cs-border);
+  font-size: 12px;
+}
+.crosstable-row:last-child { border-bottom: none; }
+.crosstable-header {
+  position: sticky;
+  top: 0;
+  background: var(--cs-card2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--cs-accent);
+  z-index: 1;
+}
+.crosstable-row-me {
+  background: rgba(210, 153, 34, .12);     /* Daniel's row — gold wash */
+  font-weight: 600;
+}
+.crosstable-ordinal {
+  font-family: var(--cs-font-mono);
+  width: 28px;
+  flex-shrink: 0;
+  color: var(--cs-dim);
+  text-align: right;
+}
+.crosstable-row-me .crosstable-ordinal { color: var(--cs-accent); }
+.crosstable-player { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.crosstable-rating {
+  font-family: var(--cs-font-mono);
+  font-size: 11px;
+  color: var(--cs-muted);
+  width: 120px;
+  flex-shrink: 0;
+}
+.crosstable-score {
+  font-family: var(--cs-font-mono);
+  width: 36px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.crosstable-rounds {
+  display: flex;
+  gap: 3px;
+  font-family: var(--cs-font-mono);
+  flex-shrink: 0;
+}
+.crosstable-round {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--cs-dim);
+  text-decoration: none !important;
+}
+.crosstable-round.w { color: var(--cs-win); background: var(--cs-win-bg); }
+.crosstable-round.l, .crosstable-round.f { color: var(--cs-loss); background: var(--cs-loss-bg); }
+.crosstable-round.d { color: var(--cs-text); background: var(--cs-draw-bg); }
+.crosstable-round.b { color: var(--cs-muted); }
+.crosstable-round-link { outline: 1px solid var(--cs-border); }
+.crosstable-round-link:hover { outline-color: var(--cs-primary); }
+
 /* Entered, never played (the Rockville case) */
 .unplayed-events-list { display: flex; flex-direction: column; }
 .unplayed-event-row {
@@ -2014,6 +2113,8 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .series-summary { flex-direction: column; gap: 3px; }
   .event-game-color { display: none; }
   .rated-event-head { flex-direction: column; gap: 2px; }
+  /* Crosstables at the club: ratings column collapses, rounds stay */
+  .crosstable-rating { display: none; }
 }
 
 @media (max-width: 1100px) {

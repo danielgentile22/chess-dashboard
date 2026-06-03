@@ -51,6 +51,8 @@ __all__ = [
     "MatchResult",
     "OfficialRatingPoint",
     "ReconciliationEntry",
+    "RoundOutcome",
+    "StandingEntry",
     "UscfAchievement",
     "UscfEvent",
     "UscfGameRecord",
@@ -58,11 +60,13 @@ __all__ = [
     "UscfRating",
     "achievement_milestones",
     "apply_rating_lens",
+    "attach_round_numbers",
     "build_achievements",
     "build_game_records",
     "build_live_series",
     "build_member_events",
     "build_official_series",
+    "build_standings",
     "enrich_games",
     "match_games",
     "membership_alert",
@@ -417,14 +421,171 @@ def build_member_events(event_items: list[dict]) -> list[UscfEvent]:
 
 
 # ---------------------------------------------------------------------------
+# Standings → typed crosstables (issue #34)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class RoundOutcome:
+    """One round in a player's crosstable row (issue #34)."""
+
+    round_number: int
+    outcome: str            # Win | Loss | Draw | WinForfeit | Forfeit
+    #                         | ByeFull | ByeHalf | Unpaired
+    color: str              # White | Black | Unknown (byes/forfeits have no color)
+    opponent_member_id: str  # '' for byes and unpaired rounds
+    opponent_name: str
+
+
+@dataclass(frozen=True)
+class StandingEntry:
+    """One player's row in a Rated Event Section's crosstable (issue #34)."""
+
+    ordinal: int            # final placement: 1 = the Section winner
+    member_id: str
+    name: str
+    score: float
+    pre_rating: float | None    # Regular pre-rating, decimals (None = unrated)
+    post_rating: float | None
+    rounds: tuple[RoundOutcome, ...]
+
+
+def build_standings(standing_items: list[dict]) -> list[StandingEntry]:
+    """
+    Interpret raw standings items as a typed crosstable, ordered by final
+    placement (issue #34).
+
+    Dual-rated Sections carry Quick and Regular records per player — Regular
+    is the backbone (PRD #24).  Players who walked in unrated have no
+    pre-rating: None, never invented.
+    """
+    entries = []
+    for item in standing_items:
+        first = str(item.get("firstName", "")).strip()
+        last = str(item.get("lastName", "")).strip()
+        regular: dict = next(
+            (r for r in item.get("ratings", []) if r.get("ratingSystem") == "R"),
+            {},
+        )
+        rounds = tuple(
+            RoundOutcome(
+                round_number=int(r.get("roundNumber", 0)),
+                outcome=str(r.get("outcome", "")),
+                color=str(r.get("color", "")),
+                opponent_member_id=str(r.get("opponentMemberId") or ""),
+                opponent_name=" ".join(part for part in (
+                    str(r.get("opponentFirstName", "")).strip(),
+                    str(r.get("opponentLastName", "")).strip(),
+                ) if part),
+            )
+            for r in item.get("roundOutcomes", [])
+        )
+        entries.append(StandingEntry(
+            ordinal=int(item.get("ordinal", 0)),
+            member_id=str(item.get("memberId", "")),
+            name=" ".join(part for part in (first, last) if part),
+            score=float(item.get("score", 0)),
+            pre_rating=regular.get("preRatingDecimal", regular.get("preRating")),
+            post_rating=regular.get("postRatingDecimal", regular.get("postRating")),
+            rounds=rounds,
+        ))
+
+    return sorted(entries, key=lambda e: e.ordinal)
+
+
+# How a crosstable round outcome reads as a Game outcome: forfeit variants
+# count the same way the Game's own Outcome column records them.
+_ROUND_OUTCOME_AS_GAME = {
+    "Win": "Win", "WinForfeit": "Win",
+    "Loss": "Loss", "Forfeit": "Loss",
+    "Draw": "Draw",
+}
+
+# Crosstable outcomes that mean "no game was played over the board".
+_FORFEIT_OUTCOMES = ("WinForfeit", "Forfeit")
+
+
+def attach_round_numbers(
+    df: pd.DataFrame,
+    standings: dict[tuple[str, str], list[StandingEntry]],
+    member_id: str,
+) -> pd.DataFrame:
+    """
+    Return a copy of *df* with the ``UscfRound`` column: each Game's real
+    round number from its Rated Event Section's crosstable (issue #34).
+
+    Matched Games look up the member's crosstable row for their Section and
+    find the round played against their opponent.  Forfeit Games have no USCF
+    Game Record, but the crosstable still records the forfeit round with the
+    opponent's member ID — so even no-shows get their real round.
+
+    Games with no crosstable available keep NaN (round-based analytics fall
+    back to the typed round) — the column always exists (ADR 0003).
+    """
+    out = df.copy()
+    if out.empty:
+        out["UscfRound"] = pd.Series(dtype="float64")
+        return out
+
+    # The member's rounds across every cached crosstable:
+    # (event_id, section_name, opponent_member_id) → [RoundOutcome, …]
+    my_rounds: dict[tuple[str, str, str], list[RoundOutcome]] = {}
+    for (event_id, section_name), entries in standings.items():
+        me = next((e for e in entries if e.member_id == member_id), None)
+        if me is None:
+            continue
+        for outcome in me.rounds:
+            if outcome.opponent_member_id:
+                key = (event_id, section_name, outcome.opponent_member_id)
+                my_rounds.setdefault(key, []).append(outcome)
+
+    out["UscfRound"] = pd.to_numeric(
+        pd.Series([_real_round(game, my_rounds) for _, game in out.iterrows()],
+                  index=out.index, dtype="object"),
+        errors="coerce",
+    )
+    return out
+
+
+def _real_round(
+    game: pd.Series, my_rounds: dict[tuple[str, str, str], list[RoundOutcome]]
+) -> int | None:
+    """One Game's real round number from the crosstables, or None."""
+    if game["UscfMatched"]:
+        candidates = my_rounds.get(
+            (game["UscfEventId"], game["UscfSection"], game["UscfOpponentId"]), [])
+        # Prefer the round whose outcome agrees with the Game's (repeat
+        # opponents in one Section); a single candidate wins regardless.
+        for outcome in candidates:
+            if _ROUND_OUTCOME_AS_GAME.get(outcome.outcome) == game["Outcome"]:
+                return outcome.round_number
+        return candidates[0].round_number if len(candidates) == 1 else None
+
+    if game["Forfeit"]:
+        opponent_id = _opponent_id(game)
+        if not opponent_id:
+            return None
+        forfeit_rounds = [
+            outcome.round_number
+            for (_, _, oid), outcomes in my_rounds.items() if oid == opponent_id
+            for outcome in outcomes if outcome.outcome in _FORFEIT_OUTCOMES
+        ]
+        if len(forfeit_rounds) == 1:  # ambiguity → no guess
+            return forfeit_rounds[0]
+
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Series → Rated Event grouping (issue #33): the Events page's data
 # ---------------------------------------------------------------------------
 
 # The game facts each Rated Event / unmatched row carries for the page's
 # game tables (the same columns the old tournament-detail table used).
-_GAME_ROW_COLUMNS = ["Date", "RoundNum", "Color", "Opponent", "OpponentRating",
-                     "Result", "Outcome", "Termination", "FullMoves",
-                     "ChapterURL", "Forfeit"]
+# UscfRound (issue #34) rides along when the df has been through
+# attach_round_numbers — _game_rows tolerates its absence.
+_GAME_ROW_COLUMNS = ["Date", "RoundNum", "UscfRound", "Color", "Opponent",
+                     "OpponentRating", "Result", "Outcome", "Termination",
+                     "FullMoves", "ChapterURL", "Forfeit"]
 
 
 def series_summary(
@@ -578,7 +739,8 @@ def _game_rows(games: pd.DataFrame) -> list[dict]:
     """Game rows for the page's tables (clickable through ChapterURL)."""
     if games.empty:
         return []
-    return games[_GAME_ROW_COLUMNS].to_dict("records")
+    columns = [c for c in _GAME_ROW_COLUMNS if c in games.columns]
+    return games[columns].to_dict("records")
 
 
 # ---------------------------------------------------------------------------

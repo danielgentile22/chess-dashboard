@@ -44,9 +44,11 @@ from uscf_core import (
     MatchResult,
     OfficialRatingPoint,
     ReconciliationEntry,
+    StandingEntry,
     UscfAchievement,
     UscfEvent,
     UscfProfile,
+    attach_round_numbers,
     enrich_games,
     match_games,
     reconcile,
@@ -166,6 +168,8 @@ def _sync_uscf_into_store() -> None:
     # Match & enrich (issue #28): USCF Game Records attach to Games
     _match_result = match_games(_df, _uscf.game_records)
     _df = enrich_games(_df, _match_result)
+    # Real round numbers from the crosstables (issue #34)
+    _df = attach_round_numbers(_df, _uscf.standings, _uscf_member_id or "")
 
     # Dismissed Reconciliation entries survive restarts via the cache (#30)
     _dismissed = set(UscfCache(_uscf_cache_path).dismissals()) | _dismissed
@@ -354,6 +358,12 @@ def get_uscf_events() -> list[UscfEvent]:
     """Every Rated Event the member has entered, chronological (issue #33).
     Empty when USCF is off/unavailable."""
     return _uscf.member_events
+
+
+def get_uscf_standings() -> dict[tuple[str, str], list[StandingEntry]]:
+    """The crosstables of played OTB Sections (issue #34), keyed by
+    (event_id, section name).  Empty when USCF is off/unavailable."""
+    return _uscf.standings
 
 
 def get_uscf_achievements() -> list[UscfAchievement]:
