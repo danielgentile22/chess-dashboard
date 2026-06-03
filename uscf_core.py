@@ -19,6 +19,8 @@ build_official_series   raw supplement items → the Official Rating series.
 build_live_series       raw section items → the Live Rating series (continuous chain).
 rating_trend_series     both series trimmed to a date range (the Trends chart's data).
 build_game_records      raw game items → typed USCF Game Records.
+build_achievements      raw norm + award items → typed UscfAchievements (issue #36).
+achievement_milestones  achievements → Milestone-timeline entries (issue #36).
 match_games             USCF Game Records ↔ Games (the matching engine).
 enrich_games            Games df + MatchResult → df with USCF enrichment columns.
 apply_rating_lens       Games df with player ratings rewritten per the Official/Live lens.
@@ -28,6 +30,7 @@ UscfRating              One rating system's entry (rating, provisional, floor).
 OfficialRatingPoint     One supplement month's Official Rating.
 LiveRatingPoint         One Section's pre→post Live Rating change.
 UscfGameRecord          USCF's official record of one rated game (CONTEXT.md).
+UscfAchievement         One official achievement — a norm or an award.
 GameMatch               One Game ↔ USCF Game Record pairing.
 MatchResult             Everything matching produced: matches + both leftovers.
 """
@@ -47,10 +50,13 @@ __all__ = [
     "MatchResult",
     "OfficialRatingPoint",
     "ReconciliationEntry",
+    "UscfAchievement",
     "UscfGameRecord",
     "UscfProfile",
     "UscfRating",
+    "achievement_milestones",
     "apply_rating_lens",
+    "build_achievements",
     "build_game_records",
     "build_live_series",
     "build_official_series",
@@ -358,6 +364,137 @@ def build_game_records(game_items: list[dict]) -> list[UscfGameRecord]:
             opponent_name=" ".join(part for part in (first, last) if part),
         ))
     return records
+
+
+# ---------------------------------------------------------------------------
+# Norms and awards → achievements (issue #36)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class UscfAchievement:
+    """
+    One official USCF achievement — a norm or an award (issue #36).
+
+    Norms and awards are member-level facts (they don't belong to any Game),
+    so they join the Milestones timeline as their own entries rather than
+    coming out of the Games DataFrame.
+    """
+
+    achievement_id: str   # stable identity — what new-vs-seen comparison uses
+    kind: str             # "norm" | "award"
+    title: str            # "Fourth Category norm" / "25th career win"
+    detail: str           # "Scored 4.5 in 5 games" / ""
+    date: date | None     # when earned (None when USCF gives no date at all)
+    event_id: str         # the Rated Event it was earned at ('' if unknown)
+    event_name: str
+
+
+def build_achievements(
+    norm_items: list[dict], award_items: list[dict]
+) -> list[UscfAchievement]:
+    """
+    Interpret raw /norms and /awards items as one chronological achievement
+    list (issue #36).
+
+    Parsing is tolerant (ADR 0003): missing events, dates, or unrecognized
+    award categories degrade to less-specific entries, never to errors.
+    """
+    achievements = [_norm_achievement(item) for item in norm_items]
+    achievements += [_award_achievement(item) for item in award_items]
+    # Chronological; undated achievements go last (no date to sort them by)
+    return sorted(achievements, key=lambda a: (a.date is None, a.date or date.max))
+
+
+def _norm_achievement(item: dict) -> UscfAchievement:
+    """A norm: level + score, earned at its event's end date."""
+    event = item.get("event", {})
+    level = str(item.get("level", ""))
+    score, games = item.get("score"), item.get("playedGames")
+    detail = f"Scored {score} in {games} games" if score and games else ""
+
+    return UscfAchievement(
+        achievement_id=f"norm:{level}:{event.get('id', '')}",
+        kind="norm",
+        title=f"{_split_camel_case(level)} norm",
+        detail=detail,
+        date=_parse_date(event.get("endDate")),
+        event_id=str(event.get("id", "")),
+        event_name=str(event.get("name", "")),
+    )
+
+
+def _award_achievement(item: dict) -> UscfAchievement:
+    """An award: USCF's own milestones, like the 25th career win."""
+    event = item.get("event", {})
+    category = str(item.get("category", ""))
+    win_count = item.get("winCount")
+
+    if category == "WinMilestone" and win_count:
+        title = f"{_ordinal(win_count)} career win"
+    else:
+        title = f"{_split_camel_case(category)} award"
+
+    return UscfAchievement(
+        achievement_id=f"award:{item.get('id', '')}",
+        kind="award",
+        title=title,
+        detail="",
+        date=_parse_date(item.get("date")) or _parse_date(event.get("endDate")),
+        event_id=str(event.get("id", "")),
+        event_name=str(event.get("name", "")),
+    )
+
+
+def achievement_milestones(
+    achievements: list[UscfAchievement],
+    *,
+    date_start: str | date | None = None,
+    date_end: str | date | None = None,
+) -> list[dict]:
+    """
+    Achievements as Milestone-timeline entries (issue #36) — the same dict
+    shape ``compute_milestones`` produces, so the Overview renders both
+    through one code path.  ``kind="uscf"`` flags them for the gold treatment
+    (the design language reserves gold for achievements).
+
+    Achievements are member-level facts, not Games, so only the global
+    date-range filter applies — the same rule as ``rating_trend_series``.
+    """
+    start, end = _coerce_date(date_start), _coerce_date(date_end)
+
+    entries = []
+    for achievement in achievements:
+        day = achievement.date
+        if day is not None:
+            if (start is not None and day < start) or (end is not None and day > end):
+                continue
+        description = achievement.title
+        if achievement.event_name:
+            description += f" — {achievement.event_name}"
+        if achievement.detail:
+            description += f" ({achievement.detail})"
+        entries.append({
+            "date": day.isoformat() if day is not None else "",
+            "game_num": None,           # not a Game — the row shows a USCF badge
+            "description": description,
+            "kind": "uscf",
+            "event_id": achievement.event_id,
+        })
+    return entries
+
+
+def _split_camel_case(value: str) -> str:
+    """'FourthCategory' → 'Fourth Category' (USCF's enum-style level names)."""
+    return re.sub(r"(?<!^)(?=[A-Z])", " ", value)
+
+
+def _ordinal(n: int) -> str:
+    """25 → '25th', 1 → '1st', 22 → '22nd' (career-win milestone wording)."""
+    if 11 <= n % 100 <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
 
 
 # ---------------------------------------------------------------------------

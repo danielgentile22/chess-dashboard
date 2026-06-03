@@ -16,7 +16,7 @@ The dashboard is a multi-page app — each page loads only its own charts, so it
 
 | Page | What you get |
 |---|---|
-| **Overview** | 10 KPI cards · **USCF profile card** (all your ratings with Official · Live side by side, national/state rank, floor, membership warning) · last-20 streak badges · W/D/L donut · termination breakdown · milestone timeline · your top recurring weakness |
+| **Overview** | 10 KPI cards · **USCF profile card** (all your ratings with Official · Live side by side, national/state rank, floor, membership warning) · last-20 streak badges · W/D/L donut · termination breakdown · milestone timeline (with your **USCF norms and awards** as gold official entries) · your top recurring weakness |
 | **Trends** | GitHub-style activity calendar (one cell per day, colored by results) · **dual-line rating chart** (your Official Rating as a step line and your Live Rating per Rated Event, so you can watch them diverge and reconverge) · cumulative win rate · games per month · win rate by day of week · game-length distribution · results by time control · score by round (the fatigue check) · **upset tracker** (giant kills and upset losses by rating margin) |
 | **Openings** | **Repertoire tree** (your games arranged move by move, branches that leak points flagged) · ECO family breakdown (A/B/C/D/E) · full opening detail table |
 | **Opponents** | **Scouting Report** (search an opponent → score, rating gap, game timeline, their openings by your color, and every Lesson from facing them) · stacked W/D/L bar per opponent · outcome by rating bucket · outcome vs. rating scatter |
@@ -45,11 +45,13 @@ Configure your USCF member ID and every Sync also pulls your official record fro
 
 Disagreements go to the **Reconciliation page** — conflicts get a ⚠ badge on the Game everywhere it appears, and the header shows a count of open items. The dashboard always displays the Lichess version of disputed facts; nothing is silently "corrected".
 
+**Norms and awards** join the Milestones timeline as official entries — gold, per the design language (gold is reserved for achievements). A norm or award appearing for the first time in a Sync gets the celebration banner, exactly like a personal best; ones the dashboard has already seen never re-celebrate, even across restarts.
+
 USCF data is enrichment, never a dependency (`docs/adr/0003`): a Sync that reaches Lichess but not USCF still succeeds, and USCF surfaces degrade to the last successful Sync's cached data with a clear "unavailable since" warning.
 
 ### Header
 
-The sticky header celebrates current form: a 🔥 that grows with your win streak (extra glow at 5+), a 🧊 on cold streaks, and your last 5 games as colored dots. Plus the **Official/Live rating lens**, the Sync button, and a per-source freshness label ("Lichess synced X ago · USCF synced Y ago"). When a Sync sets a personal best — a new peak rating, a new longest win streak, or a win over the highest-rated opponent yet — a gold celebration banner appears until you dismiss it.
+The sticky header celebrates current form: a 🔥 that grows with your win streak (extra glow at 5+), a 🧊 on cold streaks, and your last 5 games as colored dots. Plus the **Official/Live rating lens**, the Sync button, and a per-source freshness label ("Lichess synced X ago · USCF synced Y ago"). When a Sync sets a personal best — a new peak rating, a new longest win streak, or a win over the highest-rated opponent yet — or USCF recognizes something new (a norm, an award), a gold celebration banner appears until you dismiss it.
 
 ### Filters
 

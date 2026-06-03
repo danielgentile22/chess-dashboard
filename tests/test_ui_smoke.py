@@ -428,7 +428,9 @@ class TestUscfProfileCard:
                                return_value=_UI_USCF_PROFILE), \
              mock.patch.object(sync, "fetch_rating_supplements", return_value=[]), \
              mock.patch.object(sync, "fetch_member_sections", return_value=[]), \
-             mock.patch.object(sync, "fetch_member_games", return_value=[]):
+             mock.patch.object(sync, "fetch_member_games", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_norms", return_value=[]), \
+             mock.patch.object(sync, "fetch_member_awards", return_value=[]):
             data.initialize(
                 ["teststudy"], player_name="Test Player", uscf_member_id="32487228"
             )
@@ -477,6 +479,69 @@ class TestUscfProfileCard:
             data.initialize(["teststudy"], player_name="Test Player")
         try:
             assert update_uscf_card({"seq": 0}) is None
+        finally:
+            data.reset()
+
+
+# ---------------------------------------------------------------------------
+# USCF achievements as Milestones (issue #36)
+#
+# ui fixtures include the real captured norm (Oak Grove, Dec 2025) and award
+# (25th win, Jan 2026), so the Overview timeline carries gold official rows
+# alongside the personal-best milestones.
+# ---------------------------------------------------------------------------
+
+class TestUscfAchievementMilestones:
+    def test_norm_and_award_appear_as_gold_milestones(self, ui_app, ui_data):
+        """Daniel's official achievements join the timeline, gold-flagged
+        (the design language reserves gold for achievements)."""
+        from pages.overview import update_milestones
+        rendered = str(update_milestones(*_filter_args()))
+
+        assert "Fourth Category norm" in rendered
+        assert "First Annual Oak Grove Open" in rendered
+        assert "25th career win" in rendered
+        assert "uscf" in rendered           # the gold milestone class
+
+    def test_achievements_interleave_chronologically(self, ui_app, ui_data):
+        """Sample Games are 2024, achievements 2025–26 → official rows last,
+        in their own date order."""
+        from pages.overview import update_milestones
+        rendered = str(update_milestones(*_filter_args()))
+
+        assert rendered.index("First recorded game") < rendered.index("Fourth Category norm")
+        assert rendered.index("Fourth Category norm") < rendered.index("25th career win")
+
+    def test_achievements_ignore_game_filters_but_respect_dates(self, ui_app, ui_data):
+        """Official achievements aren't Games: color/outcome filters never hide
+        them; the global date range does (it bounds the whole timeline)."""
+        from pages.overview import update_milestones
+
+        game_hiding = _filter_args(colors=["White"], outcomes=["Draw"])
+        assert "Fourth Category norm" in str(update_milestones(*game_hiding))
+
+        only_2024 = _filter_args(start="2024-01-01", end="2024-12-31")
+        assert "Fourth Category norm" not in str(update_milestones(*only_2024))
+
+    def test_norms_link_to_the_events_page(self, ui_app, ui_data):
+        """A norm links to where its Rated Event lives in the dashboard."""
+        from pages.overview import update_milestones
+        rendered = str(update_milestones(*_filter_args()))
+        assert "/events" in rendered
+
+    def test_without_uscf_the_timeline_is_unchanged(self, ui_app, sample_pgn_text):
+        """Lichess-only runs: no gold rows, no errors — exactly the old timeline."""
+        import data
+        import sync
+        from pages.overview import update_milestones
+
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=sample_pgn_text):
+            data.initialize(["teststudy"], player_name="Test Player")
+        try:
+            rendered = str(update_milestones(*_filter_args()))
+            assert "First recorded game" in rendered
+            assert "uscf" not in rendered
         finally:
             data.reset()
 

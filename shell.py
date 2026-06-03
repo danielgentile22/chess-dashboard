@@ -256,6 +256,12 @@ def run_sync(n_clicks, store):
 
     # Did the new Games set any personal bests? (issue #15)
     deltas = milestone_deltas(pre_sync_df, data.get_df())
+    # Did USCF recognize anything new — a norm, an award? (issue #36)
+    deltas += [{
+        "kind": "uscf_achievement",
+        "description": f"Official USCF achievement: {a.title}"
+                       + (f" — {a.event_name}" if a.event_name else ""),
+    } for a in data.get_new_achievements()]
     celebration = celebration_banner(deltas) if deltas else no_update
 
     return new_store, True, "Sync complete", "success", body, celebration

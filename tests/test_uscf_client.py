@@ -91,6 +91,42 @@ class TestFetchMemberGames:
         assert url.endswith("/members/32487228/games")
 
 
+class TestFetchMemberNorms:
+    """The norms endpoint — official achievements toward titles (issue #36)."""
+
+    def test_returns_the_norm_items(self, uscf_norms_json):
+        with mock.patch(
+            "uscf_client.requests.get",
+            return_value=_response(json_body=uscf_norms_json),
+        ) as get:
+            items = uscf_client.fetch_member_norms("32487228")
+
+        # Daniel's FourthCategory norm from the Oak Grove Open comes back raw
+        assert len(items) == 1
+        assert items[0]["level"] == "FourthCategory"
+        assert items[0]["event"]["name"] == "First Annual Oak Grove Open"
+        url = get.call_args.args[0]
+        assert url.endswith("/members/32487228/norms")
+
+
+class TestFetchMemberAwards:
+    """The awards endpoint — milestones USCF itself recognizes (issue #36)."""
+
+    def test_returns_the_award_items(self, uscf_awards_json):
+        with mock.patch(
+            "uscf_client.requests.get",
+            return_value=_response(json_body=uscf_awards_json),
+        ) as get:
+            items = uscf_client.fetch_member_awards("32487228")
+
+        # The 25th-career-win milestone comes back raw
+        assert len(items) == 1
+        assert items[0]["category"] == "WinMilestone"
+        assert items[0]["winCount"] == 25
+        url = get.call_args.args[0]
+        assert url.endswith("/members/32487228/awards")
+
+
 class TestPagination:
     """List endpoints paginate; the client follows hasNextPage internally.
 

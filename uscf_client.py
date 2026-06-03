@@ -18,6 +18,8 @@ fetch_member_profile       GET /members/{id} → dict (ratings, ranks, floor, me
 fetch_rating_supplements   GET /members/{id}/rating-supplements → list (Official series)
 fetch_member_sections      GET /members/{id}/sections → list (Live series)
 fetch_member_games         GET /members/{id}/games → list (USCF Game Records)
+fetch_member_norms         GET /members/{id}/norms → list (official norms)
+fetch_member_awards        GET /members/{id}/awards → list (official awards)
 UscfError                  Base class for anything that goes wrong talking to USCF.
 UscfMemberNotFoundError    The member ID does not exist.
 UscfUnreachableError       Network failure / timeout — USCF is unreachable.
@@ -30,7 +32,9 @@ __all__ = [
     "UscfError",
     "UscfMemberNotFoundError",
     "UscfUnreachableError",
+    "fetch_member_awards",
     "fetch_member_games",
+    "fetch_member_norms",
     "fetch_member_profile",
     "fetch_member_sections",
     "fetch_rating_supplements",
@@ -122,6 +126,40 @@ def fetch_member_games(
     return _get_all_pages(
         f"/members/{member_id}/games",
         what=f"games for member {member_id!r}",
+        timeout=timeout,
+    )
+
+
+def fetch_member_norms(
+    member_id: str, *, timeout: float = _DEFAULT_TIMEOUT
+) -> list[dict]:
+    """
+    Fetch every norm *member_id* has earned — official achievements toward
+    titles (issue #36).  Pagination is handled internally (the live endpoint
+    returns bare items without pagination fields; both shapes are tolerated).
+
+    Raises the same typed errors as :func:`fetch_member_profile`.
+    """
+    return _get_all_pages(
+        f"/members/{member_id}/norms",
+        what=f"norms for member {member_id!r}",
+        timeout=timeout,
+    )
+
+
+def fetch_member_awards(
+    member_id: str, *, timeout: float = _DEFAULT_TIMEOUT
+) -> list[dict]:
+    """
+    Fetch every award *member_id* has earned — milestones USCF itself
+    recognizes, like the 25th career win (issue #36).  Pagination is handled
+    internally.
+
+    Raises the same typed errors as :func:`fetch_member_profile`.
+    """
+    return _get_all_pages(
+        f"/members/{member_id}/awards",
+        what=f"awards for member {member_id!r}",
         timeout=timeout,
     )
 
