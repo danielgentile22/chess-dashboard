@@ -86,8 +86,8 @@ def layout(**kwargs) -> html.Div:
 # ---------------------------------------------------------------------------
 
 @callback(Output("games-table", "data"), FILTER_INPUTS)
-def update_games_table(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_games_table(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     cols = [c for c in _DISPLAY_COLS if c in df_f.columns]
     out = df_f[cols].copy()
     if "Lessons" in df_f.columns:

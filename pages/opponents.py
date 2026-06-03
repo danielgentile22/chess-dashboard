@@ -31,6 +31,7 @@ from components import (
     lesson_card,
     lichess_link,
     page_header,
+    rating_basis_note,
     register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
@@ -81,6 +82,8 @@ def layout(**kwargs) -> html.Div:
             chart_card("W/D/L by opponent rating difference", "rating-bucket-bar"),
             chart_card("Outcome vs opponent rating", "outcome-scatter"),
         ]),
+        # Strength comparisons are rating-diff — say what basis they mix (issue #32)
+        rating_basis_note(),
     ])
 
 
@@ -223,7 +226,7 @@ def update_scout_options(_sync):
     FILTER_INPUTS,
 )
 def update_scouting_report(opponent, colors, outcomes, terminations, start, end,
-                           events, moves, _sync=None):
+                           events, moves, _sync=None, lens=None):
     """Opponent picked → their full dossier. Nothing picked → a hint."""
     if not opponent:
         return html.Div(
@@ -231,7 +234,7 @@ def update_scouting_report(opponent, colors, outcomes, terminations, start, end,
             "against you, and every lesson facing them taught you.",
             className="scout-hint",
         )
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     report = scouting_report(df_f, opponent)
     if report["total"] == 0:
         return html.Div(f"No games vs {opponent} in the current filter.",
@@ -245,8 +248,8 @@ navigate_to_game_from_scout = register_game_navigation(
 
 
 @callback(Output("opponent-bar", "figure"), FILTER_INPUTS)
-def update_opponents(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_opponents(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     opp = opponent_summary(df_f)
     if opp.empty:
         return empty_fig("No repeat opponents in current filter")
@@ -266,8 +269,8 @@ def update_opponents(colors, outcomes, terminations, start, end, events, moves, 
 
 
 @callback(Output("rating-bucket-bar", "figure"), FILTER_INPUTS)
-def update_bucket(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_bucket(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     buckets = opponent_rating_bucket_summary(df_f)
     if buckets.empty:
         return empty_fig("Need rated games")
@@ -286,8 +289,8 @@ def update_bucket(colors, outcomes, terminations, start, end, events, moves, _sy
 
 
 @callback(Output("outcome-scatter", "figure"), FILTER_INPUTS)
-def update_scatter(colors, outcomes, terminations, start, end, events, moves, _sync=None):
-    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves)
+def update_scatter(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     sc = outcome_vs_rating_data(df_f)
     if sc.empty:
         return empty_fig("Need rated games")

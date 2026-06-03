@@ -17,7 +17,7 @@ The dashboard is a multi-page app — each page loads only its own charts, so it
 | Page | What you get |
 |---|---|
 | **Overview** | 10 KPI cards · **USCF profile card** (all your ratings with Official · Live side by side, national/state rank, floor, membership warning) · last-20 streak badges · W/D/L donut · termination breakdown · milestone timeline · your top recurring weakness |
-| **Trends** | GitHub-style activity calendar (one cell per day, colored by results) · rating over time with trend overlay · cumulative win rate · games per month · win rate by day of week · game-length distribution · results by time control · score by round (the fatigue check) · **upset tracker** (giant kills and upset losses by rating margin) |
+| **Trends** | GitHub-style activity calendar (one cell per day, colored by results) · **dual-line rating chart** (your Official Rating as a step line and your Live Rating per Rated Event, so you can watch them diverge and reconverge) · cumulative win rate · games per month · win rate by day of week · game-length distribution · results by time control · score by round (the fatigue check) · **upset tracker** (giant kills and upset losses by rating margin) |
 | **Openings** | **Repertoire tree** (your games arranged move by move, branches that leak points flagged) · ECO family breakdown (A/B/C/D/E) · full opening detail table |
 | **Opponents** | **Scouting Report** (search an opponent → score, rating gap, game timeline, their openings by your color, and every Lesson from facing them) · stacked W/D/L bar per opponent · outcome by rating bucket · outcome vs. rating scatter |
 | **Events** | Performance per tournament · selectable event table → per-event game list + performance rating |
@@ -39,6 +39,8 @@ The Openings page leads with your personal opening explorer: every game as White
 
 Configure your USCF member ID and every Sync also pulls your official record from the USCF ratings API (ratings.uschess.org): all your ratings (with provisional game counts), national and state rank, rating floor, and membership expiration — shown on a profile card on Overview with your **Official Rating and Live Rating side by side** (the published monthly integer vs. where your rating really stands after your last event).
 
+**The Official/Live lens** — an `[Official | Live]` switch in the header — picks which rating series powers every rating-derived number in the dashboard: KPI cards, upset margins, opponent-strength buckets, everything. It's a *lens*, not a filter: it never hides Games, it changes what "your rating" means. **Official** is the supplement in effect at each Game's Rated Event start date (the rating that determined your section and pairings); **Live** is the pre-rating of the Section you played it in, shown as a whole number. Games from before your first supplement show no Official value — the dashboard never invents a number. Opponent ratings stay your typed values under both lenses until crosstable enrichment (Phase D) supplies their live ratings. The Trends rating chart is the one place the lens hides nothing: both series always draw; the lens just picks which one leads.
+
 **The matching engine** pairs every USCF Game Record with its Game: by opponent member ID + result first (the `WhiteFideId`/`BlackFideId` headers you type into chapters), then by normalized opponent name + result + event date window for chapters without IDs. Repeat opponents with identical results are disambiguated by color and date — tiebreakers, never requirements, because color is itself a fact the sources can disagree on. Matched Games show their USCF half (Rated Event, Section, official opponent identity); games with at most one move and no USCF record are tagged **Forfeit** (opponent no-show) and excluded from win rate, streaks, and opening stats while still counting toward event scores.
 
 Disagreements go to the **Reconciliation page** — conflicts get a ⚠ badge on the Game everywhere it appears, and the header shows a count of open items. The dashboard always displays the Lichess version of disputed facts; nothing is silently "corrected".
@@ -47,7 +49,7 @@ USCF data is enrichment, never a dependency (`docs/adr/0003`): a Sync that reach
 
 ### Header
 
-The sticky header celebrates current form: a 🔥 that grows with your win streak (extra glow at 5+), a 🧊 on cold streaks, and your last 5 games as colored dots. Plus the Sync button and a per-source freshness label ("Lichess synced X ago · USCF synced Y ago"). When a Sync sets a personal best — a new peak rating, a new longest win streak, or a win over the highest-rated opponent yet — a gold celebration banner appears until you dismiss it.
+The sticky header celebrates current form: a 🔥 that grows with your win streak (extra glow at 5+), a 🧊 on cold streaks, and your last 5 games as colored dots. Plus the **Official/Live rating lens**, the Sync button, and a per-source freshness label ("Lichess synced X ago · USCF synced Y ago"). When a Sync sets a personal best — a new peak rating, a new longest win streak, or a win over the highest-rated opponent yet — a gold celebration banner appears until you dismiss it.
 
 ### Filters
 
