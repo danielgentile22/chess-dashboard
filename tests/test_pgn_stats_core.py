@@ -1436,6 +1436,33 @@ class TestRoundPerformance:
         rounds = round_performance(games)
         assert list(rounds["Round"]) == [1]
 
+    def test_real_uscf_rounds_take_precedence_over_typed_rounds(self):
+        """Issue #34: Daniel hand-types continuous ladder rounds (24, 25, …);
+        the crosstable knows they were really rounds 1, 3, … of the Rated
+        Event.  When the real round is attached, fatigue analytics use it."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"round": "24", "result": "1-0"},
+            {"round": "25", "result": "0-1"},
+        ]), player_name="Me")
+        games["UscfRound"] = [1.0, 3.0]      # what the crosstable says
+
+        rounds = round_performance(games)
+
+        assert list(rounds["Round"]) == [1, 3]    # real rounds, not 24/25
+
+    def test_games_without_a_real_round_fall_back_to_the_typed_one(self):
+        """Mixed data degrades per Game (ADR 0003): a Game whose crosstable
+        isn't cached keeps its typed round."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"round": "24", "result": "1-0"},
+            {"round": "2", "result": "0-1"},
+        ]), player_name="Me")
+        games["UscfRound"] = [1.0, float("nan")]
+
+        rounds = round_performance(games)
+
+        assert list(rounds["Round"]) == [1, 2]    # real where known, typed where not
+
     def test_empty_data(self):
         rounds = round_performance(pd.DataFrame())
         assert rounds.empty
@@ -1462,6 +1489,20 @@ class TestUpsetTracker:
         # Losing to a 1900 as an 1800 is expected — only the 1650 loss stings
         assert [loss["Opponent"] for loss in upsets["losses"]] == ["Lucky"]
         assert upsets["losses"][0]["Margin"] == 150
+
+    def test_forfeit_wins_are_never_giant_kills(self):
+        """A no-show win is not an upset (issue #35 / Daniel's decision):
+        Forfeits already sit outside win rate, Streaks, and openings —
+        upset stats follow the same rule."""
+        games, _ = load_games_from_text(_pgn_with_headers([
+            {"result": "1-0", "my_elo": 1005, "opp_elo": 1175, "opponent": "NoShow"},
+            {"result": "1-0", "my_elo": 1005, "opp_elo": 1300, "opponent": "RealWin"},
+        ]), player_name="Me")
+        games["Forfeit"] = [True, False]   # the no-show vs a played game
+
+        upsets = upset_tracker(games)
+
+        assert [win["Opponent"] for win in upsets["wins"]] == ["RealWin"]
 
     def test_expected_results_are_not_upsets(self, df):
         """Beating lower-rated players and losing to higher-rated ones is normal;

@@ -81,6 +81,7 @@ def get_filtered(colors, outcomes, terminations, start_date, end_date,
         data.get_official_series(),
         data.get_live_series(),
         data.get_uscf_matches(),
+        standings=data.get_uscf_standings(),  # opponent ratings too (issue #35)
     )
 
 

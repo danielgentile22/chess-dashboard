@@ -44,7 +44,11 @@ from uscf_core import (
     MatchResult,
     OfficialRatingPoint,
     ReconciliationEntry,
+    StandingEntry,
+    UscfAchievement,
+    UscfEvent,
     UscfProfile,
+    attach_round_numbers,
     enrich_games,
     match_games,
     reconcile,
@@ -67,6 +71,11 @@ _match_result: MatchResult = MatchResult()
 # Dismissed Reconciliation entries (issue #30): in-memory now, persisted
 # best-effort in the USCF cache so they survive restarts
 _dismissed: set[str] = set()
+# Achievement IDs every Sync so far has seen (issue #36): None = never recorded.
+# In-memory state seeded from / persisted to the USCF cache, like dismissals.
+_seen_achievement_ids: set[str] | None = None
+# Achievements first seen by the last Sync — the ones to celebrate (issue #36)
+_new_achievements: list[UscfAchievement] = []
 
 # --- the designated Studies (remembered so refresh() can re-Sync) ----------
 _study_ids: list[str] = []
@@ -159,9 +168,47 @@ def _sync_uscf_into_store() -> None:
     # Match & enrich (issue #28): USCF Game Records attach to Games
     _match_result = match_games(_df, _uscf.game_records)
     _df = enrich_games(_df, _match_result)
+    # Real round numbers from the crosstables (issue #34)
+    _df = attach_round_numbers(_df, _uscf.standings, _uscf_member_id or "")
 
     # Dismissed Reconciliation entries survive restarts via the cache (#30)
     _dismissed = set(UscfCache(_uscf_cache_path).dismissals()) | _dismissed
+
+    # Which achievements has this Sync seen for the first time? (issue #36)
+    _detect_new_achievements()
+
+
+def _detect_new_achievements() -> None:
+    """
+    Compare this Sync's achievements against everything previous Syncs have
+    seen, so genuinely fresh norms/awards get celebrated — exactly once.
+
+    The very first recording (no seen-state anywhere) registers everything
+    silently: celebrating months-old achievements on the first Sync after
+    this feature lands would be noise, not news.  A USCF outage records
+    nothing — cached/absent achievements are never "new".
+    """
+    global _new_achievements, _seen_achievement_ids
+    if not _uscf.available or _uscf.from_cache:
+        _new_achievements = []
+        return
+
+    cache = UscfCache(_uscf_cache_path)
+    seen: set[str] | None
+    if _seen_achievement_ids is not None:
+        seen = _seen_achievement_ids               # this run already knows
+    else:
+        cached = cache.seen_achievements()
+        seen = set(cached) if cached is not None else None
+
+    current = _uscf.achievements
+    if seen is None:
+        _new_achievements = []                     # first recording — silent
+    else:
+        _new_achievements = [a for a in current if a.achievement_id not in seen]
+
+    _seen_achievement_ids = (seen or set()) | {a.achievement_id for a in current}
+    cache.record_achievements(sorted(_seen_achievement_ids))
 
 
 def _boot_from_cache(sync_error: SyncError) -> tuple[pd.DataFrame, str]:
@@ -307,6 +354,40 @@ def get_live_series() -> list[LiveRatingPoint]:
     return _uscf.live_series
 
 
+def get_uscf_events() -> list[UscfEvent]:
+    """Every Rated Event the member has entered, chronological (issue #33).
+    Empty when USCF is off/unavailable."""
+    return _uscf.member_events
+
+
+def get_uscf_standings() -> dict[tuple[str, str], list[StandingEntry]]:
+    """The crosstables of played OTB Sections (issue #34), keyed by
+    (event_id, section name).  Empty when USCF is off/unavailable."""
+    return _uscf.standings
+
+
+def get_opponent_profiles() -> dict[str, UscfProfile]:
+    """Opponents' current USCF profiles keyed by member ID (issue #35) —
+    the "they're 1580 now" half of then-vs-now.  Empty when USCF is
+    off/unavailable; missing opponents are simply absent."""
+    return _uscf.opponent_profiles
+
+
+def get_uscf_achievements() -> list[UscfAchievement]:
+    """The member's official achievements — norms and awards, chronological
+    (issue #36). Empty when USCF is off/unavailable."""
+    return _uscf.achievements
+
+
+def get_new_achievements() -> list[UscfAchievement]:
+    """
+    Achievements first seen by the last Sync — the ones to celebrate
+    (issue #36).  Empty on the first-ever recording (existing achievements
+    are registered silently) and whenever USCF data is cached or absent.
+    """
+    return _new_achievements
+
+
 def uscf_synced_at() -> datetime | None:
     """When USCF data was last successfully fetched (None if never)."""
     return _uscf.synced_at
@@ -376,6 +457,7 @@ def reset() -> None:
     global _df, _player, _sync_failures, _synced_at, _source, _cached_at
     global _study_ids, _player_name, _token, _cache_path
     global _uscf, _uscf_member_id, _uscf_cache_path, _match_result, _dismissed
+    global _seen_achievement_ids, _new_achievements
     _df = pd.DataFrame()
     _player = ""
     _sync_failures = []
@@ -391,3 +473,5 @@ def reset() -> None:
     _uscf_cache_path = None
     _match_result = MatchResult()
     _dismissed = set()
+    _seen_achievement_ids = None
+    _new_achievements = []

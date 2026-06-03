@@ -303,6 +303,53 @@ def uscf_games_json() -> dict:
 
 
 @pytest.fixture(scope="session")
+def uscf_events_json() -> dict:
+    """A real /members/{id}/events response: all 23 Rated Events Daniel has
+    entered (issue #33), with official dates, section counts, and player counts."""
+    return json.loads((USCF_FIXTURES_DIR / "events.json").read_text())
+
+
+# The real crosstables captured for issue #34, keyed by (event_id, section
+# number).  Each covers a distinct real-world case:
+#   ACC MAY 2026 ............ a 116-player section with an Unpaired round
+#   DMV Under 1800 .......... a full-point bye (ByeFull) + the two-Section event
+#   DMV Extra games ......... the second Section of the same Rated Event
+#   Rockville U1500 ......... Daniel entered, never played (Forfeit + Unpaired)
+#   Thanksgiving U1600 ...... the Feketekuty forfeit win (WinForfeit)
+USCF_STANDINGS_FIXTURES = {
+    ("202605290393", 1): "standings-acc-may-2026.json",
+    ("202603290543", 2): "standings-dmv-under-1800.json",
+    ("202603290543", 7): "standings-dmv-extra-games.json",
+    ("202508311982", 2): "standings-rockville-u1500.json",
+    ("202511020583", 3): "standings-thanksgiving-u1600.json",
+}
+
+
+@pytest.fixture(scope="session")
+def uscf_standings_json() -> dict:
+    """The real captured crosstables, keyed by (event_id, section_number)."""
+    return {
+        key: json.loads((USCF_FIXTURES_DIR / filename).read_text())
+        for key, filename in USCF_STANDINGS_FIXTURES.items()
+    }
+
+
+@pytest.fixture(scope="session")
+def uscf_norms_json() -> dict:
+    """A real /members/{id}/norms response: the FourthCategory norm from the
+    First Annual Oak Grove Open (issue #36).  Note: no pagination fields —
+    the norms endpoint returns bare items."""
+    return json.loads((USCF_FIXTURES_DIR / "norms.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def uscf_awards_json() -> dict:
+    """A real /members/{id}/awards response: the 25th-career-win WinMilestone
+    award (issue #36)."""
+    return json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())
+
+
+@pytest.fixture(scope="session")
 def study_snapshot_df():
     """
     Daniel's real Study (63 chapters), captured the same day as games.json —
@@ -418,6 +465,18 @@ SAMPLE_USCF_SECTIONS = [
 ]
 
 
+# The Rated Events that pair with SAMPLE_PGN (issue #33): the two events the
+# sample games/sections reference, in the real /members/{id}/events item shape.
+SAMPLE_USCF_EVENTS = [
+    {"id": "202401070001", "name": "TEST OPEN JANUARY",
+     "startDate": "2024-01-06", "endDate": "2024-01-07",
+     "sectionCount": 1, "playerCount": 12, "stateCode": "VA", "city": "SPRINGFIELD"},
+    {"id": "202406160002", "name": "SUMMER CUP 2024",
+     "startDate": "2024-06-15", "endDate": "2024-06-16",
+     "sectionCount": 1, "playerCount": 16, "stateCode": "VA", "city": "SHELBYVILLE"},
+]
+
+
 @pytest.fixture(scope="session")
 def sample_uscf_games() -> list[dict]:
     """USCF Game Records that pair with SAMPLE_PGN (5 matches + 1 USCF-only)."""
@@ -455,29 +514,56 @@ REAL_USCF_SUPPLEMENTS = json.loads(
     (USCF_FIXTURES_DIR / "rating-supplements.json").read_text()
 )["items"]
 REAL_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())["items"]
+REAL_USCF_EVENTS = json.loads((USCF_FIXTURES_DIR / "events.json").read_text())["items"]
+REAL_USCF_NORMS = json.loads((USCF_FIXTURES_DIR / "norms.json").read_text())["items"]
+REAL_USCF_AWARDS = json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())["items"]
+# The 5 captured crosstables (issue #34), as raw item lists keyed by
+# (event_id, section_number) — what the fetch_event_standings stub serves.
+REAL_USCF_STANDINGS = {
+    key: json.loads((USCF_FIXTURES_DIR / filename).read_text())["items"]
+    for key, filename in USCF_STANDINGS_FIXTURES.items()
+}
+# Two real opponent profiles (issue #35): Fontaine (beaten in ACC MAY 2026,
+# rated 1400 now) and Kaiyrberli (lost to in ACC MAY 2026, rated 1366 now).
+REAL_OPPONENT_PROFILES = {
+    "16441708": json.loads((USCF_FIXTURES_DIR / "opponent-fontaine.json").read_text()),
+    "32235302": json.loads((USCF_FIXTURES_DIR / "opponent-kaiyrberli.json").read_text()),
+}
 
 # What UI fixtures feed by default: the real 2025–26 career (so the profile
 # card and the rating series are real) plus the 2024 sample items that cover
 # SAMPLE_PGN's Games (so the rating lens has values for them — issue #32).
 _UI_USCF_SUPPLEMENTS = SAMPLE_USCF_SUPPLEMENTS + REAL_USCF_SUPPLEMENTS
 _UI_USCF_SECTIONS = SAMPLE_USCF_SECTIONS + REAL_USCF_SECTIONS
+_UI_USCF_EVENTS = SAMPLE_USCF_EVENTS + REAL_USCF_EVENTS
 
 
 @contextmanager
 def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
                     uscf_games: list | None = None,
                     uscf_supplements: list | None = None,
-                    uscf_sections: list | None = None):
+                    uscf_sections: list | None = None,
+                    uscf_events: list | None = None,
+                    uscf_norms: list | None = None,
+                    uscf_awards: list | None = None,
+                    uscf_standings: dict | None = None,
+                    opponent_profiles: dict | None = None):
     """
     Patch both clients at sync's module boundary for UI fixtures/tests:
     Lichess returns *pgn_text*; USCF returns the real captured responses.
     Pass an Exception as *uscf_profile* to simulate USCF being down
     (every endpoint raises it).  *uscf_games* defaults to the records that
     pair with SAMPLE_PGN, so UI tests render against matched Games;
-    *uscf_supplements* / *uscf_sections* default to the real career extended
-    with the 2024 sample items that cover SAMPLE_PGN.
+    *uscf_supplements* / *uscf_sections* / *uscf_events* default to the real
+    career extended with the 2024 sample items that cover SAMPLE_PGN;
+    *uscf_norms* / *uscf_awards* default to the real captured achievements
+    (issue #36); *uscf_standings* defaults to the 5 real captured crosstables
+    keyed by (event_id, section_number) — Sections without one degrade
+    gracefully, exactly like live (issue #34); *opponent_profiles* defaults
+    to the 2 real captured opponents (issue #35) — the rest degrade.
     """
     import sync
+    from uscf_client import UscfUnreachableError
 
     if uscf_profile is None:
         uscf_profile = _UI_USCF_PROFILE
@@ -487,6 +573,16 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
         uscf_supplements = _UI_USCF_SUPPLEMENTS
     if uscf_sections is None:
         uscf_sections = _UI_USCF_SECTIONS
+    if uscf_events is None:
+        uscf_events = _UI_USCF_EVENTS
+    if uscf_norms is None:
+        uscf_norms = REAL_USCF_NORMS
+    if uscf_awards is None:
+        uscf_awards = REAL_USCF_AWARDS
+    if uscf_standings is None:
+        uscf_standings = REAL_USCF_STANDINGS
+    if opponent_profiles is None:
+        opponent_profiles = REAL_OPPONENT_PROFILES
     uscf_down = uscf_profile if isinstance(uscf_profile, Exception) else None
 
     def fake(value):
@@ -496,15 +592,43 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
             return value
         return fetch
 
+    def fake_profile(member_id, **kwargs):
+        # The member's own profile, or a stubbed opponent's (issue #35)
+        if uscf_down is not None:
+            raise uscf_down
+        if str(uscf_profile.get("id", "")) == str(member_id):
+            return uscf_profile
+        value = opponent_profiles.get(member_id)
+        if value is None:
+            raise UscfUnreachableError(f"no profile fixture for {member_id!r}")
+        return value
+
+    def fake_standings(event_id, section_number, **kwargs):
+        if uscf_down is not None:
+            raise uscf_down
+        value = uscf_standings.get((event_id, section_number))
+        if value is None:
+            raise UscfUnreachableError(
+                f"no standings fixture for {event_id}/{section_number}")
+        return value
+
     with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn_text), \
          mock.patch.object(sync, "fetch_member_profile",
-                           side_effect=fake(uscf_profile)), \
+                           side_effect=fake_profile), \
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(uscf_supplements)), \
          mock.patch.object(sync, "fetch_member_sections",
                            side_effect=fake(uscf_sections)), \
          mock.patch.object(sync, "fetch_member_games",
-                           side_effect=fake(uscf_games)):
+                           side_effect=fake(uscf_games)), \
+         mock.patch.object(sync, "fetch_member_events",
+                           side_effect=fake(uscf_events)), \
+         mock.patch.object(sync, "fetch_member_norms",
+                           side_effect=fake(uscf_norms)), \
+         mock.patch.object(sync, "fetch_member_awards",
+                           side_effect=fake(uscf_awards)), \
+         mock.patch.object(sync, "fetch_event_standings",
+                           side_effect=fake_standings):
         yield
 
 
@@ -552,7 +676,8 @@ def real_career_ui(ui_app):
     data.reset()
     with stub_ui_sources(pgn_text, uscf_games=games,
                          uscf_supplements=REAL_USCF_SUPPLEMENTS,
-                         uscf_sections=REAL_USCF_SECTIONS):
+                         uscf_sections=REAL_USCF_SECTIONS,
+                         uscf_events=REAL_USCF_EVENTS):
         data.initialize(["realstudy"], player_name="Daniel Gentile",
                         uscf_member_id="32487228")
     yield

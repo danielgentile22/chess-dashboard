@@ -40,8 +40,16 @@ def stub_studies(**study_pgns):
 
 
 @contextlib.contextmanager
-def stub_uscf(profile, supplements=None, sections=None, games=None):
-    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise."""
+def stub_uscf(profile, supplements=None, sections=None, games=None,
+              events=None, norms=None, awards=None, standings=None,
+              opponent_profiles=None):
+    """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise.
+
+    *standings* maps (event_id, section_number) → raw item list; *opponent_profiles*
+    maps member_id → raw profile.  Unstubbed crosstables/opponents raise (sync
+    skips them gracefully, per-item degradation)."""
+    from uscf_client import UscfUnreachableError
+
     def fake(value):
         def fetch(member_id, **kwargs):
             if isinstance(value, Exception):
@@ -49,13 +57,43 @@ def stub_uscf(profile, supplements=None, sections=None, games=None):
             return value
         return fetch
 
-    with mock.patch.object(sync, "fetch_member_profile", side_effect=fake(profile)), \
+    def fake_profile(member_id, **kwargs):
+        # The member's own profile, or a stubbed opponent's (issue #35)
+        if isinstance(profile, Exception):
+            raise profile
+        if str(profile.get("id", "")) == str(member_id):
+            return profile
+        value = (opponent_profiles or {}).get(member_id)
+        if value is None:
+            raise UscfUnreachableError(f"no profile stubbed for {member_id!r}")
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    def fake_standings(event_id, section_number, **kwargs):
+        value = (standings or {}).get((event_id, section_number))
+        if value is None:
+            raise UscfUnreachableError(
+                f"no standings stubbed for {event_id}/{section_number}")
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    with mock.patch.object(sync, "fetch_member_profile", side_effect=fake_profile), \
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(supplements or [])), \
          mock.patch.object(sync, "fetch_member_sections",
                            side_effect=fake(sections or [])), \
          mock.patch.object(sync, "fetch_member_games",
-                           side_effect=fake(games or [])):
+                           side_effect=fake(games or [])), \
+         mock.patch.object(sync, "fetch_member_events",
+                           side_effect=fake(events or [])), \
+         mock.patch.object(sync, "fetch_member_norms",
+                           side_effect=fake(norms or [])), \
+         mock.patch.object(sync, "fetch_member_awards",
+                           side_effect=fake(awards or [])), \
+         mock.patch.object(sync, "fetch_event_standings",
+                           side_effect=fake_standings):
         yield
 
 
@@ -434,6 +472,235 @@ class TestRatingSeriesInStore:
 
         assert data.get_official_series() == []
         assert data.get_live_series() == []
+
+
+# ---------------------------------------------------------------------------
+# USCF achievements in the data layer (issue #36)
+# ---------------------------------------------------------------------------
+
+class TestAchievementsInStore:
+    def test_data_layer_exposes_achievements(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """After a Sync, the norm and the award are available to every page."""
+        with stub_studies(study1=sample_pgn_text), stub_uscf(
+            uscf_profile_json,
+            norms=uscf_norms_json["items"],
+            awards=uscf_awards_json["items"],
+        ):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="32487228"
+            )
+
+        achievements = data.get_uscf_achievements()
+        assert [a.title for a in achievements] == [
+            "Fourth Category norm", "25th career win",
+        ]
+
+    def test_achievements_are_empty_without_uscf(self, sample_pgn_text):
+        """Lichess-only runs have no achievements — empty list, never an error."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_uscf_achievements() == []
+
+
+class TestEventsInStore:
+    """The member's Rated Events in the data layer (issue #33)."""
+
+    def test_data_layer_exposes_member_events(
+        self, sample_pgn_text, uscf_profile_json, uscf_events_json
+    ):
+        with stub_studies(study1=sample_pgn_text), stub_uscf(
+            uscf_profile_json, events=uscf_events_json["items"],
+        ):
+            data.initialize(
+                ["study1"], player_name="Test Player", uscf_member_id="32487228"
+            )
+
+        events = data.get_uscf_events()
+        assert len(events) == 23
+        assert events[-1].name == "ACC MAY 2026"
+
+    def test_events_are_empty_without_uscf(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_uscf_events() == []
+
+
+class TestStandingsInStore:
+    """Crosstables and real round numbers in the data layer (issue #34)."""
+
+    @pytest.fixture()
+    def real_career_store(self, uscf_profile_json, uscf_games_json,
+                          uscf_sections_json, uscf_standings_json):
+        """The store loaded with the real fixture pair + the 5 crosstables."""
+        pgn_text = (
+            __import__("pathlib").Path("tests/fixtures/uscf/lichess-study-snapshot.pgn")
+            .read_text()
+        )
+        raw_standings = {key: raw["items"]
+                         for key, raw in uscf_standings_json.items()}
+        with stub_studies(study1=pgn_text), stub_uscf(
+            uscf_profile_json,
+            sections=uscf_sections_json["items"],
+            games=uscf_games_json["items"],
+            standings=raw_standings,
+        ):
+            data.initialize(["study1"], player_name="Daniel Gentile",
+                            uscf_member_id="32487228")
+
+    def test_data_layer_exposes_standings(self, real_career_store):
+        standings = data.get_uscf_standings()
+
+        acc_may = standings[("202605290393", "LADDER")]
+        assert len(acc_may) == 116
+        daniel = next(s for s in acc_may if s.member_id == "32487228")
+        assert daniel.ordinal == 5          # finished 5th of 116
+
+    def test_games_carry_their_real_round_numbers(self, real_career_store):
+        """The store's df has UscfRound: ACC MAY's typed rounds 24–27 are
+        really rounds 1, 3, 4, 5."""
+        df = data.get_df()
+        may = df[df["UscfEventId"] == "202605290393"]
+
+        assert list(may["UscfRound"]) == [1, 3, 4, 5]
+
+    def test_standings_are_empty_without_uscf(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_uscf_standings() == {}
+        # The round column still exists — downstream code never checks
+        assert "UscfRound" in data.get_df().columns
+
+
+class TestOpponentProfilesInStore:
+    """Opponent current ratings in the data layer (issue #35)."""
+
+    def test_data_layer_exposes_opponent_profiles(
+        self, sample_pgn_text, uscf_profile_json, uscf_games_json
+    ):
+        import json
+        from pathlib import Path
+        fontaine = json.loads(
+            Path("tests/fixtures/uscf/opponent-fontaine.json").read_text())
+
+        with stub_studies(study1=sample_pgn_text), stub_uscf(
+            uscf_profile_json, games=uscf_games_json["items"],
+            opponent_profiles={"16441708": fontaine},
+        ):
+            data.initialize(["study1"], player_name="Test Player",
+                            uscf_member_id="32487228")
+
+        profiles = data.get_opponent_profiles()
+        assert profiles["16441708"].name == "JOHN FONTAINE"
+        assert profiles["16441708"].rating("R").rating == 1400
+
+    def test_opponent_profiles_are_empty_without_uscf(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_opponent_profiles() == {}
+
+
+class TestNewAchievementDetection:
+    """
+    The celebration check (issue #36): an achievement is reported "new" the
+    first time any Sync sees it — and never again, even across restarts.
+    """
+
+    def _initialize(self, pgn, profile, norms=(), awards=(), cache_path=None):
+        with stub_studies(study1=pgn), \
+             stub_uscf(profile, norms=list(norms), awards=list(awards)):
+            data.initialize(["study1"], player_name="Test Player",
+                            uscf_member_id="32487228",
+                            uscf_cache_path=cache_path)
+
+    def _refresh(self, pgn, profile, norms=(), awards=()):
+        with stub_studies(study1=pgn), \
+             stub_uscf(profile, norms=list(norms), awards=list(awards)):
+            return data.refresh()
+
+    def test_existing_achievements_are_not_reported_new(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """The first Sync that knows about achievements records Daniel's existing
+        norm and award silently — celebrating months-old achievements is noise."""
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"],
+                         awards=uscf_awards_json["items"])
+
+        assert data.get_uscf_achievements() != []      # they ARE in the timeline
+        assert data.get_new_achievements() == []       # but nothing to celebrate
+
+    def test_an_achievement_appearing_in_a_later_sync_is_new(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """The norm existed at startup; the award appears in a later Sync —
+        exactly the 'future norms and awards appear automatically' criterion."""
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"])
+
+        self._refresh(sample_pgn_text, uscf_profile_json,
+                      norms=uscf_norms_json["items"],
+                      awards=uscf_awards_json["items"])
+
+        assert [a.title for a in data.get_new_achievements()] == ["25th career win"]
+
+    def test_an_achievement_is_new_exactly_once(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json
+    ):
+        """Once celebrated, the same achievement never triggers again."""
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"])
+        self._refresh(sample_pgn_text, uscf_profile_json,
+                      norms=uscf_norms_json["items"],
+                      awards=uscf_awards_json["items"])
+
+        self._refresh(sample_pgn_text, uscf_profile_json,
+                      norms=uscf_norms_json["items"],
+                      awards=uscf_awards_json["items"])
+
+        assert data.get_new_achievements() == []
+
+    def test_seen_achievements_survive_restarts(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, uscf_awards_json,
+        tmp_path
+    ):
+        """With a cache path, what one run celebrated stays celebrated after a
+        restart; only the genuinely-new award gets reported."""
+        cache = str(tmp_path / "uscf_cache.json")
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"], cache_path=cache)
+        data.reset()
+
+        # The app restarts; USCF now also has the award
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"],
+                         awards=uscf_awards_json["items"], cache_path=cache)
+
+        assert [a.title for a in data.get_new_achievements()] == ["25th career win"]
+
+    def test_uscf_being_down_does_not_forget_or_recelebrate(
+        self, sample_pgn_text, uscf_profile_json, uscf_norms_json, tmp_path
+    ):
+        """A USCF outage mid-run neither wipes the seen-state nor causes the
+        cached achievements to be re-celebrated when USCF comes back."""
+        cache = str(tmp_path / "uscf_cache.json")
+        self._initialize(sample_pgn_text, uscf_profile_json,
+                         norms=uscf_norms_json["items"], cache_path=cache)
+
+        with stub_studies(study1=sample_pgn_text), \
+             stub_uscf(UscfUnreachableError("USCF is down")):
+            data.refresh()
+        assert data.get_new_achievements() == []
+
+        # USCF recovers, same norm as before → still not new
+        self._refresh(sample_pgn_text, uscf_profile_json,
+                      norms=uscf_norms_json["items"])
+        assert data.get_new_achievements() == []
 
 
 # ---------------------------------------------------------------------------
