@@ -2182,6 +2182,112 @@ class TestGamesColumnSet:
         assert set(row) == displayed | {"ChapterURL"}
 
 
+class TestMobileGameCards:
+    """The mobile Games card list (issue #48): at phone widths each Game
+    renders as a tappable card — opponent, outcome, date, event — fed by the
+    *same* callback rows as the desktop table (the PRD's "Mobile game cards"
+    testing decision)."""
+
+    @staticmethod
+    def _cards(card_list):
+        """The individual card components inside a game_cards() list."""
+        children = card_list.children
+        return children if isinstance(children, (list, tuple)) else [children]
+
+    def test_one_card_per_game_row(self, ui_app, ui_data):
+        """The card list and the table are two renderings of one row set."""
+        from components import game_cards
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        assert len(self._cards(game_cards(rows))) == len(rows) == 7
+
+    def test_card_carries_opponent_outcome_date_event(self, ui_app, ui_data):
+        """Each card shows the things that matter first at the club."""
+        from components import game_cards
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        rendered = str(game_cards(rows))
+        # A specific fixture Game's facts all appear on its card.
+        assert "Opponent A" in rendered      # opponent
+        assert "Win" in rendered             # outcome
+        assert "Test Open" in rendered       # event
+        assert "2024" in rendered            # date
+
+    def test_outcome_drives_a_semantic_class(self, ui_app, ui_data):
+        """The outcome word carries an outcome-<result> class so wins read
+        green and losses red — color only where it means something."""
+        from components import game_cards
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        rendered = str(game_cards(rows))
+        # The fixture has wins, draws, and a loss → all three classes appear.
+        assert "outcome-win" in rendered
+        assert "outcome-loss" in rendered
+        assert "outcome-draw" in rendered
+
+    def test_card_with_a_chapter_url_links_to_the_detail_view(self, ui_app, ui_data):
+        """Tapping a card opens that Game — same as clicking a table row."""
+        from dash import dcc
+
+        from components import game_cards
+        from pages.games import update_games_table
+        rows = update_games_table(*_filter_args())
+        cards = self._cards(game_cards(rows))
+        linked = [c for c in cards if isinstance(c, dcc.Link)]
+        assert linked, "no card links to a Game detail view"
+        # Every linked card points at the in-app /game/<chapter> route.
+        assert all(c.href.startswith("/game/") for c in linked)
+
+    def test_card_without_a_chapter_url_renders_without_a_link(self, ui_app):
+        """A Game with no ChapterURL renders a plain card — no link, no error."""
+        from dash import dcc, html
+
+        from components import game_cards
+        rows = [
+            {"Opponent": "No URL Opponent", "Outcome": "Loss",
+             "Date": "2024.05.01", "Event": "Club Night", "ChapterURL": ""},
+        ]
+        card = self._cards(game_cards(rows))[0]
+        assert isinstance(card, html.Div)        # not a dcc.Link
+        assert not isinstance(card, dcc.Link)
+        assert "No URL Opponent" in str(card)    # still shows the Game
+
+    def test_missing_chapter_url_key_does_not_error(self, ui_app):
+        """A row dict that omits ChapterURL entirely still renders harmlessly."""
+        from components import game_cards
+        rows = [{"Opponent": "Sparse", "Outcome": "Win",
+                 "Date": "2024.05.02", "Event": "Club Night"}]
+        rendered = str(game_cards(rows))
+        assert "Sparse" in rendered
+
+    def test_page_renders_both_table_and_card_views(self, ui_app, ui_data):
+        """The layout carries both presentations; CSS picks one by width."""
+        from pages.games import layout
+        ids = _collect_ids(layout())
+        assert "games-table" in ids   # desktop table
+        assert "games-cards" in ids   # mobile card list
+        rendered = str(layout())
+        assert "games-table-view" in rendered
+        assert "games-cards-view" in rendered
+
+    def test_table_and_cards_share_one_callback(self, ui_app, ui_data):
+        """Both presentations are fed by the same callback build — no second
+        data pipeline (issue #48's acceptance criterion)."""
+        from pages.games import update_games
+        table_data, cards = update_games(*_filter_args())
+        # The card list renders exactly the rows the table is given.
+        assert len(self._cards(cards)) == len(table_data)
+
+    def test_card_swap_lives_in_css_not_python(self):
+        """The desktop-table / phone-cards swap is a CSS media query, so the
+        callback never branches on viewport width."""
+        from pathlib import Path
+        css = (Path(__file__).resolve().parent.parent
+               / "assets" / "custom.css").read_text()
+        assert ".games-cards-view" in css
+        assert ".games-table-view" in css
+
+
 class TestQuietTableTreatment:
     """The shared quiet-table treatment (neutral headers, left-aligned text,
     hairline separators, focused-row fix) is reusable styling, not Games-only

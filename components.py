@@ -267,6 +267,63 @@ def game_detail_path(chapter_url: str) -> str:
     return f"/game/{chapter_url.rstrip('/').rsplit('/', 1)[-1]}"
 
 
+# ---------------------------------------------------------------------------
+# Mobile game cards (issue #48)
+#
+# On a phone the Games table's ~15 columns force a sideways scroll just to find
+# who I played and whether I won.  At phone widths the page swaps the table for
+# this card list: one tappable card per Game, the things that matter first —
+# opponent, outcome, date, event.  Both presentations are fed by the *same*
+# callback rows (the trimmed player-centric column set), so the card list is a
+# second *rendering*, never a second data path.
+# ---------------------------------------------------------------------------
+
+def _game_card(row: dict) -> html.Div:
+    """One Game as a tappable card: opponent, outcome, date, event.
+
+    *row* is one record from the Games callback (the same dict the table is
+    fed).  A Game with a ChapterURL is a link to its detail view; a Game
+    without one (a Forfeit has a Chapter, but a row could lack the URL) renders
+    as a plain, unlinked card — never an error.
+    """
+    outcome = str(row.get("Outcome") or "")
+    opponent = str(row.get("Opponent") or "Unknown opponent")
+    opp_rating = str(row.get("OpponentRating") or "")
+
+    # The line under the opponent: outcome · date · event, blanks dropped.
+    meta_bits = [b for b in (outcome, str(row.get("Date") or ""),
+                             str(row.get("Event") or "")) if b]
+
+    children = [
+        html.Div(className="game-card-top", children=[
+            html.Span(opponent, className="game-card-opponent"),
+            html.Span(f"{opp_rating}" if opp_rating else "",
+                      className="game-card-opp-rating"),
+        ]),
+        html.Div("  ·  ".join(meta_bits),
+                 className=f"game-card-meta outcome-{outcome.lower()}"),
+    ]
+
+    detail = game_detail_path(row.get("ChapterURL", ""))
+    if detail:
+        return dcc.Link(children, href=detail, className="game-card")
+    # No ChapterURL → a card with no link (and no crash).
+    return html.Div(children, className="game-card game-card-nolink")
+
+
+def game_cards(rows: list[dict]) -> html.Div:
+    """The mobile Games card list: one :func:`_game_card` per Game row.
+
+    Renders the *same* rows the Games table is fed, so the table and the cards
+    can never disagree.  An empty archive (everything filtered out) renders an
+    empty, harmless list rather than erroring.
+    """
+    return html.Div(
+        [_game_card(row) for row in rows],
+        className="game-card-list",
+    )
+
+
 def row_click_to_game(active_cell, viewport_rows, ignore_columns=("Lichess",)):
     """
     Map a DataTable cell click to a Game detail path (issue #11).
