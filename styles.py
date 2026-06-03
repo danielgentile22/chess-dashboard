@@ -316,9 +316,9 @@ def apply_dark_theme(
         xaxis=dict(**_BASE_AXIS, title_text=xaxis_title),
         yaxis=dict(**_BASE_AXIS, title_text=yaxis_title),
         hoverlabel=dict(
-            bgcolor=COLORS["card2"],
-            bordercolor=COLORS["border"],
-            font=dict(color=COLORS["text"], size=12, family=FONT_SYSTEM),
+            bgcolor=COLORS["card2"],      # nested-card surface
+            bordercolor=COLORS["border"],  # hairline separator
+            font=dict(color=COLORS["text"], size=13, family=FONT_SYSTEM),
         ),
     )
     if show_legend is not None:
@@ -327,6 +327,28 @@ def apply_dark_theme(
     # Thin, faint gridlines (separation by space, not by gridlines).
     fig.update_xaxes(gridwidth=1, griddash="solid")
     fig.update_yaxes(gridwidth=1, griddash="solid")
+    return fig
+
+
+# Quiet lowercase outcome words for hover labels.  The bar's color already
+# says Win / Draw / Loss; the word stays short and lowercase, never a
+# "Outcome=" prefix.
+WDL_HOVER_WORD: dict[str, str] = {"Win": "wins", "Draw": "draws", "Loss": "losses"}
+
+
+def apply_wdl_hover(fig: go.Figure, *, value_axis: str = "x") -> go.Figure:
+    """Give each W/D/L trace of a stacked bar a quiet ``<b>N</b> wins`` hover.
+
+    Plotly Express splits a ``color="Outcome"`` stacked bar into one trace per
+    outcome, named "Win" / "Draw" / "Loss".  The row label (event / opponent /
+    family) is already on the other axis, so the hover never repeats it — it
+    shows only the bold count and the lowercase outcome word, ending with the
+    empty ``<extra>`` box.  *value_axis* is the count axis ("x" for horizontal
+    bars, "y" for vertical).
+    """
+    for trace in fig.data:
+        word = WDL_HOVER_WORD.get(getattr(trace, "name", ""), str(trace.name).lower())
+        trace.hovertemplate = f"<b>%{{{value_axis}}}</b> {word}<extra></extra>"
     return fig
 
 

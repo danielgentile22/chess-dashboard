@@ -203,3 +203,144 @@ class TestInjection:
         assert "cs-theme-tokens" in body
         assert "--cs-bg: #0a0a0c;" in body
         assert "fonts.googleapis.com" not in body
+
+
+# ---------------------------------------------------------------------------
+# Pretty hover labels across every chart (PR #53 review feedback)
+#
+# Every chart's hover must be hand-written, not Plotly Express's raw
+# "key=value<br>" default, and its hover *chrome* (the label box) must come
+# from the same theme tokens the rest of the chart does.  These two tests walk
+# every page's rendered figures and guard both at once.
+# ---------------------------------------------------------------------------
+
+# Default filter arguments — everything selected, no restriction — matching
+# what the UI sends before any filter is touched (see test_ui_smoke.ALL_FILTERS).
+_ALL_FILTER_ARGS = (
+    ["White", "Black"],            # colors
+    ["Win", "Draw", "Loss"],       # outcomes
+    [],                            # terminations
+    None, None,                    # start, end
+    [],                            # events
+    None,                          # moves
+    None,                          # sync
+    "official",                    # lens
+)
+
+# Every callback that returns a Plotly figure, across every page.  Listed by
+# hand so a newly added chart that forgets a pretty hover trips this test.
+_FIGURE_CALLBACKS = [
+    ("pages.overview", "update_wdl"),
+    ("pages.overview", "update_terminations"),
+    ("pages.events", "update_event_bar"),
+    ("pages.opponents", "update_opponents"),
+    ("pages.opponents", "update_bucket"),
+    ("pages.opponents", "update_scatter"),
+    ("pages.openings", "update_opening_family"),
+    ("pages.trends", "update_rating"),
+    ("pages.trends", "update_winrate"),
+    ("pages.trends", "update_monthly"),
+    ("pages.trends", "update_dow"),
+    ("pages.trends", "update_length_hist"),
+    ("pages.trends", "update_time_control"),
+    ("pages.trends", "update_round_performance"),
+]
+
+# The raw Plotly Express hover signature: a field name followed by "=", e.g.
+# "Outcome=Win", "Count=18", "Event=ACC Friday Ladder".
+_RAW_PX_HOVER = re.compile(r"\b[A-Z]\w*=")
+
+
+def _walk_components(component):
+    """Yield every Dash component in a layout tree (depth-first)."""
+    if component is None or isinstance(component, (str, int, float, bool)):
+        return
+    if isinstance(component, (list, tuple)):
+        for item in component:
+            yield from _walk_components(item)
+        return
+    yield component
+    yield from _walk_components(getattr(component, "children", None))
+
+
+def _all_page_figures():
+    """Every Plotly figure the pages render under the default (no-op) filters.
+
+    Covers the 14 figure-returning callbacks plus the activity calendar, whose
+    figures are embedded inside the HTML blocks it returns rather than served
+    as a direct figure Output.
+    """
+    import importlib
+
+    figures = []
+    for module_name, fn_name in _FIGURE_CALLBACKS:
+        fn = getattr(importlib.import_module(module_name), fn_name)
+        figures.append((f"{fn_name}", fn(*_ALL_FILTER_ARGS)))
+
+    from pages.trends import update_activity_calendar
+    blocks = update_activity_calendar(*_ALL_FILTER_ARGS)
+    for comp in _walk_components(blocks):
+        fig = getattr(comp, "figure", None)
+        if fig is not None:
+            figures.append(("update_activity_calendar", fig))
+    return figures
+
+
+class TestPrettyHoverLabels:
+    def test_no_chart_shows_the_raw_px_hover(self, ui_app, ui_data):
+        """No trace may carry Plotly Express's raw "key=value" hover — every
+        hover is hand-written (the PR #53 review ask)."""
+        offenders = []
+        for name, fig in _all_page_figures():
+            for trace in fig.data:
+                template = getattr(trace, "hovertemplate", None)
+                if template and _RAW_PX_HOVER.search(template):
+                    offenders.append((name, template))
+        assert not offenders, f"raw px key=value hover still present: {offenders}"
+
+    def test_every_trace_has_a_hand_written_hover(self, ui_app, ui_data):
+        """Every visible trace either carries an explicit hovertemplate or has
+        hover deliberately turned off (skip) — none falls back to the px
+        default.  Heatmap cells use text+hoverinfo, not a template."""
+        for name, fig in _all_page_figures():
+            for trace in fig.data:
+                kind = trace.type
+                has_template = bool(getattr(trace, "hovertemplate", None))
+                hoverinfo = getattr(trace, "hoverinfo", None) or ""
+                deliberately_off = "skip" in hoverinfo or "none" in hoverinfo
+                # Heatmaps drive hover from `text` + hoverinfo="text", not a template.
+                text_driven = kind == "heatmap"
+                assert has_template or deliberately_off or text_driven, (
+                    f"{name}: {kind} trace has no hand-written hover"
+                )
+
+    def test_hovertemplates_end_with_the_empty_extra_box(self, ui_app, ui_data):
+        """Every hovertemplate closes the secondary trace-name box with
+        <extra></extra> (design spec)."""
+        for name, fig in _all_page_figures():
+            for trace in fig.data:
+                template = getattr(trace, "hovertemplate", None)
+                if template:
+                    assert "<extra></extra>" in template, (
+                        f"{name}: hovertemplate missing <extra></extra>: {template!r}"
+                    )
+
+    def test_hover_label_chrome_comes_from_theme_tokens(self, ui_app, ui_data):
+        """The hover label box (bg / border / font) reads from the same theme
+        tokens as the rest of the chart — applied once in apply_dark_theme, so
+        every chart inherits it."""
+        for name, fig in _all_page_figures():
+            hoverlabel = fig.layout.hoverlabel
+            assert hoverlabel.bgcolor == styles.COLORS["card2"], name
+            assert hoverlabel.bordercolor == styles.COLORS["border"], name
+            assert hoverlabel.font.color == styles.COLORS["text"], name
+            assert hoverlabel.font.family == styles.FONT_SYSTEM, name
+
+    def test_chart_theme_hover_label_uses_only_tokens(self):
+        """apply_dark_theme sources the hover label box from COLORS tokens —
+        no hardcoded hex (guards against drift from the palette)."""
+        fig = styles.apply_dark_theme(go.Figure())
+        hl = fig.layout.hoverlabel
+        assert hl.bgcolor == styles.COLORS["card2"]
+        assert hl.bordercolor == styles.COLORS["border"]
+        assert hl.font.color == styles.COLORS["text"]

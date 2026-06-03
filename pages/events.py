@@ -30,7 +30,7 @@ from components import (
 )
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import event_summary, performance_rating_stats
-from styles import WDL_COLOR_MAP, apply_dark_theme, empty_fig
+from styles import WDL_COLOR_MAP, apply_dark_theme, apply_wdl_hover, empty_fig
 from uscf_core import (
     RoundOutcome,
     StandingEntry,
@@ -318,6 +318,8 @@ def update_event_bar(colors, outcomes, terminations, start, end, events, moves, 
     # overlapping labels (PRD: "horizontal bars wherever names are long").
     fig = px.bar(long, x="Count", y="Event", color="Outcome",
                  orientation="h", barmode="stack", color_discrete_map=WDL_COLOR_MAP)
+    # The y-axis already names the event; the hover shows only "<b>N</b> wins".
+    apply_wdl_hover(fig, value_axis="x")
     apply_dark_theme(fig, xaxis_title="Games", legend_title="Outcome")
     # Most-recent Series on top; let names claim whatever width they need.
     fig.update_yaxes(autorange="reversed", automargin=True)
