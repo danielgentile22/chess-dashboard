@@ -300,9 +300,8 @@ code {
   left: 12px;
   right: 12px;
   height: 2px;
-  background: var(--cs-accent);
+  background: var(--cs-text);  /* navigation is chrome — neutral, never gold */
   border-radius: 2px 2px 0 0;
-  box-shadow: 0 0 12px var(--cs-accent-glow);
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform .3s cubic-bezier(.32, .72, 0, 1);
@@ -533,7 +532,7 @@ code {
 .filter-summary {
   font-family: var(--cs-font-data);
   font-size: 12px;
-  color: var(--cs-accent);
+  color: var(--cs-muted);  /* a summary is chrome — neutral, never gold */
   padding-bottom: 14px;
   margin-bottom: 18px;
   border-bottom: 1px solid var(--cs-border);
@@ -1172,11 +1171,15 @@ code {
   border-color: var(--cs-border) !important;
 }
 .dash-table-container .dash-spreadsheet-inner th {
+  /* Quiet headers everywhere — neutral, no gold, no uppercase shouting
+     (matches the .quiet-table treatment; this is the fallback for any
+     table not yet wrapped in quiet_table). */
   background-color: var(--cs-card2) !important;
-  color: var(--cs-accent) !important;
-  font-size: 10px !important;
-  letter-spacing: .07em !important;
-  text-transform: uppercase !important;
+  color: var(--cs-muted) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
 .dash-table-container .dash-spreadsheet-inner tr:nth-child(even) td {
   background-color: var(--cs-card2) !important;
@@ -1720,7 +1723,7 @@ a.game-card:hover { background: var(--cs-hover); }
   border-bottom: 1px solid var(--cs-border);
   margin-bottom: 8px;
 }
-.rep-baseline-score { color: var(--cs-accent); }
+.rep-baseline-score { color: var(--cs-text); }  /* a baseline is a reference number, not an achievement */
 .rep-baseline-hint { color: var(--cs-dim); font-family: var(--cs-font-body); }
 
 /* Node rows: the <summary> of expandable branches and flat leaf rows */
