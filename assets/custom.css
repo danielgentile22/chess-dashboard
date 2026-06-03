@@ -1070,6 +1070,43 @@ code {
 .dash-table-container .dash-cell.focused {
   background-color: var(--cs-primary-wash) !important;
 }
+
+/* ── Quiet-table treatment (shared) ───────────────────────────
+   The Apple-calm table style adopted by the Games table — and
+   reused by the Events crosstables and Trends upset tables.  A
+   DataTable opts in by sitting inside a .quiet-table wrapper.
+   Neutral headers (no gold, no uppercase), left-aligned text,
+   hairline row separators instead of a grid, and the white
+   "focused row" glitch fixed.                                  */
+.quiet-table .dash-spreadsheet-inner td,
+.quiet-table .dash-spreadsheet-inner th {
+  border: none !important;
+  border-bottom: 1px solid var(--cs-border) !important;  /* hairline rows */
+  text-align: left !important;
+}
+.quiet-table .dash-spreadsheet-inner th {
+  background-color: var(--cs-card) !important;     /* neutral, not gold */
+  color: var(--cs-muted) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;               /* no tracked shouting */
+  text-transform: none !important;                 /* no uppercase */
+}
+/* No zebra striping — the hairlines carry the row rhythm. */
+.quiet-table .dash-spreadsheet-inner tr:nth-child(even) td {
+  background-color: var(--cs-card) !important;
+}
+/* The white "focused row" glitch: Dash paints the focused/selected cell
+   white.  Re-tint it to the calm primary wash so no row ever flashes white. */
+.quiet-table .cell--selected,
+.quiet-table .dash-cell.focused,
+.quiet-table td.focused,
+.quiet-table .dash-spreadsheet-inner td.focused {
+  background-color: var(--cs-primary-wash) !important;
+  color: var(--cs-text) !important;
+  box-shadow: none !important;
+}
+
 .dash-filter input {
   background: var(--cs-card2) !important;
   border-color: var(--cs-border) !important;

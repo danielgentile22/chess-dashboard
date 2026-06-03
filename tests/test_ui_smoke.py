@@ -2113,3 +2113,102 @@ class TestGamesCallbacks:
     def test_games_table_respects_filters(self, ui_app, ui_data):
         from pages.games import update_games_table
         assert len(update_games_table(*_filter_args(outcomes=["Win"]))) == 4
+
+
+def _games_table_columns(layout):
+    """The (label, id) pairs of the Games DataTable, in display order."""
+    def walk(node):
+        if getattr(node, "id", None) == "games-table":
+            return node
+        children = getattr(node, "children", None)
+        if children is None:
+            return None
+        if not isinstance(children, (list, tuple)):
+            children = [children]
+        for child in children:
+            found = walk(child)
+            if found is not None:
+                return found
+        return None
+
+    table = walk(layout)
+    assert table is not None, "games-table not found in layout"
+    return [(c["name"], c["id"]) for c in table.columns]
+
+
+class TestGamesColumnSet:
+    """The Games table is rebuilt around the player (opponent, ratings, my
+    color, outcome).  A guard test pins the exact column set so the redundant
+    raw-PGN columns can't creep back (the PRD's "Games column set" decision)."""
+
+    def test_player_centric_columns_in_order(self, ui_app, ui_data):
+        from pages.games import layout
+        ids = [cid for _name, cid in _games_table_columns(layout())]
+        assert ids == [
+            "Date", "Event", "RoundNum", "Opponent", "OpponentRating",
+            "Color", "PlayerRating", "Outcome", "Termination",
+            "FullMoves", "ECO", "Opening",
+            "LessonIndicator", "TagsDisplay", "USCF", "Lichess",
+        ]
+
+    def test_redundant_pgn_columns_are_dropped(self, ui_app, ui_data):
+        """No Index, no White/Black name or rating pairs, no raw Result —
+        the player-centric columns already say who I played and how it went."""
+        from pages.games import layout
+        ids = {cid for _name, cid in _games_table_columns(layout())}
+        for banned in ("Index", "White", "WhiteRating",
+                       "Black", "BlackRating", "Result"):
+            assert banned not in ids, f"redundant column {banned!r} crept back"
+
+    def test_data_rows_only_carry_displayed_columns_plus_chapter_url(
+        self, ui_app, ui_data
+    ):
+        """The callback feeds exactly the displayed columns (plus the hidden
+        ChapterURL that powers row-click navigation) — no stray PGN fields."""
+        from pages.games import layout, update_games_table
+        displayed = {cid for _name, cid in _games_table_columns(layout())}
+        row = update_games_table(*_filter_args())[0]
+        assert set(row) == displayed | {"ChapterURL"}
+
+
+class TestQuietTableTreatment:
+    """The shared quiet-table treatment (neutral headers, left-aligned text,
+    hairline separators, focused-row fix) is reusable styling, not Games-only
+    CSS — issues #49 (Events crosstables) and #50 (Trends upset tables) reuse
+    it."""
+
+    def test_quiet_helper_wraps_with_the_shared_class(self):
+        from dash import html
+
+        from components import quiet_table
+        wrapped = quiet_table(html.Div(id="inner"), clickable=True)
+        assert "quiet-table" in wrapped.className
+        assert "clickable-rows" in wrapped.className
+
+    def test_quiet_header_style_is_neutral_not_gold(self):
+        """Quiet headers carry no gold and no uppercase shouting."""
+        from components import QUIET_TABLE_HEADER
+        from styles import COLORS
+        assert QUIET_TABLE_HEADER["color"] == COLORS["muted"]
+        assert QUIET_TABLE_HEADER["color"] != COLORS["accent"]
+        assert QUIET_TABLE_HEADER["textTransform"] == "none"
+        assert QUIET_TABLE_HEADER["textAlign"] == "left"
+
+    def test_quiet_cell_style_left_aligns(self):
+        from components import QUIET_TABLE_CELL
+        assert QUIET_TABLE_CELL["textAlign"] == "left"
+
+    def test_quiet_treatment_lives_in_shared_css_not_games_page(self):
+        """The hairline separators and focused-row fix are defined once on the
+        .quiet-table class so any page can adopt them."""
+        from pathlib import Path
+        css = (Path(__file__).resolve().parent.parent
+               / "assets" / "custom.css").read_text()
+        assert ".quiet-table" in css
+        # The white focused-row glitch is re-tinted on the shared class.
+        assert ".quiet-table .dash-cell.focused" in css
+
+    def test_games_table_adopts_the_quiet_treatment(self, ui_app, ui_data):
+        """The Games table sits inside a .quiet-table wrapper."""
+        from pages.games import layout
+        assert "quiet-table" in str(layout())
