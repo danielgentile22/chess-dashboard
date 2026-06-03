@@ -74,18 +74,18 @@ def _lens_toggle() -> html.Div:
     ], title="Rating lens — which rating series every rating-derived stat uses")
 
 
-def _header(df, player_name: str) -> html.Header:
-    total = len(df)
-    date_range = ""
-    if not df.empty:
-        dated = df[df["Date_dt"].notna()]
-        if not dated.empty:
-            lo = dated["Date_dt"].min().strftime("%b %Y")
-            hi = dated["Date_dt"].max().strftime("%b %Y")
-            date_range = f"{lo} – {hi}"
+def _header(player_name: str) -> html.Header:
+    """
+    The calm header (issue #45): brand, form/streak, reconciliation badge,
+    the Official/Live lens, Filters, Sync.  Nothing else.
 
+    The game count and date range now live in the filter drawer summary, and
+    sync freshness moved to the Sync button's tooltip and the post-Sync toast —
+    so the header carries only what's needed on every page and lays out
+    correctly on a phone (no more overlapping stats at 390px).
+    """
     return html.Header(className="app-header", children=[
-        # Row 1: brand + form + stats + actions
+        # Row 1: brand + form + actions
         html.Div(className="app-header-top", children=[
             html.Div(className="app-header-brand", children=[
                 html.Span("♞", className="app-header-icon"),
@@ -99,19 +99,13 @@ def _header(df, player_name: str) -> html.Header:
             html.Div(className="app-header-right", children=[
                 # Open Reconciliation items (issue #30) — filled by callback
                 html.Div(id="reconciliation-badge", className="reconciliation-badge-slot"),
-                html.Span(
-                    [html.Strong(f"{total}"), " games"],
-                    id="header-games-count", className="app-header-stat",
-                ),
-                html.Span(date_range, id="header-date-range",
-                          className="app-header-stat app-header-stat-wide"),
-                html.Span("", id="sync-freshness",
-                          className="app-header-stat app-header-stat-wide"),
                 # The Official/Live rating lens (issue #31)
                 _lens_toggle(),
                 make_filter_button(),
                 html.Button(
-                    className="header-btn header-btn-sync", id="sync-button", children=[
+                    # title holds the sync-freshness tooltip — filled by callback
+                    className="header-btn header-btn-sync", id="sync-button",
+                    title="Sync", children=[
                         html.I(className="bi bi-arrow-repeat"),
                         html.Span("Sync", className="header-btn-text"),
                     ],
@@ -134,7 +128,7 @@ def make_shell() -> html.Div:
     player = data.get_player()
 
     return html.Div(className="app-root", children=[
-        _header(df, player),
+        _header(player),
 
         # Cache / offline notice (filled by callback when relevant)
         html.Div(id="cache-notice"),
@@ -252,6 +246,11 @@ def run_sync(n_clicks, store):
     if outcome.failures:
         failed = ", ".join(study_id for study_id, _ in outcome.failures)
         body += f" (couldn't fetch: {failed})"
+    # Sync freshness rides along in the toast (issue #45): it left the header,
+    # so the post-Sync toast is where you confirm both sources are current.
+    body = [html.Div(body),
+            html.Div(_per_source_freshness(_freshness_label(data.synced_at())),
+                     className="sync-toast-freshness")]
     new_store = {"seq": seq, "new_games": len(outcome.new_games)}
 
     # Did the new Games set any personal bests? (issue #15)
@@ -299,13 +298,20 @@ def update_reconciliation_badge(_sync, _dismissals):
 
 
 @callback(
-    Output("sync-freshness", "children"),
+    Output("sync-button", "title"),
     Output("cache-notice", "children"),
     Input("freshness-interval", "n_intervals"),
     Input("sync-store", "data"),
 )
 def update_freshness(_n, _sync):
-    """The per-source 'synced X ago' label, or the cached-data notice when offline."""
+    """
+    The per-source 'synced X ago' label moves onto the Sync button as its
+    tooltip (issue #45), and the cached-data notice shows when offline.
+
+    Freshness no longer stares from the header on every page — it's one hover
+    (or tap-and-hold) away on the Sync button, and it's restated in the
+    post-Sync toast.
+    """
     if data.source() == "cache":
         cached = data.cached_at()
         when = f"{cached:%Y-%m-%d %H:%M} UTC" if cached else "an earlier run"

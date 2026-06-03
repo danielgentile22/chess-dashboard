@@ -115,6 +115,14 @@ class TestSyncButton:
         assert icon == "success"
         assert "up to date" in str(body)
 
+    def test_successful_sync_restates_freshness_in_the_toast(self, sample_pgn_text):
+        """Freshness left the header (issue #45) — the post-Sync toast is where
+        a fresh Sync confirms its sources are current."""
+        from shell import run_sync
+        with stub_studies(teststudy=sample_pgn_text):
+            *_, body, _ = run_sync(1, {"seq": 0, "new_games": 0})
+        assert "synced" in str(body)
+
     def test_sync_with_new_games_names_them(self, sample_pgn_text, sample_pgn_study2_text):
         from shell import run_sync
         grown = sample_pgn_text + "\n\n" + sample_pgn_study2_text
@@ -256,7 +264,7 @@ class TestFreshness:
     def test_live_data_shows_synced_label_and_no_notice(self):
         from shell import update_freshness
         label, notice = update_freshness(0, {"seq": 0})
-        assert "synced" in label
+        assert "synced" in label  # the Sync button's tooltip text (issue #45)
         assert notice is None
 
     def test_cache_boot_shows_notice(self, sample_pgn_text, tmp_path):
@@ -445,6 +453,27 @@ class TestFilterDrawer:
         )
         assert "7" in str(summary)
         assert count == ""  # nothing active → no badge
+
+    def test_summary_carries_the_relocated_date_range(self):
+        """The date range moved from the header into the drawer summary (issue
+        #45): it rides alongside the game count, separated by '·'."""
+        from filters import update_filter_summary
+        summary, _count, *_ = update_filter_summary(
+            ["White", "Black"], ["Win", "Draw", "Loss"], [], None, None, [], None, None
+        )
+        rendered = str(summary)
+        assert "·" in rendered                  # count · date-range
+        assert "2024" in rendered               # the fixture games are from 2024
+
+    def test_summary_date_range_follows_active_filters(self):
+        """Filtering to a narrower set narrows the reported span too — the
+        summary describes exactly the Games in view."""
+        from filters import update_filter_summary
+        # An impossible window leaves zero Games → no span to report
+        empty, _count, *_ = update_filter_summary(
+            ["White"], ["Win"], [], "2030-01-01", "2030-12-31", [], None, None
+        )
+        assert "·" not in str(empty)            # nothing matched, no date range
 
     def test_summary_reports_active_filter_count(self):
         from filters import update_filter_summary

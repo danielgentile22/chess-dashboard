@@ -12,12 +12,14 @@ import dash
 from dash import Output, callback, dash_table, html
 
 from components import (
-    TABLE_CELL,
-    TABLE_DATA_COND,
-    TABLE_HEADER,
+    QUIET_TABLE_CELL,
+    QUIET_TABLE_DATA_COND,
+    QUIET_TABLE_HEADER,
     content_card,
+    game_cards,
     lichess_link,
     page_header,
+    quiet_table,
     register_game_navigation,
     uscf_status_label,
 )
@@ -27,17 +29,23 @@ dash.register_page(
     __name__, path="/games", name="Games", title="Games — Chess Stats", order=5,
 )
 
-# Columns shown in the games table, in display order.  Round is the numeric
-# RoundNum so the browser's native sort puts round 10 after round 9, not
-# after round 1.
+# Columns shown in the games table, in display order.  The table is built
+# around the player — opponent, opponent rating, my rating, my color, outcome
+# — not the raw PGN: the redundant White/Black name + rating pairs, the raw
+# Result, and the synthetic Index are dropped (the player-centric columns
+# already say who I played and whether I won).  Round is the numeric RoundNum
+# so the browser's native sort puts round 10 after round 9, not after round 1.
 _DISPLAY_COLS = [
-    "Index", "Date", "Event", "RoundNum", "White", "WhiteRating",
-    "Black", "BlackRating", "Result", "Outcome", "Color",
-    "PlayerRating", "OpponentRating", "Termination",
+    "Date", "Event", "RoundNum", "Opponent", "OpponentRating",
+    "Color", "PlayerRating", "Outcome", "Termination",
     "FullMoves", "ECO", "Opening",
 ]
-_COL_LABELS = {"RoundNum": "Round"}
-_NUMERIC_COLS = {"Index", "RoundNum", "FullMoves"}
+_COL_LABELS = {
+    "RoundNum": "Round",
+    "OpponentRating": "Opp Rating",
+    "PlayerRating": "My Rating",
+}
+_NUMERIC_COLS = {"RoundNum", "FullMoves"}
 
 
 # ---------------------------------------------------------------------------
@@ -63,20 +71,28 @@ def layout(**kwargs) -> html.Div:
         page_header("Games", "Every game in your archive"),
 
         content_card(
-            "All games (filtered) — click a row to open the game",
-            html.Div(style={"flex": "1", "overflow": "auto"}, className="clickable-rows", children=[
-                dash_table.DataTable(
-                    id="games-table",
-                    columns=cols, data=[],
-                    page_size=25, sort_action="native",
-                    filter_action="native",
-                    markdown_options={"link_target": "_blank"},
-                    style_table={"overflowX": "auto"},
-                    style_cell=TABLE_CELL,
-                    style_header=TABLE_HEADER,
-                    style_data_conditional=TABLE_DATA_COND,
+            "All games (filtered) — tap a game to open it",
+            # Desktop: the full player-centric table.  Phone: the card list.
+            # Both are fed by the same callback rows (see update_games), so the
+            # card list is a different rendering, never a second data path.
+            html.Div(
+                quiet_table(
+                    dash_table.DataTable(
+                        id="games-table",
+                        columns=cols, data=[],
+                        page_size=25, sort_action="native",
+                        filter_action="native",
+                        markdown_options={"link_target": "_blank"},
+                        style_table={"overflowX": "auto"},
+                        style_cell=QUIET_TABLE_CELL,
+                        style_header=QUIET_TABLE_HEADER,
+                        style_data_conditional=QUIET_TABLE_DATA_COND,
+                    ),
+                    clickable=True,
                 ),
-            ]),
+                className="games-table-view",
+            ),
+            html.Div(id="games-cards", className="games-cards-view"),
         ),
     ])
 
@@ -85,8 +101,14 @@ def layout(**kwargs) -> html.Div:
 # Callbacks
 # ---------------------------------------------------------------------------
 
-@callback(Output("games-table", "data"), FILTER_INPUTS)
 def update_games_table(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    """Build the filtered Game rows — the single data source the page renders.
+
+    Returns the trimmed player-centric records (plus the hidden ChapterURL that
+    powers click-through navigation).  Both the desktop table and the mobile
+    card list (issue #48) are rendered from this one list, so they can never
+    disagree.
+    """
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     cols = [c for c in _DISPLAY_COLS if c in df_f.columns]
     out = df_f[cols].copy()
@@ -110,6 +132,21 @@ def update_games_table(colors, outcomes, terminations, start, end, events, moves
         # knows which Game to open (issue #11)
         out["ChapterURL"] = df_f["ChapterURL"]
     return out.to_dict("records")
+
+
+@callback(
+    Output("games-table", "data"),
+    Output("games-cards", "children"),
+    FILTER_INPUTS,
+)
+def update_games(*filter_args):
+    """Feed the table and the mobile card list from one row build (issue #48).
+
+    The table consumes the rows directly; the card list is the same rows
+    rendered as tappable cards — one data pipeline, two presentations.
+    """
+    rows = update_games_table(*filter_args)
+    return rows, game_cards(rows)
 
 
 navigate_to_game = register_game_navigation(

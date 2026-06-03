@@ -37,12 +37,21 @@ dash.register_page(
 
 def embed_url(chapter_url: str) -> str:
     """
-    The Lichess embed URL for a Chapter.
+    The dark-theme Lichess embed URL for a Chapter (issue #43 [E9]).
 
     ChapterURL is https://lichess.org/study/{study}/{chapter}; the embeddable
-    board lives at https://lichess.org/study/embed/{study}/{chapter}.
+    board lives at https://lichess.org/study/embed/{study}/{chapter}. We append
+    Lichess's ``bg=dark`` background parameter so the board matches the dark
+    dashboard instead of flashbanging the viewer with a light board.
+
+    A blank ChapterURL yields ``""`` so the caller can skip the iframe.
     """
-    return chapter_url.replace("lichess.org/study/", "lichess.org/study/embed/")
+    if not chapter_url or not chapter_url.strip():
+        return ""
+    embed = chapter_url.replace("lichess.org/study/", "lichess.org/study/embed/")
+    # Append the dark-background param, respecting any query string already there.
+    separator = "&" if "?" in embed else "?"
+    return f"{embed}{separator}bg=dark"
 
 
 def _find_game(chapter_id: str | None) -> pd.Series | None:
@@ -206,6 +215,26 @@ def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
             dcc.Link("← Back to all games", href="/games", className="back-link"),
         ])
 
+    chapter_url = str(game.get("ChapterURL") or "")
+    board_embed = embed_url(chapter_url)
+    if board_embed:
+        board_card = html.Div(className="game-board-card", children=[
+            html.Iframe(
+                src=board_embed,
+                className="lichess-embed",
+                allow="fullscreen",
+            ),
+        ])
+    else:
+        # No ChapterURL — render the board card gracefully, never a broken iframe.
+        board_card = html.Div(className="game-board-card", children=[
+            empty_state(
+                "♟",
+                "No board for this game",
+                "This Game has no Lichess Chapter, so there's nothing to embed.",
+            ),
+        ])
+
     opponent = str(game.get("Opponent") or "Unknown opponent")
     outcome = str(game.get("Outcome") or "")
     subtitle_bits = [str(game.get("Event") or ""),
@@ -226,14 +255,8 @@ def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
 
         html.Div(className="game-detail-grid", children=[
             # The Chapter's interactive board — annotations and variations
-            # playable in place
-            html.Div(className="game-board-card", children=[
-                html.Iframe(
-                    src=embed_url(str(game["ChapterURL"])),
-                    className="lichess-embed",
-                    allow="fullscreen",
-                ),
-            ]),
+            # playable in place, in dark theme (issue #43)
+            board_card,
 
             # Everything known about the Game, alongside the board
             html.Div(className="game-detail-side", children=[
@@ -243,9 +266,9 @@ def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
                 _uscf_facts_card(game),
                 html.A(
                     [html.I(className="bi bi-box-arrow-up-right"), " Open on Lichess"],
-                    href=str(game["ChapterURL"]), target="_blank",
+                    href=chapter_url, target="_blank",
                     className="lichess-open-btn",
-                ),
+                ) if chapter_url else None,
             ]),
         ]),
     ])

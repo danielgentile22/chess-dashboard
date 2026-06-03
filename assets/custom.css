@@ -1,63 +1,16 @@
 /* ============================================================
-   Chess Stats Dashboard — Custom Dark Theme
-   "Tournament hall at night": the established GitHub-dark palette,
-   elevated with a literary serif (Fraunces) for titles, mono
-   numerals (IBM Plex Mono) for data, and gold reserved for
-   achievement moments and the active page.
+   Chess Stats Dashboard — Apple Dark Theme
+   Calm, neutral surfaces in the Apple dark palette: a near-black
+   background, borderless cards separated by fill, hairline
+   separators, the system colors, and the Apple system font.
+   Gold is reserved for achievements.
+
+   The theme tokens (--cs-* and --Dash-* variables) are NOT defined
+   here.  They are generated from styles.THEME (the single Python
+   source of truth) and injected into <head> at app startup so the
+   chart colors and these CSS variables can never drift apart.
+   This stylesheet only *consumes* var(--cs-*).
    ============================================================ */
-
-/* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
-
-/* ── CSS variables ───────────────────────────────────────── */
-:root {
-  --cs-bg:      #0d1117;
-  --cs-card:    #161b22;
-  --cs-card2:   #1c2128;
-  --cs-hover:   #21262d;
-  --cs-border:  #30363d;
-  --cs-text:    #e6edf3;
-  --cs-muted:   #8b949e;
-  --cs-dim:     #6e7681;
-  --cs-win:     #3fb950;
-  --cs-win-bg:  rgba(63,185,80,.14);
-  --cs-draw:    #6e7681;
-  --cs-draw-bg: rgba(110,118,129,.14);
-  --cs-loss:    #f85149;
-  --cs-loss-bg: rgba(248,81,73,.12);
-  --cs-accent:  #d29922;
-  --cs-primary: #58a6ff;
-  --cs-radius:  8px;
-  --cs-header-h: 58px;   /* top header row; the mobile drawer anchors to it */
-
-  --cs-font-body:    'Inter', system-ui, -apple-system, sans-serif;
-  --cs-font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --cs-font-mono:    'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
-}
-
-/* ── Dash 4 component theming ────────────────────────────────
-   dcc components (Dropdown, DatePicker, Slider, …) read these
-   variables; Dash injects its own light-theme values at runtime,
-   so the doubled :root:root selector outranks them.            */
-:root:root {
-  --Dash-Text-Primary: var(--cs-text);
-  --Dash-Text-Strong: var(--cs-text);
-  --Dash-Text-Weak: var(--cs-muted);
-  --Dash-Text-Disabled: var(--cs-dim);
-  --Dash-Stroke-Strong: #444c56;
-  --Dash-Stroke-Weak: var(--cs-border);
-  --Dash-Fill-Interactive-Strong: var(--cs-primary);
-  --Dash-Fill-Interactive-Weak: rgba(88, 166, 255, .14);
-  --Dash-Fill-Inverse-Strong: var(--cs-card2);
-  --Dash-Fill-Inverse-strong: var(--cs-card2); /* dash ships both spellings */
-  --Dash-Fill-Primary-Hover: rgba(230, 237, 243, .06);
-  --Dash-Fill-Primary-Active: rgba(230, 237, 243, .1);
-  --Dash-Fill-Disabled: rgba(110, 118, 129, .25);
-  --Dash-Shading-Strong: rgba(1, 4, 9, .55);
-  --Dash-Shading-Weak: rgba(1, 4, 9, .35);
-  --Dash-Tooltip-Background-Color: var(--cs-card2);
-  --Dash-Tooltip-Border-Color: var(--cs-border);
-}
 
 /* ── Global reset ───────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
@@ -72,13 +25,23 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Inline code (e.g. the Lesson: convention hints) */
+/* Data values render with tabular figures so columns of numbers align,
+   without the mono typeface: KPIs, stat values, the scouting ratings,
+   crosstable cells, and every DataTable cell. */
+.kpi-value, .uscf-stat-value, .stat-strip-value,
+.scout-then-vs-now, .crosstable-cell, .crosstable-ordinal, .crosstable-score,
+.dash-table-container, .dash-table-container * {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inline code (e.g. the Lesson: convention hints) — the one place the mono
+   face survives.  Neutral color: gold is reserved for achievements. */
 code {
   background: var(--cs-card2);
   border: 1px solid var(--cs-border);
   border-radius: 4px;
   padding: 1px 6px;
-  color: var(--cs-accent) !important;
+  color: var(--cs-text) !important;
   font-family: var(--cs-font-mono);
   font-size: .85em;
 }
@@ -100,8 +63,8 @@ code {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 75% 50% at 50% -12%, rgba(88,166,255,.075), transparent 70%),
-    repeating-conic-gradient(rgba(230,237,243,.016) 0% 25%, transparent 0% 50%);
+    radial-gradient(ellipse 75% 50% at 50% -12%, var(--cs-primary-glow), transparent 70%),
+    repeating-conic-gradient(var(--cs-text-texture) 0% 25%, transparent 0% 50%);
   background-size: 100% 100%, 104px 104px;
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.5) 38%, transparent 72%);
   mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.5) 38%, transparent 72%);
@@ -109,7 +72,7 @@ code {
 
 /* ── App header ──────────────────────────────────────────── */
 .app-header {
-  background: rgba(22,27,34,.88);
+  background: var(--cs-card-glass);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--cs-border);
@@ -135,7 +98,7 @@ code {
   font-size: 27px;
   line-height: 1;
   color: var(--cs-accent);
-  text-shadow: 0 0 24px rgba(210,153,34,.45);
+  text-shadow: 0 0 24px var(--cs-accent-glow);
 }
 .app-header-titles { display: flex; flex-direction: column; line-height: 1.15; }
 .app-header-title {
@@ -177,19 +140,23 @@ code {
   cursor: default;
 }
 .streak-fire .streak-count, .streak-cold .streak-count {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12px;
   font-weight: 600;
   color: var(--cs-accent);
 }
 .streak-cold .streak-count { color: var(--cs-primary); }
+/* A blazing streak (≥5 wins) draws the eye with a few pulses on load, then
+   settles to a steady glow — nothing keeps moving once the page has settled
+   (issue #51).  The static drop-shadow below is the resting state; the finite
+   `blaze` runs three times and stops. */
 .streak-fire.blazing {
-  animation: blaze 1.6s ease-in-out infinite;
-  filter: drop-shadow(0 0 6px rgba(255, 140, 30, .85));
+  animation: blaze 1.6s ease-in-out 3;
+  filter: drop-shadow(0 0 8px var(--cs-fire-glow));
 }
 @keyframes blaze {
-  0%, 100% { filter: drop-shadow(0 0 5px rgba(255, 140, 30, .7)); transform: scale(1); }
-  50%      { filter: drop-shadow(0 0 14px rgba(255, 170, 40, 1)); transform: scale(1.08); }
+  0%, 100% { filter: drop-shadow(0 0 5px var(--cs-fire-glow-2)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 14px var(--cs-fire-glow-3)); transform: scale(1.08); }
 }
 .form-dots {
   display: inline-flex;
@@ -202,16 +169,10 @@ code {
   border-radius: 50%;
   display: inline-block;
 }
-.form-dot.win     { background: var(--cs-win); box-shadow: 0 0 5px rgba(63,185,80,.6); }
+.form-dot.win     { background: var(--cs-win); box-shadow: 0 0 5px var(--cs-win-glow); }
 .form-dot.draw    { background: var(--cs-draw); }
-.form-dot.loss    { background: var(--cs-loss); box-shadow: 0 0 5px rgba(248,81,73,.45); }
+.form-dot.loss    { background: var(--cs-loss); box-shadow: 0 0 5px var(--cs-loss-glow); }
 .form-dot.unknown { background: var(--cs-border); }
-.app-header-stat {
-  font-family: var(--cs-font-mono);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-.app-header-stat strong { color: var(--cs-text); font-weight: 600; }
 
 /* Header buttons (Filters / Sync) */
 .header-btn {
@@ -236,14 +197,15 @@ code {
   outline: none;
 }
 .header-btn-sync:hover, .header-btn-sync:focus-visible {
-  border-color: var(--cs-accent);
-  color: var(--cs-accent);
+  border-color: var(--cs-primary);  /* interactive chrome — systemBlue, not gold */
+  color: var(--cs-primary);
 }
 .header-btn i { font-size: 13px; line-height: 1; }
 .filter-count-badge {
-  background: var(--cs-accent);
-  color: #0d1117;
-  font-family: var(--cs-font-mono);
+  background: var(--cs-primary);  /* interactive chrome — systemBlue, not gold */
+  color: var(--cs-text);
+  font-family: var(--cs-font-body);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
@@ -310,7 +272,12 @@ code {
   color: var(--cs-muted) !important;
   font-size: 13px;
   font-weight: 500;
-  padding: 10px 14px 12px !important;
+  /* ≥44px touch target (issue #51): the 18px line-height plus 13+13 padding
+     clears 44px so taps land on the first try at the chess club. */
+  padding: 13px 14px !important;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   position: relative;
   text-decoration: none;
   white-space: nowrap;
@@ -321,17 +288,25 @@ code {
   color: var(--cs-text) !important;
   font-weight: 600;
 }
-.app-nav-link.active::after {
+/* The active-tab underline slides between tabs (issue #51).  Every link owns
+   an underline that sits scaled to nothing; the active one scales up.  As the
+   active class moves from one tab to the next, the old underline collapses and
+   the new one grows along the same baseline — a continuous slide, all CSS, and
+   it settles the instant navigation does (no looping animation). */
+.app-nav-link::after {
   content: "";
   position: absolute;
   bottom: -1px;
   left: 12px;
   right: 12px;
   height: 2px;
-  background: var(--cs-accent);
+  background: var(--cs-text);  /* navigation is chrome — neutral, never gold */
   border-radius: 2px 2px 0 0;
-  box-shadow: 0 0 12px rgba(210,153,34,.5);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform .3s cubic-bezier(.32, .72, 0, 1);
 }
+.app-nav-link.active::after { transform: scaleX(1); }
 
 /* ── Page scaffolding ────────────────────────────────────── */
 .app-main {
@@ -348,12 +323,39 @@ code {
   from { opacity: 0; transform: translateY(7px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* ── Page-load card stagger (issue #51) ───────────────────────
+   Each card fades up as the page opens, with a small per-card delay so the
+   page assembles top-to-bottom rather than all at once — "considered without
+   being showy" (PRD).  Pure CSS, runs once (`both` holds the end state), and
+   settles the moment the last card lands: nothing keeps moving afterwards.
+   The delay is applied with nth-of-type so it never compounds across grids. */
+.page .kpi-card,
+.page .chart-card { animation: cardIn .35s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+/* ~40ms stagger, capped at six steps so a long page never feels slow. */
+.page .kpi-card:nth-of-type(1),
+.page .chart-card:nth-of-type(1) { animation-delay: 0ms; }
+.page .kpi-card:nth-of-type(2),
+.page .chart-card:nth-of-type(2) { animation-delay: 40ms; }
+.page .kpi-card:nth-of-type(3),
+.page .chart-card:nth-of-type(3) { animation-delay: 80ms; }
+.page .kpi-card:nth-of-type(4),
+.page .chart-card:nth-of-type(4) { animation-delay: 120ms; }
+.page .kpi-card:nth-of-type(5),
+.page .chart-card:nth-of-type(5) { animation-delay: 160ms; }
+.page .kpi-card:nth-of-type(n+6),
+.page .chart-card:nth-of-type(n+6) { animation-delay: 200ms; }
 .page-header { margin-bottom: 20px; }
 .page-title {
+  /* iOS large-title: system font, bold, large, tight tracking. */
   font-family: var(--cs-font-display);
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -.005em;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -.02em;
   color: var(--cs-text);
   margin: 0 0 2px;
   line-height: 1.2;
@@ -375,13 +377,12 @@ code {
 }
 .kpi-card {
   background: var(--cs-card);
-  border: 1px solid var(--cs-border);
   border-radius: var(--cs-radius);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  transition: border-color .15s, transform .15s;
+  transition: background .15s, transform .15s;
   cursor: default;
   position: relative;
   overflow: hidden;
@@ -391,11 +392,11 @@ code {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 2px;
-  background: var(--cs-accent);
+  background: var(--cs-muted);  /* hover affordance is chrome — neutral, not gold */
   opacity: 0;
   transition: opacity .2s;
 }
-.kpi-card:hover { border-color: #444c56; transform: translateY(-1px); }
+.kpi-card:hover { background: var(--cs-card2); transform: translateY(-1px); }
 .kpi-card:hover::before { opacity: 1; }
 .kpi-label {
   font-size: 10px;
@@ -405,7 +406,8 @@ code {
   color: var(--cs-muted);
 }
 .kpi-value {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
+  font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
   font-size: 21px;
   font-weight: 600;
@@ -415,24 +417,42 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Win % green, loss % red — the only semantic colour on the KPI row.  Accent
+   and primary survive for any caller that still asks, but Overview's KPIs are
+   now neutral white (PRD colour discipline). */
 .kpi-value.win     { color: var(--cs-win); }
 .kpi-value.loss    { color: var(--cs-loss); }
 .kpi-value.accent  { color: var(--cs-accent); }
 .kpi-value.primary { color: var(--cs-primary); }
 
+/* The text variant: a long string value (the favourite opening) wraps to two
+   lines and shrinks a touch instead of truncating to an ellipsis. */
+.kpi-value-text {
+  font-size: 16px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 /* ── Chart cards ─────────────────────────────────────────── */
 .chart-card {
   background: var(--cs-card);
-  border: 1px solid var(--cs-border);
   border-radius: var(--cs-radius);
   padding: 14px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-  transition: border-color .15s;
+  transition: background .15s, transform .2s;
 }
-.chart-card:hover { border-color: #444c56; }
+/* Cards lift slightly on hover (issue #51) so what's interactive is
+   discoverable.  −1px, 200ms — interruptible and settled the moment the
+   pointer leaves. */
+.chart-card:hover { background: var(--cs-card2); transform: translateY(-1px); }
 .chart-title {
   font-size: 10px;
   font-weight: 600;
@@ -461,7 +481,7 @@ code {
   line-height: 1;
   opacity: .22;
   margin-bottom: 18px;
-  filter: drop-shadow(0 0 18px rgba(230,237,243,.25));
+  filter: drop-shadow(0 0 18px var(--cs-text-glow));
 }
 .empty-state-title {
   font-family: var(--cs-font-display);
@@ -483,6 +503,14 @@ code {
   border-left: 1px solid var(--cs-border);
   width: 380px !important;
   color: var(--cs-text);
+  /* The drawer slides on Apple's sheet curve (issue #51) — it eases in fast
+     and settles soft, the way an iOS sheet does, instead of Bootstrap's linear
+     default.  Overrides the framework's own transition timing. */
+  transition: transform .42s cubic-bezier(.32, .72, 0, 1) !important;
+}
+/* The backdrop fades on the same curve so the scrim and the sheet move as one. */
+.offcanvas-backdrop {
+  transition: opacity .42s cubic-bezier(.32, .72, 0, 1) !important;
 }
 .filter-drawer .offcanvas-header {
   border-bottom: 1px solid var(--cs-border);
@@ -499,12 +527,12 @@ code {
   filter: invert(1) grayscale(100%) brightness(200%);
   opacity: .6;
 }
-.offcanvas-backdrop { background-color: rgba(1,4,9,.7) !important; }
+.offcanvas-backdrop { background-color: var(--cs-bg-scrim) !important; }
 
 .filter-summary {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12px;
-  color: var(--cs-accent);
+  color: var(--cs-muted);  /* a summary is chrome — neutral, never gold */
   padding-bottom: 14px;
   margin-bottom: 18px;
   border-bottom: 1px solid var(--cs-border);
@@ -536,7 +564,12 @@ code {
   border: 1px solid var(--cs-border);
   border-radius: 20px;
   color: var(--cs-muted);
-  padding: 4px 13px;
+  /* ≥44px touch target (issue #51): the chip stays visually compact (the
+     border-radius pill) but its hit area clears 44px so taps land. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 4px 15px;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -546,7 +579,7 @@ code {
 .preset-btn:hover, .preset-btn:focus {
   border-color: var(--cs-primary);
   color: var(--cs-primary);
-  background: rgba(88,166,255,.08);
+  background: var(--cs-primary-wash-2);
   outline: none;
 }
 
@@ -566,6 +599,13 @@ code {
   background: var(--cs-card) !important;
   color: var(--cs-text) !important;
   border-bottom: 1px solid var(--cs-border);
+}
+/* Sync freshness restated in the toast (issue #45) — quiet, secondary line */
+.sync-toast-freshness {
+  margin-top: 6px;
+  font-family: var(--cs-font-data);
+  font-size: 11.5px;
+  color: var(--cs-muted);
 }
 .cache-notice-alert {
   border-radius: 0 !important;
@@ -609,7 +649,7 @@ code {
   font-weight: 600;
 }
 .streak-stat-value {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 24px;
   font-weight: 600;
   color: var(--cs-text);
@@ -617,6 +657,41 @@ code {
 }
 .streak-stat-value.win  { color: var(--cs-win); }
 .streak-stat-value.loss { color: var(--cs-loss); }
+
+/* ── Compact stat strip ──────────────────────────────────────
+   A row of small value-over-label tiles (Trends' "Average game
+   length": avg moves for Wins / Draws / Losses).  The card sizes
+   to this strip's height — no dead zone beside its chart. */
+.stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+.stat-strip-item {
+  flex: 1 1 0;
+  min-width: 80px;
+  background: var(--cs-card2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stat-strip-value {
+  font-family: var(--cs-font-data);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--cs-text);
+  line-height: 1.1;
+}
+.stat-strip-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--cs-muted);
+  font-weight: 600;
+}
 
 /* ── H2H breakdown cards ─────────────────────────────────── */
 .h2h-stat-grid {
@@ -627,14 +702,13 @@ code {
 }
 .h2h-stat {
   background: var(--cs-card2);
-  border: 1px solid var(--cs-border);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px 12px;
   text-align: center;
 }
 .h2h-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--cs-muted); }
 .h2h-stat-val {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 24px;
   font-weight: 600;
   color: var(--cs-text);
@@ -653,20 +727,21 @@ code {
 }
 .scout-dossier { animation: pageIn .32s cubic-bezier(.2, .8, .2, 1) both; }
 .scout-stat-grid { grid-template-columns: repeat(6, 1fr); }
-.scout-section { margin-top: 18px; }
+.scout-section { margin-top: 22px; }
 
-/* The opponent's official USCF identity + then-vs-now (issue #35) */
+/* The opponent's official USCF identity + then-vs-now (issue #35).
+   Token-driven, native — no mono font, no bordered card.  The opponent's
+   name reads as the dossier's heading; a single hairline below separates
+   it from the stats by fill, not by a box. */
 .scout-uscf-identity {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 6px 16px;
-  margin-bottom: 14px;
-  padding: 10px 14px;
-  background: var(--cs-card2);
-  border: 1px solid var(--cs-border);
-  border-radius: 8px;
+  gap: 4px 16px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--cs-border);
 }
 .scout-uscf-link {
   display: inline-flex;
@@ -676,35 +751,40 @@ code {
   text-decoration: none !important;
 }
 .scout-uscf-link:hover .scout-uscf-name { text-decoration: underline; }
-.scout-uscf-name { font-weight: 600; }
+.scout-uscf-name {
+  font-family: var(--cs-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--cs-text);
+}
 .scout-uscf-id {
-  font-family: var(--cs-font-mono);
-  font-size: 11.5px;
-  color: var(--cs-muted);
+  font-size: 12px;
+  color: var(--cs-dim);
 }
-.scout-uscf-ext { font-size: 11px; color: var(--cs-primary); }
+.scout-uscf-ext { font-size: 12px; color: var(--cs-primary); }
 .scout-then-vs-now {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--cs-muted);
 }
-.scout-then-vs-now .scout-now { font-family: var(--cs-font-mono); }
 .scout-then-vs-now .scout-now.win  { color: var(--cs-win); }   /* they dropped */
 .scout-then-vs-now .scout-now.loss { color: var(--cs-loss); }  /* they climbed */
 .scout-section-title {
   font-family: var(--cs-font-display);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
+  letter-spacing: -.01em;
   color: var(--cs-text);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
-.scout-openings { margin-top: 18px; margin-bottom: 0; }
+.scout-openings { margin-top: 22px; margin-bottom: 0; }
 .scout-openings-panel {
   background: var(--cs-card2);
-  border: 1px solid var(--cs-border);
-  border-radius: 6px;
+  border-radius: 10px;
   padding: 14px 16px;
 }
-.scout-openings-panel .scout-section-title { margin-bottom: 8px; font-size: 13.5px; }
+/* Sub-heading: one tier below a section title in the system hierarchy. */
+.scout-openings-panel .scout-section-title { margin-bottom: 8px; font-size: 14px; }
 .scout-opening-row {
   display: flex;
   align-items: baseline;
@@ -716,12 +796,12 @@ code {
 .scout-opening-row:last-child { border-bottom: none; }
 .scout-opening-name { flex: 1; color: var(--cs-text); }
 .scout-opening-eco {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11px;
   color: var(--cs-dim);
 }
 .scout-opening-record {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12px;
   color: var(--cs-muted);
   white-space: nowrap;
@@ -729,14 +809,12 @@ code {
 .scout-terminations { display: flex; flex-wrap: wrap; gap: 8px; }
 .scout-term-chip {
   background: var(--cs-card2);
-  border: 1px solid var(--cs-border);
   border-radius: 999px;
-  padding: 4px 12px;
-  font-size: 12px;
+  padding: 5px 14px;
+  font-size: 12.5px;
   color: var(--cs-text);
 }
 .scout-term-count {
-  font-family: var(--cs-font-mono);
   color: var(--cs-muted);
   margin-left: 6px;
 }
@@ -759,28 +837,32 @@ code {
   align-items: flex-start;
 }
 .milestone-row:last-child { border-bottom: none; }
+/* Game-milestone dots are neutral — gold is reserved for the official USCF
+   achievement rows below (the only true achievements here).  Outcome dots
+   (first win/draw/loss) keep their semantic colour; every other game
+   milestone reads in calm grey. */
 .milestone-dot {
   width: 10px; height: 10px;
   border-radius: 50%;
-  background: var(--cs-accent);
+  background: var(--cs-dim);
   flex-shrink: 0;
   margin-top: 4px;
 }
 .milestone-dot.win     { background: var(--cs-win); }
 .milestone-dot.loss    { background: var(--cs-loss); }
 .milestone-dot.draw    { background: var(--cs-muted); }
-.milestone-dot.peak    { background: var(--cs-primary); }
-.milestone-dot.streak  { background: var(--cs-accent); }
-.milestone-dot.first   { background: var(--cs-accent); }
+.milestone-dot.peak    { background: var(--cs-muted); }
+.milestone-dot.streak  { background: var(--cs-muted); }
+.milestone-dot.first   { background: var(--cs-muted); }
 .milestone-dot.milestone { background: var(--cs-dim); }
 .milestone-date {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11px; color: var(--cs-dim);
   width: 90px; flex-shrink: 0;
   padding-top: 1px;
 }
 .milestone-num {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11px; color: var(--cs-dim);
   width: 56px; flex-shrink: 0;
   text-align: right; padding-top: 1px;
@@ -791,10 +873,10 @@ code {
    gold reserved for achievements per the design language. */
 .milestone-dot.uscf {
   background: var(--cs-accent);
-  box-shadow: 0 0 7px rgba(210, 153, 34, .65);
+  box-shadow: 0 0 7px var(--cs-accent-glow);
 }
 .milestone-row-uscf {
-  background: linear-gradient(90deg, rgba(210, 153, 34, .07), transparent 65%);
+  background: linear-gradient(90deg, var(--cs-accent-wash-2), transparent 65%);
   border-radius: 4px;
 }
 .milestone-num-uscf {
@@ -829,7 +911,7 @@ code {
 .review-launch-btn:hover {
   border-color: var(--cs-accent);
   transform: translateY(-1px);
-  box-shadow: 0 4px 18px rgba(210,153,34,.15);
+  box-shadow: 0 4px 18px var(--cs-accent-shadow);
 }
 .review-launch-icon { color: var(--cs-accent); font-size: 16px; }
 .scout-review-launch { margin-top: 14px; margin-bottom: 0; }
@@ -841,7 +923,7 @@ code {
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(210,153,34,.05), transparent),
+    radial-gradient(ellipse 70% 40% at 50% 0%, var(--cs-accent-wash-2), transparent),
     var(--cs-bg);
   animation: pageIn .3s ease-out both;
 }
@@ -896,16 +978,16 @@ code {
   display: inline-block;
   padding: 4px 12px;
   border-radius: 999px;
-  background: rgba(88,166,255,.12);
-  border: 1px solid rgba(88,166,255,.35);
+  background: var(--cs-primary-wash);
+  border: 1px solid var(--cs-primary-line);
   color: var(--cs-primary);
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 22px;
 }
 .review-reason.weakness {
-  background: rgba(248,81,73,.12);
-  border-color: rgba(248,81,73,.4);
+  background: var(--cs-loss-bg);
+  border-color: var(--cs-loss-line-2);
   color: var(--cs-loss);
 }
 .review-lesson-text {
@@ -956,7 +1038,7 @@ code {
 }
 .review-prev-btn:hover { border-color: var(--cs-muted); }
 .review-progress {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 14px;
   color: var(--cs-accent);
   letter-spacing: .05em;
@@ -968,8 +1050,8 @@ code {
    insight that makes Tags pay off. Loss-red, deliberately loud. */
 .weakness-callouts { margin-bottom: 18px; }
 .weakness-callout {
-  background: linear-gradient(135deg, rgba(248,81,73,.10), rgba(248,81,73,.03));
-  border: 1px solid rgba(248,81,73,.4);
+  background: linear-gradient(135deg, var(--cs-loss-wash-2), var(--cs-loss-wash-4));
+  border: 1px solid var(--cs-loss-line-2);
   border-left: 3px solid var(--cs-loss);
   border-radius: var(--cs-radius);
   padding: 14px 18px;
@@ -990,7 +1072,7 @@ code {
   color: var(--cs-text);
 }
 .weakness-window {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11px;
   color: var(--cs-muted);
 }
@@ -1013,11 +1095,11 @@ code {
 .celebration-banner.alert {
   margin: 18px 24px 0;
   padding: 16px 20px;
-  background: linear-gradient(135deg, rgba(210,153,34,.16), rgba(210,153,34,.05));
-  border: 1px solid rgba(210,153,34,.45);
+  background: linear-gradient(135deg, var(--cs-accent-wash), var(--cs-accent-wash-2));
+  border: 1px solid var(--cs-accent-line);
   border-radius: var(--cs-radius);
   color: var(--cs-text);
-  box-shadow: 0 0 28px rgba(210,153,34,.12), inset 0 1px 0 rgba(210,153,34,.18);
+  box-shadow: 0 0 28px var(--cs-accent-wash), inset 0 1px 0 var(--cs-accent-line);
   animation: celebrationIn .5s cubic-bezier(.2, .9, .3, 1.2) both;
 }
 @keyframes celebrationIn {
@@ -1065,7 +1147,7 @@ code {
   color: var(--cs-text);
 }
 .activity-year-stats {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11px;
   color: var(--cs-muted);
   letter-spacing: .02em;
@@ -1089,11 +1171,15 @@ code {
   border-color: var(--cs-border) !important;
 }
 .dash-table-container .dash-spreadsheet-inner th {
+  /* Quiet headers everywhere — neutral, no gold, no uppercase shouting
+     (matches the .quiet-table treatment; this is the fallback for any
+     table not yet wrapped in quiet_table). */
   background-color: var(--cs-card2) !important;
-  color: var(--cs-accent) !important;
-  font-size: 10px !important;
-  letter-spacing: .07em !important;
-  text-transform: uppercase !important;
+  color: var(--cs-muted) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
 .dash-table-container .dash-spreadsheet-inner tr:nth-child(even) td {
   background-color: var(--cs-card2) !important;
@@ -1103,8 +1189,103 @@ code {
 }
 .dash-table-container .cell--selected,
 .dash-table-container .dash-cell.focused {
-  background-color: rgba(88,166,255,.12) !important;
+  background-color: var(--cs-primary-wash) !important;
 }
+
+/* ── Quiet-table treatment (shared) ───────────────────────────
+   The Apple-calm table style adopted by the Games table — and
+   reused by the Events crosstables and Trends upset tables.  A
+   DataTable opts in by sitting inside a .quiet-table wrapper.
+   Neutral headers (no gold, no uppercase), left-aligned text,
+   hairline row separators instead of a grid, and the white
+   "focused row" glitch fixed.                                  */
+.quiet-table .dash-spreadsheet-inner td,
+.quiet-table .dash-spreadsheet-inner th {
+  border: none !important;
+  border-bottom: 1px solid var(--cs-border) !important;  /* hairline rows */
+  text-align: left !important;
+}
+.quiet-table .dash-spreadsheet-inner th {
+  background-color: var(--cs-card) !important;     /* neutral, not gold */
+  color: var(--cs-muted) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;               /* no tracked shouting */
+  text-transform: none !important;                 /* no uppercase */
+}
+/* No zebra striping — the hairlines carry the row rhythm. */
+.quiet-table .dash-spreadsheet-inner tr:nth-child(even) td {
+  background-color: var(--cs-card) !important;
+}
+/* The white "focused row" glitch: Dash paints the focused/selected cell
+   white.  Re-tint it to the calm primary wash so no row ever flashes white. */
+.quiet-table .cell--selected,
+.quiet-table .dash-cell.focused,
+.quiet-table td.focused,
+.quiet-table .dash-spreadsheet-inner td.focused {
+  background-color: var(--cs-primary-wash) !important;
+  color: var(--cs-text) !important;
+  box-shadow: none !important;
+}
+
+/* ── Mobile Games card list (issue #48) ───────────────────────
+   On a phone the 15-column Games table forces a sideways scroll
+   just to find who I played and whether I won.  The page renders
+   both presentations and CSS picks one by width: desktop sees the
+   table, the phone sees the card list.  Both are fed by the same
+   callback rows — the cards are a rendering, not a second path.   */
+.games-table-view { display: block; }
+.games-cards-view { display: none; }
+
+.game-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.game-card {
+  display: block;
+  background: var(--cs-card2);
+  border-radius: var(--cs-radius);
+  padding: 12px 14px;
+  text-decoration: none !important;
+  color: var(--cs-text) !important;
+  transition: transform .2s, background .2s;
+}
+a.game-card:active { transform: scale(.99); }
+a.game-card:hover { background: var(--cs-hover); }
+/* A Game with no ChapterURL renders an unlinked card — no pointer, no lift. */
+.game-card-nolink { cursor: default; }
+
+.game-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.game-card-opponent {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.game-card-opp-rating {
+  font-family: var(--cs-font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--cs-muted);
+  flex-shrink: 0;
+}
+.game-card-meta {
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--cs-muted);
+}
+/* The outcome word leads the meta line in its semantic colour. */
+.game-card-meta.outcome-win  { color: var(--cs-win); }
+.game-card-meta.outcome-loss { color: var(--cs-loss); }
+.game-card-meta.outcome-draw { color: var(--cs-muted); }
+
 .dash-filter input {
   background: var(--cs-card2) !important;
   border-color: var(--cs-border) !important;
@@ -1148,7 +1329,7 @@ code {
   border: 1px solid var(--cs-border) !important;
   border-radius: 6px !important;
   font-size: 12px !important;
-  font-family: var(--cs-font-mono) !important;
+  font-family: var(--cs-font-data) !important;
   padding: 6px 8px !important;
 }
 .dash-datepicker-container, .dash-datepicker {
@@ -1175,30 +1356,95 @@ code {
   color: var(--cs-text) !important;
   border: 1px solid var(--cs-border) !important;
   border-radius: 5px !important;
-  font-family: var(--cs-font-mono) !important;
+  font-family: var(--cs-font-data) !important;
   font-size: 11px !important;
 }
 
-/* Checklists / checkboxes */
+/* Checklists / checkboxes (issue #45)
+   The filter drawer's checkboxes are drawn by the design system — not the
+   browser's native blue box.  appearance:none strips the native control, then
+   we paint a token-colored box and a checkmark for the :checked state.  Touch
+   targets stay generous so taps land on a phone. */
 .dash-checklist .dash-options-list-option {
   background: transparent !important;
   color: var(--cs-text) !important;
   font-size: 13px !important;
-  padding: 3px 0 !important;
+  padding: 5px 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
 }
-input[type="checkbox"] { accent-color: var(--cs-primary); }
+.filter-section input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 0 !important;
+  border: 1.5px solid var(--cs-dim);
+  border-radius: 5px;
+  background: var(--cs-card2);
+  cursor: pointer;
+  position: relative;
+  transition: background .15s, border-color .15s;
+}
+.filter-section input[type="checkbox"]:hover { border-color: var(--cs-muted); }
+.filter-section input[type="checkbox"]:checked {
+  background: var(--cs-primary);
+  border-color: var(--cs-primary);
+}
+.filter-section input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--cs-bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.filter-section input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--cs-primary-line);
+  outline-offset: 2px;
+}
 
 /* ── Loading ─────────────────────────────────────────────── */
-._dash-loading-callback { background: rgba(13,17,23,.7) !important; }
+._dash-loading-callback { background: var(--cs-bg-scrim) !important; }
 ._dash-loading { color: var(--cs-primary) !important; }
 
 /* ── Responsive grid helpers ──────────────────────────────── */
-.g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
-.g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; }
+/* align-items: start so a grid item sizes to its own content instead of
+   stretching to match its tallest row-mate.  A content card next to a chart
+   then sits at its natural height — no dead zone. */
+.g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; align-items: start; }
+.g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; align-items: start; }
 .g1 { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 14px; }
-.g3 > .chart-card, .g2 > .chart-card { min-height: 360px; }
+/* Only chart cards (which hold a fixed-height Plotly graph) need a floor.
+   Content cards size to their content — that's what removes the dead zones. */
+.g3 > .chart-card:not(.content-card),
+.g2 > .chart-card:not(.content-card) { min-height: 360px; }
 @media (max-width: 1100px) { .g3 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 760px)  { .g3, .g2 { grid-template-columns: 1fr; } }
+
+/* A vertical stack of cards (Reconciliation's per-kind sections, and any page
+   that lists cards outside a grid) carries the same 14px rhythm a grid row
+   would — so standalone cards never touch each other (spacing polish, #51). */
+.card-stack { display: flex; flex-direction: column; gap: 14px; }
+/* The flex gap already spaces the stack; drop the children's own vertical
+   margins so spacing never doubles up. */
+.card-stack > .reconcile-count,
+.card-stack > .reconcile-persistence-note { margin: 0; }
+
+/* A standalone card placed directly on a page (Openings' Repertoire card above
+   its .g2 grid, a single Reconciliation/Lessons list) carries the grid rhythm
+   below it, so it never butts against the next block (spacing polish, #51).
+   Grids own their own margin, so only loose cards need this. */
+.page > .chart-card,
+.page > .content-card { margin-bottom: 14px; }
+.page > .chart-card:last-child,
+.page > .content-card:last-child { margin-bottom: 0; }
 
 /* ── Utility ──────────────────────────────────────────────── */
 .mb-12 { margin-bottom: 12px; }
@@ -1230,7 +1476,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   gap: 16px;
 }
 .outcome-badge {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 14px;
   font-weight: 600;
   padding: 6px 18px;
@@ -1240,8 +1486,8 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   flex-shrink: 0;
   margin-top: 6px;
 }
-.outcome-badge.win  { color: var(--cs-win);  border-color: rgba(63,185,80,.5);  background: var(--cs-win-bg); }
-.outcome-badge.loss { color: var(--cs-loss); border-color: rgba(248,81,73,.5);  background: var(--cs-loss-bg); }
+.outcome-badge.win  { color: var(--cs-win);  border-color: var(--cs-win-line);  background: var(--cs-win-bg); }
+.outcome-badge.loss { color: var(--cs-loss); border-color: var(--cs-loss-line);  background: var(--cs-loss-bg); }
 .outcome-badge.draw { color: var(--cs-muted); }
 
 .game-detail-grid {
@@ -1252,7 +1498,6 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 }
 .game-board-card {
   background: var(--cs-card);
-  border: 1px solid var(--cs-border);
   border-radius: var(--cs-radius);
   padding: 10px;
   overflow: hidden;
@@ -1284,7 +1529,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 .meta-label { color: var(--cs-muted); flex-shrink: 0; }
 .meta-value {
   color: var(--cs-text);
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12.5px;
   text-align: right;
 }
@@ -1295,7 +1540,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   gap: 10px;
   align-items: flex-start;
   background: var(--cs-card2);
-  border-left: 3px solid var(--cs-accent);
+  border-left: 3px solid var(--cs-border);  /* a quote rail is chrome — hairline, not gold */
   border-radius: 0 6px 6px 0;
   padding: 12px 14px;
   margin-bottom: 10px;
@@ -1315,19 +1560,19 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   border: 1px solid var(--cs-border);
   border-radius: 4px;
   padding: 1px 5px;
-  color: var(--cs-accent);
-  font-family: var(--cs-font-mono);
+  color: var(--cs-muted);
+  font-family: var(--cs-font-data);
   font-size: 11px;
 }
 
 /* Tags */
 .tag-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .tag-chip {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11.5px;
   color: var(--cs-primary);
-  background: rgba(88, 166, 255, .1);
-  border: 1px solid rgba(88, 166, 255, .3);
+  background: var(--cs-primary-wash-3);
+  border: 1px solid var(--cs-primary-line-2);
   border-radius: 14px;
   padding: 3px 11px;
 }
@@ -1339,9 +1584,9 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   justify-content: center;
   gap: 8px;
   background: var(--cs-card);
-  border: 1px solid var(--cs-accent);
+  border: 1px solid var(--cs-primary);  /* interactive chrome — systemBlue, not gold */
   border-radius: 8px;
-  color: var(--cs-accent) !important;
+  color: var(--cs-primary) !important;
   font-size: 14px;
   font-weight: 600;
   padding: 12px;
@@ -1349,7 +1594,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   transition: background .15s, transform .15s;
 }
 .lichess-open-btn:hover {
-  background: rgba(210, 153, 34, .12);
+  background: var(--cs-primary-wash);
   transform: translateY(-1px);
 }
 
@@ -1362,7 +1607,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 }
 .tag-chip-button {
   cursor: pointer;
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12px;
   display: inline-flex;
   align-items: center;
@@ -1372,7 +1617,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 .tag-chip-button:hover { border-color: var(--cs-primary); }
 .tag-chip-button.active {
   background: var(--cs-primary);
-  color: #0d1117;
+  color: var(--cs-bg);
   border-color: var(--cs-primary);
   font-weight: 600;
 }
@@ -1384,24 +1629,24 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 }
 .tag-chip-button.freeform.active {
   background: var(--cs-muted);
-  color: #0d1117;
+  color: var(--cs-bg);
   border-style: solid;
 }
 .tag-count {
-  background: rgba(13, 17, 23, .35);
+  background: var(--cs-bg-wash);
   border-radius: 8px;
   padding: 1px 6px;
   font-size: 10px;
 }
-.tag-chip-button.active .tag-count { background: rgba(13, 17, 23, .25); }
+.tag-chip-button.active .tag-count { background: var(--cs-bg-wash-2); }
 .tag-chip-small { font-size: 10.5px; padding: 2px 9px; }
 
 .lesson-controls { max-width: 360px; margin-bottom: 14px; }
 .lesson-strip-empty { color: var(--cs-dim); font-size: 12px; }
 .lesson-count {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12px;
-  color: var(--cs-accent);
+  color: var(--cs-muted);
   margin-bottom: 12px;
 }
 .lesson-card {
@@ -1421,7 +1666,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 .lesson-meta {
   font-size: 12px;
   color: var(--cs-muted);
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
 }
 .lesson-meta.outcome-win  { color: var(--cs-win); }
 .lesson-meta.outcome-loss { color: var(--cs-loss); }
@@ -1439,7 +1684,7 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
 /* Clickable table rows (Games / H2H / Event detail) */
 .clickable-rows .dash-spreadsheet-inner td { cursor: pointer; }
 .clickable-rows .dash-spreadsheet-inner tr:hover td {
-  background-color: rgba(88, 166, 255, .09) !important;
+  background-color: var(--cs-primary-wash-2) !important;
 }
 
 /* ── Repertoire tree (issue #16) ──────────────────────────────
@@ -1462,23 +1707,23 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   transition: all .15s ease;
   user-select: none;
 }
-.repertoire-color-toggle label:hover { border-color: #444c56; color: var(--cs-text); }
+.repertoire-color-toggle label:hover { border-color: var(--cs-border); color: var(--cs-text); }
 .repertoire-color-toggle label:has(input:checked) {
-  border-color: var(--cs-accent);
+  border-color: var(--cs-primary);  /* a form control is interactive chrome — systemBlue */
   color: var(--cs-text);
-  background: rgba(210, 153, 34, .08);
+  background: var(--cs-primary-wash);
 }
-.repertoire-color-toggle input { accent-color: var(--cs-accent); }
+.repertoire-color-toggle input { accent-color: var(--cs-primary); }
 
 .rep-baseline {
   font-size: 12.5px;
   color: var(--cs-muted);
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   padding-bottom: 12px;
   border-bottom: 1px solid var(--cs-border);
   margin-bottom: 8px;
 }
-.rep-baseline-score { color: var(--cs-accent); }
+.rep-baseline-score { color: var(--cs-text); }  /* a baseline is a reference number, not an achievement */
 .rep-baseline-hint { color: var(--cs-dim); font-family: var(--cs-font-body); }
 
 /* Node rows: the <summary> of expandable branches and flat leaf rows */
@@ -1487,6 +1732,9 @@ input[type="checkbox"] { accent-color: var(--cs-primary); }
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 12px;
+  /* ≥44px touch target (issue #51): tree rows are tappable branches, so each
+     row clears 44px even when its content is a single short move label. */
+  min-height: 44px;
   padding: 7px 10px;
   border-radius: 6px;
   cursor: pointer;
@@ -1505,7 +1753,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 .rep-node-row:hover { background: var(--cs-hover); }
 
 .rep-node-move {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-weight: 600;
   font-size: 13.5px;
   color: var(--cs-text);
@@ -1536,14 +1784,14 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 .rep-bar-seg.loss { background: var(--cs-loss); }
 
 .rep-node-games {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12px;
   color: var(--cs-muted);
   min-width: 20px;
   text-align: right;
 }
 .rep-node-score {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12.5px;
   font-weight: 600;
   min-width: 44px;
@@ -1555,7 +1803,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   font-size: 11px;
   color: var(--cs-loss);
   background: var(--cs-loss-bg);
-  border: 1px solid rgba(248, 81, 73, .3);
+  border: 1px solid var(--cs-loss-line-3);
   padding: 2px 9px;
   border-radius: 999px;
   white-space: nowrap;
@@ -1570,7 +1818,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 
 /* Flagged branches carry a subtle red wash on their own row */
 .rep-flagged > .rep-node-row { background: var(--cs-loss-bg); }
-.rep-flagged > .rep-node-row:hover { background: rgba(248, 81, 73, .2); }
+.rep-flagged > .rep-node-row:hover { background: var(--cs-loss-wash-3); }
 
 /* Game links inside the tree */
 .rep-game-link {
@@ -1632,12 +1880,12 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   color: var(--cs-text);
 }
 .uscf-member-id {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11.5px;
   color: var(--cs-dim);
 }
 .uscf-membership {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11.5px;
   color: var(--cs-muted);
   white-space: nowrap;
@@ -1683,7 +1931,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   color: var(--cs-muted);
 }
 .uscf-stat-value {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-feature-settings: "tnum";
   font-size: 21px;
   font-weight: 600;
@@ -1697,8 +1945,8 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 }
 .uscf-alert {
   margin-top: 12px;
-  background: linear-gradient(135deg, rgba(248,81,73,.10), rgba(248,81,73,.03));
-  border: 1px solid rgba(248,81,73,.4);
+  background: linear-gradient(135deg, var(--cs-loss-wash-2), var(--cs-loss-wash-4));
+  border: 1px solid var(--cs-loss-line-2);
   border-left: 3px solid var(--cs-loss);
   border-radius: var(--cs-radius);
   padding: 10px 14px;
@@ -1756,9 +2004,8 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 
 /* ── Reconciliation (issue #30) ──────────────────────────────
    Where the Studies and USCF disagree.  Conflict ⚠ reads as
-   warning orange — visually distinct from gold (achievements)
-   and from loss-red (nothing here is a loss).                 */
-:root { --cs-warning: #db6d28; }
+   warning orange (--cs-warning) — visually distinct from gold
+   (achievements) and from loss-red (nothing here is a loss).  */
 
 /* The header badge: open-item count, on every page */
 .reconciliation-badge-slot { display: flex; align-items: center; }
@@ -1767,16 +2014,16 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   align-items: center;
   gap: 5px;
   padding: 3px 10px;
-  background: rgba(219, 109, 40, 0.12);
-  border: 1px solid rgba(219, 109, 40, 0.45);
+  background: var(--cs-warning-wash);
+  border: 1px solid var(--cs-warning-line);
   border-radius: 20px;
   text-decoration: none !important;
   transition: background 0.15s ease;
 }
-.reconciliation-badge:hover { background: rgba(219, 109, 40, 0.22); }
+.reconciliation-badge:hover { background: var(--cs-warning-hover); }
 .reconciliation-badge-icon { font-size: 12px; line-height: 1; }
 .reconciliation-badge-count {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12px;
   font-weight: 600;
   color: var(--cs-warning);
@@ -1784,7 +2031,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 
 /* The page */
 .reconcile-count {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 13px;
   color: var(--cs-muted);
   margin-bottom: 12px;
@@ -1816,7 +2063,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   color: var(--cs-text);
 }
 .reconcile-date {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11.5px;
   color: var(--cs-dim);
 }
@@ -1842,7 +2089,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 }
 .reconcile-source-uscf .reconcile-source-label { color: var(--cs-warning); }
 .reconcile-source-text {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 12px;
   color: var(--cs-text);
 }
@@ -1880,14 +2127,14 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   gap: 8px;
   margin-bottom: 10px;
   padding: 8px 11px;
-  background: rgba(219, 109, 40, 0.1);
-  border: 1px solid rgba(219, 109, 40, 0.4);
+  background: var(--cs-warning-wash-2);
+  border: 1px solid var(--cs-warning-line-2);
   border-radius: 6px;
   font-size: 12.5px;
   color: var(--cs-warning) !important;
   text-decoration: none !important;
 }
-.uscf-conflict-badge:hover { background: rgba(219, 109, 40, 0.18); }
+.uscf-conflict-badge:hover { background: var(--cs-warning-hover-2); }
 .uscf-conflict-icon { font-size: 14px; }
 
 /* ── Events page: Series → Rated Event (issue #33) ────────────
@@ -1913,7 +2160,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   cursor: pointer;
   list-style-position: inside;
 }
-.series-summary::marker { color: var(--cs-accent); font-size: 12px; }
+.series-summary::marker { color: var(--cs-muted); font-size: 12px; }  /* chrome — neutral, not gold */
 .series-summary:hover { background: var(--cs-hover); border-radius: var(--cs-radius); }
 .series-name {
   font-family: var(--cs-font-display);
@@ -1922,7 +2169,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   color: var(--cs-text);
 }
 .series-stats {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11.5px;
   color: var(--cs-muted);
 }
@@ -1936,11 +2183,11 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 /* One Rated Event inside a Series */
 .rated-event-card {
   background: var(--cs-card);
-  border: 1px solid var(--cs-border);
-  border-radius: 8px;
+  border-radius: var(--cs-radius);
   padding: 12px 14px;
 }
-.rated-event-unmatched { border-style: dashed; }
+/* Unmatched Rated Events keep a dashed hairline as a meaningful affordance. */
+.rated-event-unmatched { border: 1px dashed var(--cs-border); }
 .rated-event-head {
   display: flex;
   align-items: baseline;
@@ -1954,12 +2201,12 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   color: var(--cs-text);
 }
 .rated-event-dates {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11px;
   color: var(--cs-dim);
 }
 .rated-event-rating {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 14px;
   color: var(--cs-primary);
   white-space: nowrap;
@@ -1988,7 +2235,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 }
 .event-game-row:hover { background: var(--cs-hover); }
 .event-game-round {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11px;
   color: var(--cs-dim);
   width: 30px;
@@ -2001,7 +2248,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 .event-game-outcome.draw { color: var(--cs-muted); }
 .event-game-opponent { flex: 1; }
 .event-game-opp-rating {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11.5px;
   color: var(--cs-muted);
 }
@@ -2010,7 +2257,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   font-weight: 700;
   letter-spacing: .05em;
   text-transform: uppercase;
-  color: var(--cs-warning, #db6d28);
+  color: var(--cs-warning);
   border: 1px solid currentColor;
   border-radius: 4px;
   padding: 1px 6px;
@@ -2030,7 +2277,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   padding: 4px 0;
   list-style-position: inside;
 }
-.crosstable-summary::marker { color: var(--cs-primary); font-size: 11px; }
+.crosstable-summary::marker { color: var(--cs-muted); font-size: 11px; }  /* chrome — neutral, not gold/blue */
 .crosstable-placement {
   font-weight: 600;
   font-size: 13px;
@@ -2060,35 +2307,35 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   position: sticky;
   top: 0;
   background: var(--cs-card2);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  color: var(--cs-accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: normal;          /* quiet header — no tracked shouting */
+  text-transform: none;            /* no uppercase */
+  color: var(--cs-muted);          /* chrome — neutral, not gold */
   z-index: 1;
 }
 .crosstable-row-me {
-  background: rgba(210, 153, 34, .12);     /* Daniel's row — gold wash */
+  background: var(--cs-text-wash-2);       /* Daniel's row — subtle neutral fill */
   font-weight: 600;
 }
 .crosstable-ordinal {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   width: 28px;
   flex-shrink: 0;
   color: var(--cs-dim);
   text-align: right;
 }
-.crosstable-row-me .crosstable-ordinal { color: var(--cs-accent); }
+.crosstable-row-me .crosstable-ordinal { color: var(--cs-text); }  /* chrome — neutral, not gold */
 .crosstable-player { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .crosstable-rating {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11px;
   color: var(--cs-muted);
   width: 120px;
   flex-shrink: 0;
 }
 .crosstable-score {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   width: 36px;
   flex-shrink: 0;
   text-align: right;
@@ -2096,7 +2343,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 .crosstable-rounds {
   display: flex;
   gap: 3px;
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   flex-shrink: 0;
 }
 .crosstable-round {
@@ -2129,7 +2376,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 .unplayed-event-name { color: var(--cs-text); flex: 1; }
 .unplayed-event-dates,
 .unplayed-event-field {
-  font-family: var(--cs-font-mono);
+  font-family: var(--cs-font-data);
   font-size: 11.5px;
   color: var(--cs-dim);
 }
@@ -2164,7 +2411,6 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .app-header-titles { display: none; }
   .header-form { margin-left: 4px; gap: 8px; }
   .form-dot { width: 8px; height: 8px; }
-  .app-header-stat-wide { display: none; }   /* date range + freshness collapse */
   .app-header-right { gap: 10px; }
   .header-btn { padding: 6px 10px; }
   .header-btn-text { display: none; }        /* icon-only buttons */
@@ -2179,13 +2425,38 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .kpi-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .kpi-value { font-size: 19px; }
 
+  /* Charts sized for a phone (issue #51): the desktop pages set tall inline
+     heights (a 620px opponents chart, 420px ECO/performance charts) that read
+     as giant half-empty plots at 390px.  Cap a real chart card's height on a
+     phone so a plot fills its frame instead of stranding empty space.  Content
+     cards keep sizing to their content (a long table must not be clipped), so
+     the cap targets chart cards that are NOT content cards. */
+  .chart-card:not(.content-card) { height: 56vh !important; max-height: 420px; }
+  .chart-body { min-height: 0; }
+  /* The Plotly graph already renders at width:100% / responsive:true, so it
+     reflows to the phone's width; pin it so nothing forces a sideways scroll. */
+  .chart-card .js-plotly-plot,
+  .chart-card .plot-container { max-width: 100% !important; }
+
+  /* Games page: the table gives way to the tappable card list (issue #48). */
+  .games-table-view { display: none; }
+  .games-cards-view { display: block; }
+
   .empty-state { padding: 56px 18px; }
   .sync-toast { top: auto; bottom: 16px; right: 16px; }
   .celebration-banner.alert { margin: 14px 12px 0; padding: 14px 16px; }
 
-  /* Scouting Report on a phone: stat tiles go 3-up, openings stack */
+  /* Scouting Report on a phone (pre-game prep happens here): stat tiles go
+     3-up, the picker spans the screen, openings stack (via .g2), and the
+     USCF identity reads top-to-bottom — opponent name first, then-vs-now on
+     its own line — instead of justified across a too-narrow row. */
   .scout-stat-grid { grid-template-columns: repeat(3, 1fr); }
   .scout-picker { max-width: none; }
+  .scout-uscf-identity { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .scout-uscf-name { font-size: 20px; }
+  .scout-section-title { font-size: 16px; }
+  .h2h-stat-val { font-size: 21px; }
+  .h2h-stat { padding: 9px 8px; }
 
   /* Game detail: board scales, metadata stacks below (issue #11) */
   .game-detail-grid { grid-template-columns: 1fr; }
@@ -2207,7 +2478,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
     border-left: none !important;
     border-bottom: 1px solid var(--cs-border);
     border-radius: 0 0 18px 18px;
-    box-shadow: 0 32px 64px rgba(1, 4, 9, .65);
+    box-shadow: 0 32px 64px var(--cs-bg-shadow);
     /* hidden: tucked above the screen */
     transform: translateY(calc(-100% - var(--cs-header-h)));
   }
@@ -2231,6 +2502,11 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .filter-section-moves { grid-column: 1 / -1; }
   .filter-section { margin-bottom: 16px; }
 
+  /* Generous tap targets at the chess club (issue #45): preset chips and
+     checkboxes get phone-sized so taps land on the first try. */
+  .preset-btn { padding: 9px 15px; }
+  .dash-checklist .dash-options-list-option { padding: 8px 0 !important; }
+
   /* Repertoire tree thumbs-on-phone: tighter rows, shorter bars,
      shallower indents so deep lines stay on screen (issue #16) */
   .rep-node-move { min-width: 72px; font-size: 12.5px; }
@@ -2238,4 +2514,28 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   .rep-node-children { margin-left: 6px; padding-left: 8px; }
   .rep-node-flag { font-size: 10px; padding: 2px 7px; }
   .rep-node-row { gap: 6px 8px; padding: 7px 6px; }
+}
+
+/* ── Reduced motion (issue #51) ───────────────────────────────
+   When the system asks for reduced motion, no animation plays anywhere and no
+   transition moves — accessibility over polish.  Everything still works: the
+   filter drawer still opens, the nav underline still marks the active tab, the
+   cards still appear — they just arrive instantly instead of sliding.
+
+   The blanket near-zero override catches every current and future animation /
+   transition (page fade-up, card stagger, nav-underline slide, hover lift,
+   drawer sheet curve, celebration, review cards, the streak-fire pulse) so
+   nothing moves, and nothing keeps moving after the page settles. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* The blazing fire's drop-shadow pulse and scale are decorative motion — drop
+     them entirely so the streak count sits still. */
+  .streak-fire.blazing { animation: none !important; }
 }

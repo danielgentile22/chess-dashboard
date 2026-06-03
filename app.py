@@ -36,6 +36,39 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _index_template(root_block: str) -> str:
+    """The Dash HTML index template with the generated theme tokens inlined.
+
+    The ``{%...%}`` placeholders are Dash's own — it fills in metas, the
+    component CSS/JS bundles, and the React entry point.  We add one
+    ``<style>`` tag carrying the ``:root`` variable block generated from
+    ``styles.THEME`` so the browser palette comes from the same Python
+    definition the Plotly charts use.
+    """
+    return (
+        "<!DOCTYPE html>\n"
+        "<html>\n"
+        "    <head>\n"
+        "        {%metas%}\n"
+        "        <title>{%title%}</title>\n"
+        "        {%favicon%}\n"
+        "        {%css%}\n"
+        '        <style id="cs-theme-tokens">\n'
+        f"{root_block}"
+        "        </style>\n"
+        "    </head>\n"
+        "    <body>\n"
+        "        {%app_entry%}\n"
+        "        <footer>\n"
+        "            {%config%}\n"
+        "            {%scripts%}\n"
+        "            {%renderer%}\n"
+        "        </footer>\n"
+        "    </body>\n"
+        "</html>"
+    )
+
+
 def build_app(study_ids: list[str], player_name=None, token=None, cache_path=None,
               uscf_member_id=None, uscf_cache_path=None):
     """Sync the designated Studies, build the Dash app, and return (dash_app, server)."""
@@ -55,6 +88,12 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
         suppress_callback_exceptions=True,
         title=f"Chess Stats — {detected}",
     )
+
+    # Inject the theme tokens as a CSS :root block generated from the single
+    # Python definition in styles.THEME — so chart colors and CSS variables
+    # can never drift apart (assets/custom.css consumes var(--cs-*)).
+    import styles
+    dash_app.index_string = _index_template(styles.css_root_block())
 
     # Layout as a *function*: every browser page load rebuilds the shell from
     # the current data store, so header stats and filter options stay fresh.

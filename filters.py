@@ -277,6 +277,16 @@ def apply_preset(n_all, n20, n_year, n_white, n_black, n_wins):
     return colors, outcomes, start, end
 
 
+def _date_range_label(df: pd.DataFrame) -> str:
+    """'Jun 2025 – May 2026' for the dated Games, or '' when there are none."""
+    if df.empty:
+        return ""
+    dated = df[df["Date_dt"].notna()]
+    if dated.empty:
+        return ""
+    return f"{dated['Date_dt'].min():%b %Y} – {dated['Date_dt'].max():%b %Y}"
+
+
 @callback(
     Output("filter-summary", "children"),
     Output("filter-active-count", "children"),
@@ -284,13 +294,22 @@ def apply_preset(n_all, n20, n_year, n_white, n_black, n_wins):
 )
 def update_filter_summary(colors, outcomes, terminations, start, end,
                           events, moves, _sync=None, lens=None):
-    """The 'Showing X of Y games' line + the active-filter count badge."""
+    """
+    The drawer summary line + the active-filter count badge.
+
+    The game count and date range relocated here from the header (issue #45):
+    e.g. "Showing all 63 games · Jun 2025 – May 2026".  Both follow the active
+    filters — the count and the span describe exactly the Games in view.
+    """
     df = data.get_df()
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     total, filtered = len(df), len(df_f)
 
     summary = (f"Showing all {total} games" if filtered == total
                else f"Showing {filtered} of {total} games")
+    date_range = _date_range_label(df_f)
+    if date_range:
+        summary = f"{summary} · {date_range}"
 
     b = _data_bounds(df)
     active = 0
@@ -321,19 +340,21 @@ def update_filter_summary(colors, outcomes, terminations, start, end,
     Output("moves-filter", "min"),
     Output("moves-filter", "max"),
     Output("moves-filter", "value"),
-    Output("header-games-count", "children"),
-    Output("header-date-range", "children"),
     Input("sync-store", "data"),
     prevent_initial_call=True,  # the layout holds correct startup values
 )
 def update_filter_options(sync_store):
-    """Filter options and header stats follow the current data, not startup data."""
+    """Filter options follow the current data, not startup data.
+
+    The game count and date range relocated to the drawer summary (issue #45),
+    which is filter-driven; this callback now only refreshes option lists and
+    ranges when a Sync changes the underlying Games.
+    """
     df = data.get_df()
     if df.empty:
-        return (no_update,) * 11
+        return (no_update,) * 9
 
     b = _data_bounds(df)
-    dated = df[df["Date_dt"].notna()]
 
     # Only push the *selected* ranges back to "everything" when new Games
     # arrived (so they're immediately visible); otherwise leave the user's
@@ -343,15 +364,10 @@ def update_filter_options(sync_store):
     end_value = b["max_date"] if has_new_games else no_update
     moves_value = [b["min_mv"], b["max_mv"]] if has_new_games else no_update
 
-    date_range = (f"{dated['Date_dt'].min():%b %Y} – {dated['Date_dt'].max():%b %Y}"
-                  if not dated.empty else "")
-
     return (
         [{"label": t, "value": t} for t in b["terminations"]],
         [{"label": e, "value": e} for e in b["events"]],
         b["min_date"], b["max_date"],
         start_value, end_value,
         b["min_mv"], b["max_mv"], moves_value,
-        [html.Strong(f"{len(df)}"), " games"],
-        date_range,
     )

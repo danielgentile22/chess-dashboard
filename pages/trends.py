@@ -23,12 +23,14 @@ from dash import Output, callback, dash_table, dcc, html
 
 import data
 from components import (
-    TABLE_CELL,
-    TABLE_HEADER,
+    QUIET_TABLE_CELL,
+    QUIET_TABLE_DATA_COND,
+    QUIET_TABLE_HEADER,
     chart_card,
     content_card,
     empty_state,
     page_header,
+    quiet_table,
     register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
@@ -42,7 +44,16 @@ from pgn_stats_core import (
     upset_tracker,
     win_rate_over_time,
 )
-from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
+from styles import (
+    COLORS,
+    DRAW_FILL,
+    LOSS_FILL,
+    WDL_COLOR_MAP,
+    WIN_AREA,
+    WIN_FILL,
+    apply_dark_theme,
+    empty_fig,
+)
 from uscf_core import LIVE_LENS, OFFICIAL_LENS, rating_trend_series
 
 dash.register_page(
@@ -66,18 +77,22 @@ _UPSET_TABLE_COLS = [
 
 
 def _upset_table(table_id: str) -> dash_table.DataTable:
-    """One of the two upset tables — rows click through to the Game (issue #11)."""
+    """One of the two upset tables — rows click through to the Game (issue #11).
+
+    Uses the shared quiet-table treatment (neutral headers, left-aligned text,
+    hairline separators, focused-row fix) so the upset tables read like every
+    other table in the app.  ``_upset_table`` builds the DataTable; the caller
+    wraps it in :func:`quiet_table` for the wrapper class and click behaviour.
+    """
     return dash_table.DataTable(
         id=table_id,
         columns=_UPSET_TABLE_COLS,
         data=[],
         page_size=8,
         style_table={"overflowX": "auto"},
-        style_cell={**TABLE_CELL, "fontSize": "11px", "padding": "5px 8px"},
-        style_header=TABLE_HEADER,
-        style_data_conditional=[
-            {"if": {"row_index": "odd"}, "backgroundColor": COLORS["card2"]}
-        ],
+        style_cell={**QUIET_TABLE_CELL, "fontSize": "11px", "padding": "7px 10px"},
+        style_header=QUIET_TABLE_HEADER,
+        style_data_conditional=QUIET_TABLE_DATA_COND,
     )
 
 
@@ -112,16 +127,14 @@ def layout(**kwargs) -> html.Div:
             content_card(
                 "Giant kills — wins over higher-rated opponents",
                 html.Div(id="upset-wins-status"),
-                html.Div(className="clickable-rows", children=[
-                    _upset_table("upset-wins-table"),
-                ]),
+                quiet_table(_upset_table("upset-wins-table"),
+                            clickable=True, scroll=False),
             ),
             content_card(
                 "Upset losses — losses to lower-rated opponents",
                 html.Div(id="upset-losses-status"),
-                html.Div(className="clickable-rows", children=[
-                    _upset_table("upset-losses-table"),
-                ]),
+                quiet_table(_upset_table("upset-losses-table"),
+                            clickable=True, scroll=False),
             ),
         ]),
     ])
@@ -133,13 +146,14 @@ def layout(**kwargs) -> html.Div:
 
 # Cell color scale: losing days → red, winning days → green, mixed → gray.
 # Intensity follows |Net| (a 2-win day is brighter than a 1-win day).
+# Every stop derives from a theme token so the calendar can't drift.
 _NET_CLAMP = 3
 _CAL_COLORSCALE = [
-    [0.0,  "#7d2a26"],            # net −3 or worse: deep red
-    [0.33, "rgba(248,81,73,.55)"],  # losing day
-    [0.5,  "#3a4048"],            # even day (games, no net result)
-    [0.67, "rgba(63,185,80,.55)"],  # winning day
-    [1.0,  "#39d353"],            # net +3 or better: bright green
+    [0.0,  COLORS["loss"]],     # net −3 or worse: full loss-red
+    [0.33, LOSS_FILL],          # losing day (reduced opacity)
+    [0.5,  DRAW_FILL],          # even day (games, no net result) — neutral gray
+    [0.67, WIN_FILL],           # winning day (reduced opacity)
+    [1.0,  COLORS["win"]],      # net +3 or better: full win-green
 ]
 _WEEKDAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"]
 
@@ -159,18 +173,22 @@ def _year_calendar_fig(year_daily: pd.DataFrame, year: int) -> go.Figure:
     for day in days:
         week, weekday = (day - first_monday).days // 7, day.weekday()
         # day.day instead of strftime %-d: the no-leading-zero directive is
-        # platform-specific (glibc/BSD only)
-        day_label = f"{day:%b} {day.day}, {day.year}"
+        # platform-specific (glibc/BSD only).  Weekday + month + day; the year
+        # is already in the calendar block header above the grid.
+        day_label = f"{day:%a} {day:%b} {day.day}"
         if day in by_day.index:
             row = by_day.loc[day]
             game_z[weekday][week] = max(-_NET_CLAMP, min(_NET_CLAMP, int(row["Net"])))
-            plural = "s" if row["Games"] > 1 else ""
+            games = int(row["Games"])
+            plural = "s" if games != 1 else ""
+            # "<b>3</b> games · Tue Mar 14", then that day's results beneath it.
             hover[weekday][week] = (
-                f"<b>{day_label}</b> — {row['Games']} game{plural}<br>{row['Detail']}"
+                f"<b>{games}</b> game{plural} · {day_label}<br>{row['Detail']}"
             )
         else:
             base_z[weekday][week] = 0
-            hover[weekday][week] = f"{day_label}<br>No games"
+            # No games that day: a blank cell with no hover popup.
+            hover[weekday][week] = ""
 
     # Month labels sit under the week containing the 1st of each month
     month_ticks = [(pd.Timestamp(year=year, month=m, day=1) - first_monday).days // 7
@@ -178,16 +196,17 @@ def _year_calendar_fig(year_daily: pd.DataFrame, year: int) -> go.Figure:
     month_labels = [f"{pd.Timestamp(year=year, month=m, day=1):%b}" for m in range(1, 13)]
 
     fig = go.Figure()
-    common = dict(xgap=3, ygap=3, hoverinfo="text", showscale=False)
-    # Days without Games: visibly empty cells
+    common = dict(xgap=3, ygap=3, showscale=False)
+    # Days without Games: visibly empty cells, no hover popup
     fig.add_trace(go.Heatmap(
-        z=base_z, text=hover,
+        z=base_z,
         colorscale=[[0, COLORS["card2"]], [1, COLORS["card2"]]],
+        hoverinfo="skip",
         **common,
     ))
     # Days with Games, colored by their results
     fig.add_trace(go.Heatmap(
-        z=game_z, text=hover,
+        z=game_z, text=hover, hoverinfo="text",
         zmin=-_NET_CLAMP, zmax=_NET_CLAMP,
         colorscale=_CAL_COLORSCALE,
         **common,
@@ -263,9 +282,11 @@ def _typed_rating_fig(pr: pd.DataFrame) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=pr["Date_dt"], y=pr["PlayerRating"],
         mode="lines+markers",
-        line=dict(color=COLORS["accent"], width=2),
-        marker=dict(size=5, color=COLORS["accent"]),
-        hovertemplate="%{x|%Y-%m-%d}: %{y}<extra></extra>",
+        # The rating line is data, not an achievement — neutral white, matching
+        # the Official series in the dual-line chart.
+        line=dict(color=COLORS["text"], width=2),
+        marker=dict(size=5, color=COLORS["text"]),
+        hovertemplate="<b>%{y}</b> · %{x|%b %-d, %Y}<extra></extra>",
         name="Rating",
     ))
     # Linear trend overlay
@@ -303,8 +324,7 @@ def _dual_line_rating_fig(official, live, lens: str) -> go.Figure:
                   width=2.5 if official_active else 1.5),
         marker=dict(size=7 if official_active else 5, symbol="square"),
         opacity=1.0 if official_active else 0.4,
-        hovertemplate="<b>%{x|%B %Y} supplement</b><br>"
-                      "Official Rating: %{y}<extra></extra>",
+        hovertemplate="Official <b>%{y}</b> · %{x|%b %Y}<extra></extra>",
     ))
     # The Live Rating: one point per Rated Event.  The chain is plotted at
     # full precision but every number the hover shows is whole — ratings
@@ -323,9 +343,10 @@ def _dual_line_rating_fig(official, live, lens: str) -> go.Figure:
              "unrated" if p.pre is None else f"{p.pre:.0f}"]
             for p in live
         ],
-        hovertemplate="<b>%{customdata[0]}</b> · %{customdata[1]}<br>"
-                      "Live Rating: %{customdata[2]} → %{y:.0f}<br>"
-                      "%{x|%Y-%m-%d}<extra></extra>",
+        # "Live <b>1571</b> · Mar 14, 2026", then the rating change + event as
+        # quiet context.  Every number shown is whole (Daniel's display rule).
+        hovertemplate="Live <b>%{y:.0f}</b> · %{x|%b %-d, %Y}"
+                      "<br>%{customdata[2]} → %{y:.0f} · %{customdata[0]}<extra></extra>",
     ))
     apply_dark_theme(fig, yaxis_title="Rating", legend_title="")
     return fig
@@ -368,8 +389,9 @@ def update_winrate(colors, outcomes, terminations, start, end, events, moves, _s
         line=dict(color=COLORS["win"], width=2),
         marker=dict(size=5, color=COLORS["win"]),
         fill="tozeroy",
-        fillcolor="rgba(63,185,80,.10)",
-        hovertemplate="%{x|%Y-%m-%d}<br>Win rate: %{y:.1f}%<br>(%{customdata[0]}W / %{customdata[1]} games)<extra></extra>",
+        fillcolor=WIN_AREA,
+        hovertemplate="<b>%{y:.0f}%</b> win rate · %{x|%b %-d, %Y}"
+                      "<br>%{customdata[0]}W of %{customdata[1]} games<extra></extra>",
         customdata=wr[["CumWins", "CumGames"]].values,
         name="Win rate",
     ))
@@ -395,8 +417,9 @@ def update_monthly(colors, outcomes, terminations, start, end, events, moves, _s
         custom_data=["WinRate"],
         color_discrete_sequence=[COLORS["primary"]],
     )
+    # The x-axis already names the month; hover shows the count + win rate.
     fig.update_traces(
-        hovertemplate="%{x}<br>%{y} games<br>Win rate: %{customdata[0]:.1f}%<extra></extra>",
+        hovertemplate="<b>%{y}</b> games · %{customdata[0]:.0f}% win rate<extra></extra>",
     )
     apply_dark_theme(fig, yaxis_title="Games")
     fig.update_xaxes(tickangle=45, automargin=True)
@@ -416,8 +439,9 @@ def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=
         color_continuous_scale=[[0, COLORS["loss"]], [0.5, COLORS["muted"]], [1, COLORS["win"]]],
         range_color=[30, 70],
     )
+    # The x-axis already names the weekday; hover shows the win rate + sample.
     fig.update_traces(
-        hovertemplate="%{x}<br>Win rate: %{y:.1f}%<br>(%{customdata[0]} games)<extra></extra>",
+        hovertemplate="<b>%{y:.0f}%</b> win rate · %{customdata[0]} games<extra></extra>",
     )
     apply_dark_theme(fig, yaxis_title="Win rate (%)")
     fig.update_coloraxes(showscale=False)
@@ -436,6 +460,10 @@ def update_length_hist(colors, outcomes, terminations, start, end, events, moves
         barmode="overlay", nbins=30,
         color_discrete_map=WDL_COLOR_MAP,
         opacity=0.75,
+    )
+    # The bar color already says the outcome; the x-axis names the move count.
+    fig.update_traces(
+        hovertemplate="<b>%{y}</b> games · %{x} moves<extra></extra>",
     )
     apply_dark_theme(fig, xaxis_title="Moves", yaxis_title="Games", legend_title="Outcome")
     return fig
@@ -463,16 +491,17 @@ def update_time_control(colors, outcomes, terminations, start, end, events, move
     tc["TimeControl"] = tc["TimeControl"].replace("", _NO_TC_LABEL)
 
     fig = go.Figure()
+    _word = {"Win": "wins", "Draw": "draws", "Loss": "losses"}
     for outcome in ("Win", "Draw", "Loss"):
         fig.add_trace(go.Bar(
             y=tc["TimeControl"], x=tc[outcome],
             name=outcome, orientation="h",
             marker_color=WDL_COLOR_MAP[outcome],
-            customdata=tc[["Speed", "Games", "WinRate"]].values,
+            customdata=tc[["Speed"]].values,
+            # The y-axis names the control; the speed class is quiet context.
             hovertemplate=(
-                "<b>%{y}</b> · %{customdata[0]}<br>"
-                + outcome + ": %{x} of %{customdata[1]} games"
-                + "<br>Win rate: %{customdata[2]:.0f}%<extra></extra>"
+                "<b>%{x}</b> " + _word[outcome]
+                + " · %{customdata[0]}<extra></extra>"
             ),
         ))
     fig.update_layout(barmode="stack")
@@ -499,10 +528,10 @@ def _round_fig(rounds: pd.DataFrame) -> go.Figure:
             cmin=0, cmax=100,
         ),
         customdata=reliable[["Games", "Win", "Draw", "Loss"]].values,
+        # The x-axis names the round; hover leads with the score %.
         hovertemplate=(
-            "<b>Round %{x}</b><br>Score: %{y:.0f}%<br>"
-            "%{customdata[1]}W %{customdata[2]}D %{customdata[3]}L"
-            " (%{customdata[0]} games)<extra></extra>"
+            "<b>%{y:.0f}%</b> score · "
+            "%{customdata[1]}W %{customdata[2]}D %{customdata[3]}L<extra></extra>"
         ),
         name="",
     ))
@@ -510,9 +539,10 @@ def _round_fig(rounds: pd.DataFrame) -> go.Figure:
         x=thin["Round"], y=thin["ScorePct"],
         marker_color=COLORS["border"],
         customdata=thin[["Games", "Win", "Draw", "Loss"]].values,
+        # Dimmed bars: an honest hover that the sample is too small to conclude.
         hovertemplate=(
-            "<b>Round %{x}</b><br>Score: %{y:.0f}%<br>"
-            "Only %{customdata[0]} game(s) — too few to conclude<extra></extra>"
+            "<b>%{y:.0f}%</b> score · "
+            "only %{customdata[0]} game(s), too few to conclude<extra></extra>"
         ),
         name="",
     ))
@@ -592,28 +622,28 @@ navigate_to_game_from_upset_loss = register_game_navigation(
 
 @callback(Output("length-stats", "children"), FILTER_INPUTS)
 def update_length_stats(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
+    """Average game length as a compact stat strip — Win / Draw / Loss side by
+    side, each a small tile (value over label) instead of full-width rows.
+
+    Collapsing the old stacked rows into a strip lets the card size to its
+    content, so the "Average game length" card no longer stretches into a dead
+    zone beside its chart neighbour (PRD content-sized cards)."""
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     _, avgs = game_length_data(df_f)
     if not avgs:
         return html.Div("No data", style={"color": COLORS["dim"]})
 
-    def _row(label, val, cls=""):
+    def _stat(label, val, cls=""):
         if val is None:
             return None
-        return html.Div(
-            style={"display": "flex", "justifyContent": "space-between",
-                   "padding": "10px 0", "borderBottom": f"1px solid {COLORS['border']}"},
-            children=[
-                html.Span(label, style={"color": COLORS["muted"], "fontSize": "13px"}),
-                html.Span(f"{val} moves", className=cls,
-                          style={"fontWeight": "700", "fontSize": "16px",
-                                 "fontFamily": "'IBM Plex Mono', monospace"}),
-            ],
-        )
+        return html.Div(className="stat-strip-item", children=[
+            html.Div(f"{val}", className=f"stat-strip-value {cls}".strip()),
+            html.Div(label, className="stat-strip-label"),
+        ])
 
-    rows = [
-        _row("Avg moves (Wins)",   avgs.get("Win"),  "text-win"),
-        _row("Avg moves (Draws)",  avgs.get("Draw"), "text-muted"),
-        _row("Avg moves (Losses)", avgs.get("Loss"), "text-loss"),
+    stats = [
+        _stat("Wins",   avgs.get("Win"),  "text-win"),
+        _stat("Draws",  avgs.get("Draw"), "text-muted"),
+        _stat("Losses", avgs.get("Loss"), "text-loss"),
     ]
-    return html.Div([r for r in rows if r is not None])
+    return html.Div([s for s in stats if s is not None], className="stat-strip")

@@ -30,7 +30,13 @@ from components import (
 )
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import opening_summary, repertoire_tree
-from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
+from styles import (
+    COLORS,
+    WDL_COLOR_MAP,
+    apply_dark_theme,
+    apply_wdl_hover,
+    empty_fig,
+)
 
 dash.register_page(
     __name__, path="/openings", name="Openings", title="Openings — Chess Stats", order=2,
@@ -227,6 +233,8 @@ def update_opening_family(colors, outcomes, terminations, start, end, events, mo
         orientation="h", barmode="stack",
         color_discrete_map=WDL_COLOR_MAP,
     )
+    # The y-axis already names the ECO family; the hover shows only "<b>N</b> wins".
+    apply_wdl_hover(fig, value_axis="x")
     apply_dark_theme(fig, xaxis_title="Games", legend_title="Outcome")
     fig.update_yaxes(categoryorder="total ascending")
     return fig
