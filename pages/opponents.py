@@ -31,8 +31,8 @@ from components import (
     lesson_card,
     lichess_link,
     page_header,
-    rating_basis_note,
     register_game_navigation,
+    uscf_member_url,
 )
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import (
@@ -82,8 +82,6 @@ def layout(**kwargs) -> html.Div:
             chart_card("W/D/L by opponent rating difference", "rating-bucket-bar"),
             chart_card("Outcome vs opponent rating", "outcome-scatter"),
         ]),
-        # Strength comparisons are rating-diff — say what basis they mix (issue #32)
-        rating_basis_note(),
     ])
 
 
@@ -117,7 +115,53 @@ def _openings_panel(title: str, openings: list[dict]) -> html.Div:
     ])
 
 
-def _render_dossier(report: dict) -> html.Div:
+def _uscf_identity(report: dict, games) -> html.Div | None:
+    """
+    The opponent's official USCF identity (issue #35): a deep link to their
+    page on ratings.uschess.org, plus then-vs-now — their rating when you
+    last played (lens-aware: the crosstable value under Live) against their
+    current rating (their profile, refreshed at most weekly).
+
+    Opponents with no USCF identity (never matched) get nothing — the
+    dossier renders exactly as before (ADR 0003).
+    """
+    matched = games[games["UscfOpponentId"] != ""] if "UscfOpponentId" in games.columns \
+        else games.iloc[0:0]
+    if matched.empty:
+        return None
+    opponent_id = str(matched.iloc[0]["UscfOpponentId"])
+    uscf_name = str(matched.iloc[0]["UscfOpponentName"]) or report["opponent"]
+
+    children: list = [
+        html.A(
+            [html.Span(uscf_name, className="scout-uscf-name"),
+             html.Span(f"#{opponent_id}", className="scout-uscf-id"),
+             html.I(className="bi bi-box-arrow-up-right scout-uscf-ext")],
+            href=uscf_member_url(opponent_id), target="_blank",
+            className="scout-uscf-link",
+            title="Their page on ratings.uschess.org",
+        ),
+    ]
+
+    # Then vs now: what they were rated when you played them (lens-aware)
+    # vs where their rating stands today (issue #35's insight)
+    profile = data.get_opponent_profiles().get(opponent_id)
+    regular = profile.rating("R") if profile is not None else None
+    then, now = report["their_rating"], (regular.rating if regular else None)
+    if then and now is not None:
+        delta = now - then
+        delta_str = f"+{delta}" if delta > 0 else str(delta)
+        children.append(html.Div(className="scout-then-vs-now", children=[
+            html.Span(f"Rated {then} when you last played", className="scout-then"),
+            html.Span(" · ", className="scout-then-sep"),
+            html.Span(f"{now} now ({delta_str})",
+                      className="scout-now " + ("loss" if delta > 0 else "win")),
+        ]))
+
+    return html.Div(children, className="scout-uscf-identity")
+
+
+def _render_dossier(report: dict, games) -> html.Div:
     """The full Scouting Report for one opponent."""
     gap = report["rating_gap"]
     if gap is None:
@@ -155,6 +199,9 @@ def _render_dossier(report: dict) -> html.Div:
     lessons = [lesson_card(lesson, show_opponent=False) for lesson in report["lessons"]]
 
     return html.Div(className="scout-dossier", children=[
+        # The opponent's official USCF identity + then-vs-now (issue #35)
+        _uscf_identity(report, games),
+
         # The headline numbers
         html.Div(className="h2h-stat-grid scout-stat-grid", children=[
             _stat("Score", report["score"]),
@@ -239,7 +286,7 @@ def update_scouting_report(opponent, colors, outcomes, terminations, start, end,
     if report["total"] == 0:
         return html.Div(f"No games vs {opponent} in the current filter.",
                         className="scout-hint")
-    return _render_dossier(report)
+    return _render_dossier(report, df_f[df_f["Opponent"] == opponent])
 
 
 navigate_to_game_from_scout = register_game_navigation(

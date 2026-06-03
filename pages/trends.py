@@ -29,7 +29,6 @@ from components import (
     content_card,
     empty_state,
     page_header,
-    rating_basis_note,
     register_game_navigation,
 )
 from filters import FILTER_INPUTS, get_filtered
@@ -125,8 +124,6 @@ def layout(**kwargs) -> html.Div:
                 ]),
             ),
         ]),
-        # Upset margins are rating-diff — say what basis they mix (issue #32)
-        rating_basis_note(),
     ])
 
 

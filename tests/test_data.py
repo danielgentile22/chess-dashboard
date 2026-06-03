@@ -41,11 +41,13 @@ def stub_studies(**study_pgns):
 
 @contextlib.contextmanager
 def stub_uscf(profile, supplements=None, sections=None, games=None,
-              events=None, norms=None, awards=None, standings=None):
+              events=None, norms=None, awards=None, standings=None,
+              opponent_profiles=None):
     """Stub the USCF client inside sync: raw JSON values, or Exceptions to raise.
 
-    *standings* maps (event_id, section_number) → raw item list; unstubbed
-    crosstables raise (sync skips them gracefully, per-crosstable degradation)."""
+    *standings* maps (event_id, section_number) → raw item list; *opponent_profiles*
+    maps member_id → raw profile.  Unstubbed crosstables/opponents raise (sync
+    skips them gracefully, per-item degradation)."""
     from uscf_client import UscfUnreachableError
 
     def fake(value):
@@ -54,6 +56,19 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
                 raise value
             return value
         return fetch
+
+    def fake_profile(member_id, **kwargs):
+        # The member's own profile, or a stubbed opponent's (issue #35)
+        if isinstance(profile, Exception):
+            raise profile
+        if str(profile.get("id", "")) == str(member_id):
+            return profile
+        value = (opponent_profiles or {}).get(member_id)
+        if value is None:
+            raise UscfUnreachableError(f"no profile stubbed for {member_id!r}")
+        if isinstance(value, Exception):
+            raise value
+        return value
 
     def fake_standings(event_id, section_number, **kwargs):
         value = (standings or {}).get((event_id, section_number))
@@ -64,7 +79,7 @@ def stub_uscf(profile, supplements=None, sections=None, games=None,
             raise value
         return value
 
-    with mock.patch.object(sync, "fetch_member_profile", side_effect=fake(profile)), \
+    with mock.patch.object(sync, "fetch_member_profile", side_effect=fake_profile), \
          mock.patch.object(sync, "fetch_rating_supplements",
                            side_effect=fake(supplements or [])), \
          mock.patch.object(sync, "fetch_member_sections",
@@ -559,6 +574,35 @@ class TestStandingsInStore:
         assert data.get_uscf_standings() == {}
         # The round column still exists — downstream code never checks
         assert "UscfRound" in data.get_df().columns
+
+
+class TestOpponentProfilesInStore:
+    """Opponent current ratings in the data layer (issue #35)."""
+
+    def test_data_layer_exposes_opponent_profiles(
+        self, sample_pgn_text, uscf_profile_json, uscf_games_json
+    ):
+        import json
+        from pathlib import Path
+        baker = json.loads(
+            Path("tests/fixtures/uscf/opponent-baker.json").read_text())
+
+        with stub_studies(study1=sample_pgn_text), stub_uscf(
+            uscf_profile_json, games=uscf_games_json["items"],
+            opponent_profiles={"20000056": baker},
+        ):
+            data.initialize(["study1"], player_name="Test Player",
+                            uscf_member_id="12345678")
+
+        profiles = data.get_opponent_profiles()
+        assert profiles["20000056"].name == "JOHN BAKER"
+        assert profiles["20000056"].rating("R").rating == 1400
+
+    def test_opponent_profiles_are_empty_without_uscf(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        assert data.get_opponent_profiles() == {}
 
 
 class TestNewAchievementDetection:

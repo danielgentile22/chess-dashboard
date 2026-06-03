@@ -205,20 +205,6 @@ def uscf_status_label(matched_by: str, forfeit: bool, conflict: bool = False) ->
     return {"id": "✓", "name": "≈"}.get(matched_by, "")
 
 
-def rating_basis_note() -> html.Div:
-    """
-    The opponent-rating limitation (issue #32), shown wherever rating-diff
-    appears: your rating follows the Official/Live lens, but opponent ratings
-    stay the typed values from your chapters until crosstable enrichment
-    (Phase D) supplies their live ratings.
-    """
-    return html.Div(
-        "Your rating follows the Official/Live lens; opponent ratings are the "
-        "typed values from your chapters until crosstable enrichment lands.",
-        className="rating-basis-note",
-    )
-
-
 def game_detail_path(chapter_url: str) -> str:
     """The in-app detail route for a Game ('' if it has no ChapterURL)."""
     if not chapter_url:
