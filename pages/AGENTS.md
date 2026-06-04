@@ -18,6 +18,7 @@ inline (that lives in `pgn_stats_core.py` / `uscf_core.py`). The persistent chro
 | `events.py` | `/events` | Series → Rated Events, standings, crosstables |
 | `games.py` | `/games` | full games table with USCF status |
 | `lessons.py` | `/lessons` | Lessons + Tag filtering, review mode (`?review=1`) |
+| `analysis.py` | `/analysis` | error-profile mistake-type distribution + awaiting-analysis list |
 | `reconciliation.py` | `/reconciliation` | Studies ↔ USCF disagreements |
 | `game_detail.py` | `/game/<id>` | embedded Lichess board + metadata + USCF record (`nav=False`) |
 

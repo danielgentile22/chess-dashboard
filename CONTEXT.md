@@ -58,6 +58,19 @@ A run of consecutive Games with the same outcome, ordered by date. The current w
 The pre-game dossier on one opponent: head-to-head score, the openings they've played against Daniel, how those Games ended, and the Lessons written after facing them.
 _Avoid_: head-to-head (that's just the score; the Scouting Report includes Lessons and openings)
 
+**Error Profile**:
+A Game's classified mistakes by Daniel — the engine-judged non-best moves *he* played, recorded for every Game regardless of result so the improvement signal isn't biased by wins. Read from the computer analysis Lichess embeds in an analysed Chapter's export (see `docs/adr/0004`); a Game with no requested analysis has an empty profile. Each entry carries a Severity, a Phase, a Mistake Type, and the move number it happened on.
+_Avoid_: weakness (a Tag-derived recurring theme on the Lessons page is a different thing)
+
+**Severity**:
+How bad a mistake was — `inaccuracy`, `mistake`, or `blunder` — recomputed from the move's win-probability drop at the 0.1 / 0.2 / 0.3 thresholds, not read from Lichess's text word. A swing below the inaccuracy line is no mistake at all and never enters the Error Profile.
+
+**Phase**:
+The part of the Game a mistake happened in — `opening`, `middlegame`, or `endgame` — from a per-position port of Lichess's open-source `Divider` (majors+minors ≤ 6 → endgame; ≤ 10, a sparse home rank, or high "mixedness" → middlegame).
+
+**Mistake Type**:
+What kind of error a mistake was — `tactical` (a forcing shot missed, or material dropped to a forcing sequence) or `positional` (a slow eval bleed with no forcing refutation) — by a deterministic heuristic over the moves, never an extra engine call.
+
 ## Tag taxonomy
 
 | Tag | Means |

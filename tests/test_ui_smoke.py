@@ -36,6 +36,7 @@ PAGES = [
     ("/events",         "Events"),
     ("/games",          "Games"),
     ("/lessons",        "Lessons"),
+    ("/analysis",       "Analysis"),
     ("/reconciliation", "Reconciliation"),
 ]
 
@@ -2802,3 +2803,67 @@ class TestMotionAndPolish:
         from pages.reconciliation import update_reconciliation
         rendered = str(update_reconciliation({"seq": 0}))
         assert "card-stack" in rendered
+
+
+# ---------------------------------------------------------------------------
+# The Analysis page (issue #58): mistake-type distribution + awaiting list
+# ---------------------------------------------------------------------------
+
+# Two Games: one with requested computer analysis (Daniel, Black, plays the
+# positional inaccuracy 3...b6), one plain Game still awaiting its one click.
+ANALYSIS_PGN = """\
+[Event "Test"]
+[White "Foe One"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[StudyName "S"]
+[ChapterName "Foe One - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/s/analyzedA"]
+
+1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.2] } 2. c4 { [%eval 0.2] } 2... Nf6 { [%eval 0.3] } 3. Nc3 { [%eval 0.3] } 3... b6 $6 { [%eval 1.8] Inaccuracy. e6 was best. } ( 3... e6 4. Nf3 ) 4. Bf4 { [%eval 1.7] } 0-1
+
+[Event "Test"]
+[White "Daniel Gentile"]
+[Black "Foe Two"]
+[Result "1-0"]
+[StudyName "S"]
+[ChapterName "Daniel Gentile - Foe Two"]
+[ChapterURL "https://lichess.org/study/s/plainB"]
+
+1. e4 e5 2. Nf3 Nc6 1-0
+"""
+
+
+@pytest.fixture()
+def analysis_store():
+    """Initialise the real store from a PGN (USCF off, Lichess stubbed) for the
+    Analysis-page callback tests."""
+    import data
+    import sync
+
+    def _init(pgn_text):
+        data.reset()
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn_text):
+            data.initialize(["analysis-study"], player_name="Daniel Gentile")
+        return data
+
+    yield _init
+    data.reset()
+
+
+class TestAnalysisPage:
+    def test_empty_state_before_any_game_is_analyzed(self, ui_app, ui_data):
+        # The sample fixture carries no requested computer analysis anywhere.
+        from pages.analysis import update_analysis
+        rendered = str(update_analysis(None))
+        assert "empty-state" in rendered
+
+    def test_distribution_and_awaiting_list_when_a_game_is_analyzed(
+        self, ui_app, analysis_store
+    ):
+        analysis_store(ANALYSIS_PGN)
+        from pages.analysis import update_analysis
+        rendered = str(update_analysis(None))
+        assert "empty-state" not in rendered   # we have analysis now
+        assert "Graph(" in rendered            # the mistake-type chart renders
+        assert "Foe Two" in rendered           # the still-awaiting Chapter is named
