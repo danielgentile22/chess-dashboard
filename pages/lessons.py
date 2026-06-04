@@ -25,7 +25,13 @@ import dash
 from dash import ALL, Input, Output, State, callback, ctx, dcc, html, no_update
 
 import data
-from components import content_card, lesson_card, page_header, weakness_callout
+from components import (
+    content_card,
+    lesson_card,
+    page_header,
+    tag_chips,
+    weakness_callout,
+)
 from filters import FILTER_INPUTS, get_filtered
 from pgn_stats_core import (
     CANONICAL_TAGS,
@@ -306,10 +312,9 @@ def render_review_card(index, queue):
         html.Div(card["Lesson"], className="review-lesson-text"),
         html.Div(className="review-card-footer", children=[
             html.Div(meta, className="review-card-meta"),
-            html.Div(className="review-card-tags", children=[
-                html.Span(f"#{t}", className="tag-chip tag-chip-small")
-                for t in card["Tags"]
-            ]),
+            html.Div(className="review-card-tags", children=tag_chips(
+                card["Tags"], card.get("TagSources"), base_class="tag-chip tag-chip-small",
+            )),
         ]),
     ])
     return rendered, f"{index + 1} / {total}"

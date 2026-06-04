@@ -17,7 +17,7 @@ inline (that lives in `pgn_stats_core.py` / `uscf_core.py`). The persistent chro
 | `opponents.py` | `/opponents` | Scouting Report, records, strength buckets |
 | `events.py` | `/events` | Series → Rated Events, standings, crosstables |
 | `games.py` | `/games` | full games table with USCF status |
-| `lessons.py` | `/lessons` | Lessons + Tag filtering, review mode (`?review=1`) |
+| `lessons.py` | `/lessons` | Lessons + Tag filtering, review mode (`?review=1`); engine-emitted Tags (issue #62) render distinguishably on Lesson + review cards |
 | `analysis.py` | `/analysis` | error-profile mistake-type distribution + trends (accuracy & type over time w/ rating, phase×type matrix, move histogram) + awaiting-analysis list |
 | `reconciliation.py` | `/reconciliation` | Studies ↔ USCF disagreements |
 | `game_detail.py` | `/game/<id>` | pgn-viewer board (Game / My Analysis / Engine switcher) + critical moment + metadata + USCF record (`nav=False`). The Engine view (F7) shows the AI summary, an eval chart, and his judged moves with corrections. |
@@ -56,6 +56,11 @@ Every page module, top to bottom:
 - **Theme through the shared tokens.** Colors come from `styles` (`COLORS`,
   `WDL_COLOR_MAP`, `apply_dark_theme`), never hardcoded hex — they must match the
   CSS `:root` block generated from `styles.THEME`.
+- **Render Tags through `components.tag_chips`.** Wherever a Game's Tags render
+  (Game detail, Lesson cards, review cards), pass the Game's `TagSources` map so
+  engine-emitted Tags (issue #62 [F4]) get the muted ⚙ `tag-chip-engine`
+  treatment — never re-emit bare `tag-chip` spans, or engine Tags become
+  indistinguishable from the ones Daniel hand-wrote.
 - **The one vendored front-end asset.** `game_detail.py` renders the board with
   Lichess's open-source pgn-viewer, bundled locally in `assets/`
   (`lichess-pgn-viewer.min.js` is an ES module, kept out of Dash's classic

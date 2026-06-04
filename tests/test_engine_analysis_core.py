@@ -31,6 +31,7 @@ from engine_analysis_core import (
     enrich_games_with_analysis,
     mistake_type_distribution,
     player_accuracy,
+    tags_from_error_profile,
     win_pct_from_cp,
 )
 from pgn_stats_core import load_games_from_text
@@ -477,6 +478,85 @@ class TestDegradesCleanly:
 
 
 # ---------------------------------------------------------------------------
+# tags_from_error_profile (issue #62 [F4] — engine-emitted Tags)
+# ---------------------------------------------------------------------------
+
+def _mistake(severity="inaccuracy", phase="middlegame", mistake_type="positional"):
+    """A Mistake with the three classifications that drive Tag emission; the ply
+    / SAN / drop don't affect the mapping, so they get harmless defaults."""
+    return Mistake(
+        ply=7, move_number=4, san="Nf6", severity=severity, phase=phase,
+        mistake_type=mistake_type, win_pct_drop=15.0,
+    )
+
+
+class TestTagsFromErrorProfile:
+    def test_a_tactical_mistake_emits_the_tactics_tag(self):
+        tags = tags_from_error_profile([_mistake(mistake_type="tactical")])
+        assert "tactics" in tags
+
+    def test_a_positional_mistake_emits_the_strategy_tag(self):
+        tags = tags_from_error_profile([_mistake(mistake_type="positional")])
+        assert "strategy" in tags
+        assert "tactics" not in tags
+
+    def test_a_blunder_severity_move_emits_the_blunder_tag(self):
+        # Severity is its own axis: a blunder earns #blunder on top of its
+        # tactical/positional Tag, while a mere inaccuracy never does.
+        blunder = tags_from_error_profile(
+            [_mistake(severity="blunder", mistake_type="tactical")]
+        )
+        assert "blunder" in blunder
+        assert "tactics" in blunder
+        inaccuracy = tags_from_error_profile([_mistake(severity="inaccuracy")])
+        assert "blunder" not in inaccuracy
+
+    def test_phase_maps_to_the_opening_and_endgame_tags(self):
+        assert "opening" in tags_from_error_profile([_mistake(phase="opening")])
+        assert "endgame" in tags_from_error_profile([_mistake(phase="endgame")])
+        # The middlegame is the unmarked default — it earns no phase Tag.
+        middle = tags_from_error_profile([_mistake(phase="middlegame")])
+        assert "opening" not in middle and "endgame" not in middle
+
+    def test_tags_are_deduplicated_and_in_taxonomy_order(self):
+        # A profile that earns every emittable Tag, out of order and with a
+        # duplicate, comes back unique and in the canonical taxonomy order.
+        profile = [
+            _mistake(phase="endgame", mistake_type="positional"),
+            _mistake(phase="opening", severity="blunder", mistake_type="tactical"),
+            _mistake(phase="opening", mistake_type="tactical"),  # duplicate signals
+        ]
+        assert tags_from_error_profile(profile) == [
+            "opening", "tactics", "endgame", "blunder", "strategy",
+        ]
+
+    def test_an_empty_profile_earns_no_tags(self):
+        assert tags_from_error_profile([]) == []
+
+
+class TestEmittedTagsOnTheAnalysis:
+    # analyzedA's movetext: Daniel (Black) plays the 3...b6 inaccuracy — an
+    # opening-phase positional slip — so the Game tags itself #opening #strategy.
+    _ANALYZED = (
+        "1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.2] } "
+        "2. c4 { [%eval 0.2] } 2... Nf6 { [%eval 0.3] } "
+        "3. Nc3 { [%eval 0.3] } 3... b6 $6 { [%eval 1.8] Inaccuracy. e6 was best. } "
+        "( 3... e6 4. Nf3 ) 4. Bf4 { [%eval 1.7] } 0-1"
+    )
+
+    def test_analyze_game_carries_the_emitted_tags(self):
+        analysis = analyze_game(self._ANALYZED, player_color="Black")
+        # The Analysis carries exactly what its own error profile earns…
+        assert analysis.emitted_tags == tags_from_error_profile(analysis.error_profile)
+        # …which for his opening positional slip is #opening and #strategy.
+        assert "opening" in analysis.emitted_tags
+        assert "strategy" in analysis.emitted_tags
+
+    def test_an_unanalysed_game_emits_no_tags(self):
+        assert analyze_game("").emitted_tags == []
+
+
+# ---------------------------------------------------------------------------
 # enrich_games_with_analysis (mirrors uscf_core.enrich_games)
 # ---------------------------------------------------------------------------
 
@@ -546,6 +626,140 @@ class TestEnrich:
         out = enrich_games_with_analysis(df)
         assert bool(out.iloc[0]["Analyzed"]) is False
         assert isinstance(out.iloc[0]["Analysis"], GameAnalysis)
+
+
+# ---------------------------------------------------------------------------
+# Engine Tags flow into the Tags column, source-tagged (issue #62 [F4])
+# ---------------------------------------------------------------------------
+
+# An analysed Game in which Daniel (Black) plays the 3...b6 inaccuracy — an
+# opening-phase positional slip → the engine emits #opening and #strategy.
+_ENGINE_TAGGED_PGN = """\
+[Event "T"]
+[White "Foe One"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[StudyName "S"]
+[ChapterName "Foe One - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/s/tagA"]
+
+1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.2] } 2. c4 { [%eval 0.2] } 2... Nf6 { [%eval 0.3] } 3. Nc3 { [%eval 0.3] } 3... b6 $6 { [%eval 1.8] Inaccuracy. e6 was best. } ( 3... e6 4. Nf3 ) 4. Bf4 { [%eval 1.7] } 0-1
+"""
+
+# The same analysed slip, but the Chapter also carries a hand-written Lesson
+# with his own #endgame Tag — so we can prove his Tag survives and the engine's
+# are added beside it (and that an overlap stays "his").
+_HANDWRITTEN_PLUS_ENGINE_PGN = """\
+[Event "T"]
+[White "Foe One"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[StudyName "S"]
+[ChapterName "Foe One - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/s/tagA"]
+
+{ Lesson: Don't loosen the queenside so early. #endgame #strategy }
+{ Lesson: Don't loosen the queenside so early. #endgame #strategy }
+1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.2] } 2. c4 { [%eval 0.2] } 2... Nf6 { [%eval 0.3] } 3. Nc3 { [%eval 0.3] } 3... b6 $6 { [%eval 1.8] Inaccuracy. e6 was best. } ( 3... e6 4. Nf3 ) 4. Bf4 { [%eval 1.7] } 0-1
+"""
+
+# A Game with no requested analysis (no [%eval]) but a hand-written #endgame —
+# the engine emits nothing, so his Tag must be left exactly as it was.
+_UNANALYSED_TAGGED_PGN = """\
+[Event "T"]
+[White "Daniel Gentile"]
+[Black "Foe Two"]
+[Result "1-0"]
+[StudyName "S"]
+[ChapterName "Daniel Gentile - Foe Two"]
+[ChapterURL "https://lichess.org/study/s/plainB"]
+
+{ Lesson: Convert the extra pawn cleanly. #endgame }
+1. e4 e5 2. Nf3 Nc6 1-0
+"""
+
+
+class TestEngineTagsIngestion:
+    @staticmethod
+    def _enriched(pgn):
+        df, _ = load_games_from_text(pgn, player_name="Daniel Gentile")
+        return enrich_games_with_analysis(df)
+
+    def test_engine_tags_flow_into_the_tags_column_marked_engine(self):
+        row = self._enriched(_ENGINE_TAGGED_PGN).iloc[0]
+        assert "strategy" in row["Tags"]                  # the engine Tag is there
+        assert row["TagSources"]["strategy"] == "engine"  # and sourced to the engine
+
+    def test_hand_written_tags_survive_and_engine_tags_append_after(self):
+        # His #endgame #strategy come first and stay "mine"; the engine's
+        # opening-phase Tag is appended after, marked "engine".
+        row = self._enriched(_HANDWRITTEN_PLUS_ENGINE_PGN).iloc[0]
+        assert row["Tags"][:2] == ["endgame", "strategy"]   # his Tags, his order
+        assert row["TagSources"]["endgame"] == "mine"
+        assert "opening" in row["Tags"]
+        assert row["Tags"].index("opening") >= 2            # appended after his
+        assert row["TagSources"]["opening"] == "engine"
+
+    def test_a_tag_he_also_wrote_stays_his(self):
+        # The engine also earns #strategy here, but he wrote it — so it stays
+        # "mine" (ADR 0002: nothing he wrote changes).
+        row = self._enriched(_HANDWRITTEN_PLUS_ENGINE_PGN).iloc[0]
+        assert row["Tags"].count("strategy") == 1           # not duplicated
+        assert row["TagSources"]["strategy"] == "mine"
+
+    def test_an_unanalysed_game_keeps_its_tags_untouched(self):
+        # No evals → nothing emitted; his hand-written Tag is unchanged and
+        # still sourced to him, never reframed as the engine's.
+        out = self._enriched(_UNANALYSED_TAGGED_PGN).iloc[0]
+        assert out["Tags"] == ["endgame"]
+        assert out["TagSources"] == {"endgame": "mine"}
+
+
+# Three analysed losses in which Daniel (White) blunders 2.Qg4?? — each earns
+# the engine #blunder Tag, so a recurring weakness emerges with no hand-tagging.
+def _three_blunder_losses() -> str:
+    chapters = []
+    for i, date in enumerate(("2024.01.01", "2024.02.01", "2024.03.01")):
+        chapters.append(f"""\
+[Event "T"]
+[Date "{date}"]
+[White "Daniel Gentile"]
+[Black "Foe {i}"]
+[Result "0-1"]
+[StudyName "S"]
+[ChapterName "Daniel Gentile - Foe {i}"]
+[ChapterURL "https://lichess.org/study/s/blund{i}"]
+
+1. e4 {{ [%eval 0.2] }} 1... e5 {{ [%eval 0.2] }} 2. Qg4 {{ [%eval -6.0] }} 2... d5 {{ [%eval -6.1] }} 0-1
+""")
+    return "\n".join(chapters)
+
+
+class TestConsumersPickUpEngineTags:
+    """The whole point of routing engine Tags into the Tags column: the Lessons
+    page and recurring-weakness detection light up with no change to them."""
+
+    @staticmethod
+    def _enriched(pgn):
+        df, _ = load_games_from_text(pgn, player_name="Daniel Gentile")
+        return enrich_games_with_analysis(df)
+
+    def test_lessons_can_be_filtered_by_an_engine_tag(self):
+        # His Lesson Game earns #opening from the engine; filtering Lessons by
+        # #opening — which he never typed — now finds it.
+        from pgn_stats_core import lessons_table
+        enriched = self._enriched(_HANDWRITTEN_PLUS_ENGINE_PGN)
+        hit = lessons_table(enriched, tags=["opening"])
+        assert len(hit) == 1
+        assert hit.iloc[0]["ChapterURL"].endswith("/tagA")
+
+    def test_recurring_weakness_detection_sees_engine_tags(self):
+        # Three analysed losses, each an engine #blunder, surface as a recurring
+        # weakness — the insight that was empty until games tagged themselves.
+        from pgn_stats_core import recurring_weaknesses
+        enriched = self._enriched(_three_blunder_losses())
+        weak_tags = {w["tag"] for w in recurring_weaknesses(enriched)}
+        assert "blunder" in weak_tags
 
 
 # ---------------------------------------------------------------------------

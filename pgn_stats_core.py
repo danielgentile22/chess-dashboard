@@ -1512,8 +1512,8 @@ def upset_tracker(df: pd.DataFrame) -> dict:
 # Lessons + Tags insights (issue #12)
 # ---------------------------------------------------------------------------
 
-_LESSON_COLS = ["Lesson", "Tags", "Opponent", "Outcome", "Result", "Date",
-                "Date_dt", "Event", "ChapterURL"]
+_LESSON_COLS = ["Lesson", "Tags", "TagSources", "Opponent", "Outcome", "Result",
+                "Date", "Date_dt", "Event", "ChapterURL"]
 
 
 def lessons_table(
@@ -1546,6 +1546,9 @@ def lessons_table(
         {
             "Lesson": lesson,
             "Tags": game["Tags"],
+            # The per-Tag source map (issue #62 [F4]) rides along so the Lesson
+            # card can mark engine-emitted Tags; absent on un-enriched dfs.
+            "TagSources": game.get("TagSources") or {},
             "Opponent": game["Opponent"],
             "Outcome": game["Outcome"],
             "Result": game["Result"],
