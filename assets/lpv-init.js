@@ -60,6 +60,11 @@
     mount.dataset.lpvReady = "1";
     renderBoard(mount, "game");
 
+    // The Engine view (issue #63 [F7]) is server-rendered Dash content, not a
+    // board — so the switcher toggles between the board mount and this panel
+    // rather than re-mounting the viewer.
+    var engine = card.querySelector(".lpv-engine");
+
     var switches = card.querySelectorAll(".lpv-switch");
     Array.prototype.forEach.call(switches, function (btn) {
       btn.addEventListener("click", function () {
@@ -67,7 +72,23 @@
           s.classList.remove("active");
         });
         btn.classList.add("active");
-        renderBoard(mount, btn.getAttribute("data-view"));
+
+        var view = btn.getAttribute("data-view");
+        if (view === "engine") {
+          mount.style.display = "none";
+          if (engine) {
+            engine.style.display = "";
+            // A Plotly graph laid out while its container was hidden renders at
+            // zero width; nudge it to redraw now that the panel is visible.
+            window.dispatchEvent(new Event("resize"));
+          }
+        } else {
+          if (engine) {
+            engine.style.display = "none";
+          }
+          mount.style.display = "";
+          renderBoard(mount, view);
+        }
       });
     });
   }

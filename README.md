@@ -261,12 +261,12 @@ chess-stats-dashboard/
 │   ├── lessons.py           #   /lessons   Lessons + Tag filtering
 │   ├── analysis.py          #   /analysis  error-profile distribution + trends (accuracy, type, phase×type, histogram)
 │   ├── reconciliation.py    #   /reconciliation  Studies ↔ USCF disagreements
-│   └── game_detail.py       #   /game/<id> pgn-viewer board (Game / My Analysis) + metadata + USCF record
+│   └── game_detail.py       #   /game/<id> pgn-viewer board (Game / My Analysis / Engine) + metadata + USCF record
 ├── assets/
 │   ├── custom.css           # Dark theme, typography, component styles
 │   ├── lichess-pgn-viewer.min.js  # Vendored Lichess pgn-viewer (ES module, served on demand)
 │   ├── lichess-pgn-viewer.css     # Vendored pgn-viewer styles (self-contained: board, pieces, fonts)
-│   └── lpv-init.js          # Mounts the pgn-viewer + wires the Game / My Analysis switcher
+│   └── lpv-init.js          # Mounts the pgn-viewer + wires the Game / My Analysis / Engine switcher
 ├── docs/adr/                # Architecture decision records
 ├── tests/
 │   ├── conftest.py          # Shared fixtures (sample Studies, USCF responses, UI app)
