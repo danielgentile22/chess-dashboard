@@ -29,6 +29,8 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+import ai_summary
+from analysis_cache import AnalysisCache
 from engine_analysis_core import (
     GameAnalysis,
     enrich_games_with_analysis,
@@ -89,6 +91,10 @@ _token: str | None = None
 _cache_path: str | None = None
 _uscf_member_id: str | None = None
 _uscf_cache_path: str | None = None
+# AI-summary boundary config (issue #59 [F5]): both optional. No key → the
+# summary step is a no-op; the cache path makes summaries survive restarts.
+_anthropic_api_key: str | None = None
+_analysis_cache_path: str | None = None
 
 # Guards against doubled Syncs (button mashing); refresh() never blocks on it.
 _sync_lock = threading.Lock()
@@ -112,6 +118,8 @@ def initialize(
     cache_path: str | None = None,
     uscf_member_id: str | None = None,
     uscf_cache_path: str | None = None,
+    anthropic_api_key: str | None = None,
+    analysis_cache_path: str | None = None,
 ) -> tuple[pd.DataFrame, str]:
     """
     Sync all designated Studies and cache the merged DataFrame module-wide.
@@ -133,10 +141,12 @@ def initialize(
     """
     global _study_ids, _player_name, _token, _cache_path
     global _uscf_member_id, _uscf_cache_path
+    global _anthropic_api_key, _analysis_cache_path
     _study_ids, _player_name, _token, _cache_path = (
         list(study_ids), player_name, token, cache_path,
     )
     _uscf_member_id, _uscf_cache_path = uscf_member_id, uscf_cache_path
+    _anthropic_api_key, _analysis_cache_path = anthropic_api_key, analysis_cache_path
 
     logger.info("Syncing %d designated Studies from Lichess", len(study_ids))
     try:
@@ -190,14 +200,34 @@ def _run_analysis_into_store() -> None:
     Read the engine analysis Lichess embedded in each Game's Study export and
     attach it as enrichment (issue #57 [F1]), following the USCF pattern.
 
-    The Analysis / Analyzed columns always exist afterwards — a Game with no
-    requested computer analysis simply degrades to ``analyzed=False`` — so
-    pages never check for their presence.  Analysis is enrichment, never a
-    dependency (ADR 0004): a Sync that reached Lichess succeeds whether or not
-    any Game is analysed.
+    The Analysis / Analyzed / Summary columns always exist afterwards — a Game
+    with no requested computer analysis simply degrades to ``analyzed=False``
+    with an empty Summary — so pages never check for their presence.  Analysis
+    is enrichment, never a dependency (ADR 0004): a Sync that reached Lichess
+    succeeds whether or not any Game is analysed, and whether or not the AI
+    summary boundary is reachable.
     """
     global _df
-    _df = enrich_games_with_analysis(_df)
+    enriched = enrich_games_with_analysis(_df)
+    enriched["Summary"] = _summaries_for(enriched)
+    _df = enriched
+
+
+def _summaries_for(enriched: pd.DataFrame) -> list[str]:
+    """One plain-English summary per Game (issue #59 [F5]), via the AI boundary.
+
+    Empty for an unanalysed Game, when no API key is configured, or on any
+    client failure — the boundary degrades silently, so this never fails the
+    Sync.  Cached by Game identity so an unchanged Game is never re-billed.
+    """
+    if "Analysis" not in enriched.columns:
+        return [""] * len(enriched)
+    cache = AnalysisCache(_analysis_cache_path)
+    return [
+        ai_summary.summarize(analysis, api_key=_anthropic_api_key, cache=cache)
+        if isinstance(analysis, GameAnalysis) else ""
+        for analysis in enriched["Analysis"]
+    ]
 
 
 def _detect_new_achievements() -> None:
@@ -336,6 +366,23 @@ def get_game_analysis(chapter_url: str) -> GameAnalysis:
     return analysis if isinstance(analysis, GameAnalysis) else GameAnalysis(
         chapter_url=chapter_url
     )
+
+
+def get_game_summary(chapter_url: str) -> str:
+    """
+    The plain-English AI summary for the Game at *chapter_url* (issue #59 [F5]).
+
+    Always returns a string — ``""`` for a Game with no requested analysis, no
+    configured API key, an unknown URL, or before the first Sync — so the Engine
+    view never guards on its presence (the summary is enrichment, never a
+    dependency; ADR 0004).
+    """
+    if not chapter_url or _df.empty or "Summary" not in _df.columns:
+        return ""
+    matches = _df[_df["ChapterURL"] == chapter_url]
+    if matches.empty:
+        return ""
+    return str(matches.iloc[0]["Summary"] or "")
 
 
 def get_awaiting_analysis() -> pd.DataFrame:
@@ -541,6 +588,7 @@ def reset() -> None:
     global _study_ids, _player_name, _token, _cache_path
     global _uscf, _uscf_member_id, _uscf_cache_path, _match_result, _dismissed
     global _seen_achievement_ids, _new_achievements
+    global _anthropic_api_key, _analysis_cache_path
     _df = pd.DataFrame()
     _player = ""
     _sync_failures = []
@@ -558,3 +606,5 @@ def reset() -> None:
     _dismissed = set()
     _seen_achievement_ids = None
     _new_achievements = []
+    _anthropic_api_key = None
+    _analysis_cache_path = None

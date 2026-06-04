@@ -38,7 +38,7 @@ lint: install-dev  ## Lint with ruff
 	$(RUFF) check . --fix
 
 typecheck: install-dev  ## Type check with mypy
-	$(VENV)/bin/mypy pgn_stats_core.py lichess_client.py uscf_client.py uscf_core.py engine_analysis_core.py sync.py data.py config.py
+	$(VENV)/bin/mypy pgn_stats_core.py lichess_client.py uscf_client.py uscf_core.py engine_analysis_core.py ai_summary.py analysis_cache.py sync.py data.py config.py
 
 clean:         ## Remove virtual environment and caches
 	rm -rf $(VENV) __pycache__ .pytest_cache .mypy_cache .ruff_cache

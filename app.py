@@ -70,13 +70,15 @@ def _index_template(root_block: str) -> str:
 
 
 def build_app(study_ids: list[str], player_name=None, token=None, cache_path=None,
-              uscf_member_id=None, uscf_cache_path=None):
+              uscf_member_id=None, uscf_cache_path=None,
+              anthropic_api_key=None, analysis_cache_path=None):
     """Sync the designated Studies, build the Dash app, and return (dash_app, server)."""
     from dash import Dash
 
     _df, detected = data.initialize(
         study_ids, player_name=player_name, token=token, cache_path=cache_path,
         uscf_member_id=uscf_member_id, uscf_cache_path=uscf_cache_path,
+        anthropic_api_key=anthropic_api_key, analysis_cache_path=analysis_cache_path,
     )
 
     # Creating the app imports every module in pages/ (each registers its own
@@ -132,6 +134,8 @@ if config.STUDY_IDS:
             cache_path=config.CACHE_PATH,
             uscf_member_id=config.USCF_MEMBER_ID,
             uscf_cache_path=config.USCF_CACHE_PATH,
+            anthropic_api_key=config.ANTHROPIC_API_KEY,
+            analysis_cache_path=config.ANALYSIS_CACHE_PATH,
         )
     except (SyncError, RuntimeError) as _exc:
         _exit_with_sync_error(_exc, f"LICHESS_STUDY_IDS={config.STUDY_IDS!r}")
@@ -162,6 +166,10 @@ def main():
     ap.add_argument("--uscf-cache", default=config.USCF_CACHE_PATH, dest="uscf_cache_path",
                     help="USCF response cache for offline fallback "
                          "(default: uscf_cache.json)")
+    ap.add_argument("--analysis-cache", default=config.ANALYSIS_CACHE_PATH,
+                    dest="analysis_cache_path",
+                    help="AI-summary cache so unchanged games aren't re-billed "
+                         "(default: analysis_cache.json)")
     ap.add_argument("--host",   default=config.HOST)
     ap.add_argument("--port",   default=config.PORT, type=int)
     ap.add_argument("--debug",  action="store_true", default=config.DEBUG)
@@ -175,6 +183,8 @@ def main():
         dash_app, _ = build_app(
             study_ids, player_name=args.player, token=args.token, cache_path=args.cache,
             uscf_member_id=args.uscf_member_id, uscf_cache_path=args.uscf_cache_path,
+            anthropic_api_key=config.ANTHROPIC_API_KEY,
+            analysis_cache_path=args.analysis_cache_path,
         )
     except (SyncError, RuntimeError) as exc:
         _exit_with_sync_error(exc, f"--study {study_ids!r}")
