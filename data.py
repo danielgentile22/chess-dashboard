@@ -29,7 +29,11 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from engine_analysis_core import GameAnalysis, enrich_games_with_analysis
+from engine_analysis_core import (
+    GameAnalysis,
+    enrich_games_with_analysis,
+    mistake_type_distribution,
+)
 from sync import (
     SyncError,
     SyncResult,
@@ -346,6 +350,33 @@ def get_awaiting_analysis() -> pd.DataFrame:
         return _df.copy()
     awaiting = _df[(~_df["Analyzed"].astype(bool)) & (_df["ChapterURL"] != "")]
     return awaiting.copy()
+
+
+def get_mistake_type_distribution() -> dict[str, int]:
+    """
+    The tactical-vs-positional split of Daniel's mistakes across every analysed
+    Game (issue #58) — the Analysis page's headline aggregate.
+
+    Always returns the two-key tally; ``{"tactical": 0, "positional": 0}`` before
+    the first Sync or when nothing is analysed yet.  Games still awaiting analysis
+    contribute nothing, so they are excluded from the distribution.
+    """
+    if _df.empty or "Analysis" not in _df.columns:
+        return mistake_type_distribution([])
+    return mistake_type_distribution(_df["Analysis"])
+
+
+def has_any_analysis() -> bool:
+    """
+    True once at least one Game carries requested computer analysis (issue #58).
+
+    Drives the Analysis page's empty state: before this is true there is nothing
+    to distribute, so the page shows its "request analysis" placeholder instead
+    of an empty chart.
+    """
+    if _df.empty or "Analyzed" not in _df.columns:
+        return False
+    return bool(_df["Analyzed"].astype(bool).any())
 
 
 def get_uscf_profile() -> UscfProfile | None:

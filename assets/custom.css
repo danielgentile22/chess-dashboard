@@ -2176,6 +2176,49 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   font-style: italic;
 }
 
+/* ── Analysis page: error profile (issue #58) ────────────────
+   The mistake-type split + the list of Chapters still awaiting analysis. */
+.analysis-explain,
+.analysis-awaiting-note {
+  font-size: 12.5px;
+  color: var(--cs-muted);
+  margin-bottom: 12px;
+  max-width: 72ch;
+}
+.analysis-awaiting-list { display: flex; flex-direction: column; gap: 8px; }
+.analysis-awaiting-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  background: var(--cs-card2);
+  border: 1px solid var(--cs-border);
+  border-radius: 8px;
+  padding: 9px 13px;
+}
+.analysis-awaiting-name {
+  font-family: var(--cs-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cs-text);
+  flex: 1;
+}
+.analysis-awaiting-date {
+  font-family: var(--cs-font-data);
+  font-size: 11.5px;
+  color: var(--cs-dim);
+}
+.analysis-awaiting-link {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--cs-border);
+  color: var(--cs-primary) !important;
+  text-decoration: none !important;
+  white-space: nowrap;
+  transition: border-color 0.15s ease;
+}
+.analysis-awaiting-link:hover { border-color: var(--cs-primary); }
+
 /* The ⚠ badge on a conflicted Game's detail view */
 .uscf-conflict-badge {
   display: flex;

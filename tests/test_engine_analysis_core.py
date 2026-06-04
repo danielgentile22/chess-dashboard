@@ -17,13 +17,18 @@ import math
 from pathlib import Path
 from unittest import mock
 
+import chess
 import pandas as pd
 import pytest
 
 from engine_analysis_core import (
     GameAnalysis,
+    Mistake,
     analyze_game,
+    classify_phase,
+    classify_severity,
     enrich_games_with_analysis,
+    mistake_type_distribution,
     win_pct_from_cp,
 )
 from pgn_stats_core import load_games_from_text
@@ -83,6 +88,85 @@ class TestWinPctFormula:
         cp = 173
         expected = 50 + 50 * (2 / (1 + math.exp(-0.00368208 * cp)) - 1)
         assert win_pct_from_cp(cp) == pytest.approx(expected, abs=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Severity: inaccuracy | mistake | blunder from win%-drop thresholds (F2)
+# ---------------------------------------------------------------------------
+
+class TestSeverityThresholds:
+    """``classify_severity`` is the 0.1 / 0.2 / 0.3 win-probability ladder,
+    with a sub-inaccuracy swing being *no* mistake at all (None).
+
+    Daniel's decision (issue #58): severity is recomputed from the win%-drop,
+    never read from Lichess's text word.  So a move Lichess *labels* a mistake
+    but whose recomputed drop is only ~15% is an *inaccuracy* here, and a ~5%
+    swing Lichess calls an inaccuracy is not an error-profile entry at all.
+    """
+
+    def test_below_inaccuracy_is_not_a_mistake(self):
+        assert classify_severity(0.0) is None
+        assert classify_severity(9.99) is None
+        assert classify_severity(-5.0) is None  # an improving move never qualifies
+
+    def test_inaccuracy_band(self):
+        assert classify_severity(10.0) == "inaccuracy"
+        assert classify_severity(19.99) == "inaccuracy"
+
+    def test_mistake_band(self):
+        assert classify_severity(20.0) == "mistake"
+        assert classify_severity(29.99) == "mistake"
+
+    def test_blunder_band(self):
+        assert classify_severity(30.0) == "blunder"
+        assert classify_severity(95.0) == "blunder"
+
+    def test_thresholds_on_the_three_known_georgina_moves(self):
+        # The priority "severity thresholds" check against real data: the three
+        # annotated moves span the boundary exactly as their recomputed drops do.
+        ga = _georgina()
+
+        def drop(move_number, side):
+            return next(m.win_pct_drop for m in ga.moves
+                        if m.move_number == move_number and m.side == side)
+
+        assert classify_severity(drop(3, "White")) is None         # d3?! ~5% drop
+        assert classify_severity(drop(15, "Black")) == "inaccuracy"  # g5? ~15% drop
+        assert classify_severity(drop(16, "White")) == "blunder"     # Bd4?? ~38% drop
+
+
+# ---------------------------------------------------------------------------
+# Phase: a per-position port of Lichess's Divider (F2)
+# ---------------------------------------------------------------------------
+
+class TestPhaseDetection:
+    """``classify_phase`` ports the Divider thresholds: endgame at majors+minors
+    ≤ 6, middlegame at ≤ 10 (or a sparse home rank / high mixedness), else
+    opening.  Checked against positions with known piece counts."""
+
+    def test_starting_position_is_opening(self):
+        # 14 majors+minors, full home ranks, near-zero mixedness.
+        assert classify_phase(chess.Board()) == "opening"
+
+    def test_six_or_fewer_majors_and_minors_is_endgame(self):
+        # K+R vs K+N — two majors/minors total.
+        board = chess.Board("8/8/4k3/8/8/4K3/4R3/5n2 w - - 0 1")
+        assert classify_phase(board) == "endgame"
+
+    def test_seven_to_ten_majors_and_minors_is_middlegame(self):
+        # Q+R+B+N a side = 8 total: past the endgame line, under the midgame one.
+        board = chess.Board(
+            "rnbqk3/pppppppp/8/8/8/8/PPPPPPPP/RNBQK3 w - - 0 1"
+        )
+        assert classify_phase(board) == "middlegame"
+
+    def test_sparse_home_rank_is_middlegame_despite_full_material(self):
+        # 14 majors+minors (no endgame, no midgame by count), but White's back
+        # rank holds only 3 pieces → the Divider's backrank-sparse trigger fires.
+        board = chess.Board(
+            "rnbqkbnr/pppppppp/8/8/2B5/2NQ1N2/1B6/4RRK1 w - - 0 1"
+        )
+        assert classify_phase(board) == "middlegame"
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +246,47 @@ class TestGeorginaChin:
 
 
 # ---------------------------------------------------------------------------
+# The error profile: the player's own non-none mistakes, regardless of result
+# ---------------------------------------------------------------------------
+
+class TestErrorProfile:
+    """``GameAnalysis.error_profile`` is the player's own classified mistakes.
+
+    On the analysed Alice Anderson Game, Daniel is Black and *won* (0-1); his one
+    qualifying move is 15...g5, recorded even in a win so the improvement signal
+    isn't polluted by the result (issue #58).  His opponent's 16. Bd4?? blunder
+    and 3. d3?! inaccuracy are *not* his mistakes and stay out of his profile.
+    """
+
+    def test_records_only_the_players_own_mistakes_even_in_a_win(self):
+        ga = _georgina()
+        assert all(isinstance(m, Mistake) for m in ga.error_profile)
+        assert [m.san for m in ga.error_profile] == ["g5"]
+
+    def test_the_recorded_mistake_carries_its_classification_and_move_number(self):
+        g5 = _georgina().error_profile[0]
+        assert g5.move_number == 15
+        assert g5.severity == "inaccuracy"   # ~15% drop, recomputed (not "Mistake")
+        assert g5.phase == "middlegame"      # 10 majors+minors at move 15
+        assert g5.mistake_type in {"tactical", "positional"}
+
+    def test_excludes_the_opponents_blunder_and_inaccuracy(self):
+        sans = [m.san for m in _georgina().error_profile]
+        assert "Bd4" not in sans  # the opponent's blunder is not Daniel's mistake
+        assert "d3" not in sans   # nor the opponent's inaccuracy
+
+    def test_unanalyzed_game_has_an_empty_profile(self):
+        ga = analyze_game("1. e4 e5 2. Nf3 Nc6 1-0",
+                          player_color="White", player_outcome="Win")
+        assert ga.error_profile == []
+
+    def test_without_a_player_color_there_is_no_profile(self):
+        # Headless use can't tell whose mistakes are whose → empty, never a guess.
+        ga = analyze_game(PLAYER_BLUNDER)
+        assert ga.error_profile == []
+
+
+# ---------------------------------------------------------------------------
 # Attribution: the player's own blunder
 # ---------------------------------------------------------------------------
 
@@ -194,6 +319,83 @@ class TestAttribution:
         assert cm is not None
         assert cm.by_player is False  # can't attribute without a color
         assert "critical moment" in cm.headline.lower()
+
+
+# ---------------------------------------------------------------------------
+# The mistake-type heuristic: tactical (forcing) vs positional (slow bleed)
+# ---------------------------------------------------------------------------
+
+# A slow positional bleed: White's 3. b3?! drifts the eval down with no forcing
+# refutation, and the engine's best move (c4) is a quiet pawn push.
+SLOW_BLEED = (
+    "1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.3] } "
+    "2. Nf3 { [%eval 0.3] } 2... Nf6 { [%eval 0.3] } "
+    "3. b3 $6 { [%eval -1.2] Inaccuracy. c4 was best. } ( 3. c4 e6 4. Nc3 ) "
+    "3... e6 { [%eval -1.1] } 4. Bb2 { [%eval -1.0] } 1/2-1/2"
+)
+
+# A missed forcing tactic: White plays the quiet 4. h3?! when the engine's best
+# move (Nxe5, a capture) was a forcing shot — even though the game drifts on
+# quietly afterwards, so only the best-move-was-forcing signal can catch it.
+MISSED_TACTIC = (
+    "1. e4 { [%eval 0.3] } 1... e5 { [%eval 0.3] } "
+    "2. Nf3 { [%eval 0.3] } 2... d6 { [%eval 0.4] } "
+    "3. Bc4 { [%eval 0.4] } 3... Bg4 { [%eval 0.5] } "
+    "4. h3 $6 { [%eval -0.9] Inaccuracy. Nxe5 was best. } "
+    "( 4. Nxe5 dxe5 5. Qxg4 ) 4... Nf6 { [%eval -0.8] } 1/2-1/2"
+)
+
+
+class TestMistakeType:
+    """The deterministic tactical/positional heuristic (issue #58)."""
+
+    def test_hanging_material_to_a_forcing_capture_is_tactical(self):
+        # White grabs a pawn and is punished by a forcing recapture of the queen.
+        ga = analyze_game(PLAYER_BLUNDER, player_color="White", player_outcome="Loss")
+        assert [m.san for m in ga.error_profile] == ["Qxe5+"]
+        assert ga.error_profile[0].mistake_type == "tactical"
+
+    def test_slow_eval_bleed_with_a_quiet_best_move_is_positional(self):
+        ga = analyze_game(SLOW_BLEED, player_color="White", player_outcome="Draw")
+        assert [m.san for m in ga.error_profile] == ["b3"]
+        assert ga.error_profile[0].mistake_type == "positional"
+
+    def test_missing_a_forcing_best_move_is_tactical(self):
+        # The continuation is quiet; only "the best move was itself forcing" fires.
+        ga = analyze_game(MISSED_TACTIC, player_color="White", player_outcome="Draw")
+        assert [m.san for m in ga.error_profile] == ["h3"]
+        assert ga.error_profile[0].mistake_type == "tactical"
+
+
+# ---------------------------------------------------------------------------
+# The mistake-type distribution (the Analysis page's first aggregate)
+# ---------------------------------------------------------------------------
+
+class TestMistakeTypeDistribution:
+    """``mistake_type_distribution`` totals tactical vs positional mistakes across
+    analysed Games — the "single biggest weakness at a glance" the page leads
+    with.  Unanalysed Games contribute nothing (issue #58)."""
+
+    def test_counts_each_type_across_analyzed_games(self):
+        tactical = analyze_game(
+            PLAYER_BLUNDER, player_color="White", player_outcome="Loss")
+        positional = analyze_game(
+            SLOW_BLEED, player_color="White", player_outcome="Draw")
+        assert mistake_type_distribution([tactical, positional]) == {
+            "tactical": 1, "positional": 1,
+        }
+
+    def test_unanalyzed_games_are_excluded_from_the_math(self):
+        analyzed = analyze_game(
+            PLAYER_BLUNDER, player_color="White", player_outcome="Loss")
+        unanalyzed = analyze_game(
+            "1. e4 e5 1-0", player_color="White", player_outcome="Win")
+        assert mistake_type_distribution([analyzed, unanalyzed]) == {
+            "tactical": 1, "positional": 0,
+        }
+
+    def test_no_analyzed_games_is_all_zero(self):
+        assert mistake_type_distribution([]) == {"tactical": 0, "positional": 0}
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +556,16 @@ class TestSyncIntegration:
         data.reset()
         assert data.get_game_analysis(GEORGINA_URL).analyzed is False
         assert data.get_awaiting_analysis().empty
+        assert data.get_mistake_type_distribution() == {
+            "tactical": 0, "positional": 0,
+        }
+
+    def test_mistake_type_distribution_comes_from_the_store(self, store_from_pgn):
+        data = store_from_pgn(GEORGINA_PGN)
+        # Daniel's only mistake in the analysed Alice Game is the positional g5.
+        assert data.get_mistake_type_distribution() == {
+            "tactical": 0, "positional": 1,
+        }
 
     def test_refresh_keeps_the_analysis(self, store_from_pgn):
         import sync
