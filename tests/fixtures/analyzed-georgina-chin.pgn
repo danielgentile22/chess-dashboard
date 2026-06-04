@@ -1,0 +1,44 @@
+[Event "2nd Annual Adults Only (U1800)"]
+[Site "Dulles"]
+[Date "2026.03.29"]
+[Round "3"]
+[White "Georgina Chin"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[WhiteElo "909"]
+[WhiteFideId "14764861"]
+[BlackElo "1506"]
+[BlackFideId "32487228"]
+[TimeControl "95+10"]
+[Termination "win by resignation"]
+[Board "17 (Extra Game)"]
+[Annotator "https://lichess.org/@/danielgentile"]
+[Variant "Standard"]
+[ECO "B10"]
+[Opening "Caro-Kann Defense"]
+[StudyName "USCF OTB Games"]
+[ChapterName "Georgina Chin - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/6jYtXHGp/GKSICQAY"]
+
+1. e4 { [%eval 0.18] } 1... c6 { [%eval 0.31] } 2. Nc3 { [%eval 0.21] } 2... d5
+{ [%eval 0.38] } 3. d3 $6 { [%eval -0.17] Inaccuracy. d4 was best. } ( 3. d4
+dxe4 4. Nxe4 Nf6 5. Nxf6+ exf6 6. c3 Bd6 7. Bd3 O-O ) 3... dxe4
+{ [%eval 0.17] } 4. Nxe4 { [%eval 0.13] } 4... Nf6 { [%eval 0.09] } 5. Nxf6+
+{ [%eval 0.08] } 5... exf6 { [%eval 0.06] } 6. Nf3 { [%eval 0.02] } 6... Bg4
+{ [%eval 0.29] } 7. Be2 { [%eval 0.14] } 7... Bd6 { [%eval 0.15] } 8. O-O
+{ [%eval 0.09] } 8... O-O { [%eval 0.14] } 9. Be3 { [%eval -0.05] } 9... Nd7
+{ [%eval 0.03] } 10. Nd4 { [%eval -0.15] } 10... Bxe2 { [%eval -0.14] } 11.
+Nxe2 { [%eval -0.28] } 11... Qc7 { [%eval -0.15] } 12. Ng3 { [%eval -0.18] }
+12... Rfe8 { [%eval -0.25] } 13. Qd2 { [%eval -0.48] } 13... Nf8
+{ [%eval -0.41] } 14. c4 { [%eval -0.69] } 14... Rad8 { [%eval -0.62] } 15.
+Rac1 { [%eval -1.08] } 15... g5 $2 { [%eval 0.54] Mistake. h5 was best. } (
+15... h5 16. c5 Bxg3 17. hxg3 Qd7 18. Rfd1 Ng6 19. Rc4 Qf5 20. Qc2 Re6 21. d4 )
+16. Bd4 $4 { [%eval -4.38] Blunder. Nh5 was best. } ( 16. Nh5 Bxh2+ 17. Kh1 Be5
+18. f4 gxf4 19. Bxf4 Re6 20. Bxe5 fxe5 21. Nf6+ Kg7 ) 16... Bxg3
+{ [%eval -4.5] } 17. fxg3 { [%eval -4.48] } 17... Rxd4 { [%eval -4.41] } 18.
+Rxf6 { [%eval -4.51] } 18... Qe5 { [%eval -4.39] } 19. Rf3 { [%eval -4.7] }
+19... Ne6 { [%eval -3.98] } 20. Re1 { [%eval -3.99] } 20... Qc5
+{ [%eval -3.93] } 21. Rfe3 { [%eval -4.08] } 21... Red8 { [%eval -4.63] } 22.
+b3 { [%eval -5.45] } 22... Rxd3 { [%eval -5.36] } 23. Qf2 { [%eval -5.46] }
+23... Rxe3 { [%eval -5.38] } 24. Qxe3 { [%eval -5.41] } 24... Rd1
+{ [%eval -5.13] } 0-1

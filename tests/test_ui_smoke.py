@@ -1456,6 +1456,38 @@ class TestGameDetail:
         rendered = str(layout())
         assert "not in your archive" in rendered
 
+    def test_unanalyzed_game_shows_awaiting_hint(self, ui_app, ui_data):
+        # SAMPLE_PGN carries no engine evals, so a Game degrades to the quiet
+        # awaiting-analysis hint — never a blank or a crash (issue #57).
+        from pages.game_detail import layout
+        rendered = str(layout(chapter_id="chap0001"))
+        assert "Awaiting analysis" in rendered
+
+    def test_analyzed_game_shows_critical_moment_headline(self, ui_app):
+        """An analysed Game shows its critical-moment headline alongside the
+        board (issue #57) — the real Georgina Chin Game's −4.38 swing."""
+        from pathlib import Path
+        from unittest import mock
+
+        import data
+        import sync
+        from pages.game_detail import layout
+
+        pgn = (Path(__file__).parent / "fixtures"
+               / "analyzed-georgina-chin.pgn").read_text()
+        data.reset()
+        try:
+            with mock.patch.object(sync, "fetch_study_pgn", return_value=pgn):
+                data.initialize(["analyzed"], player_name="Daniel Gentile")
+            rendered = str(layout(chapter_id="GKSICQAY"))
+            assert "Critical moment" in rendered
+            assert "blunder" in rendered
+            assert "move 16" in rendered
+            assert "Bd4" in rendered
+            assert "opponent" in rendered  # the swing was the opponent's
+        finally:
+            data.reset()
+
 
 class TestGameNavigation:
     """Clicking a Game row anywhere navigates to its detail view."""
