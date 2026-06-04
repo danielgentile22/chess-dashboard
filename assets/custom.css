@@ -1765,6 +1765,20 @@ a.game-card:hover { background: var(--cs-hover); }
 .tag-chip-button.active .tag-count { background: var(--cs-bg-wash-2); }
 .tag-chip-small { font-size: 10.5px; padding: 2px 9px; }
 
+/* Engine-emitted Tags (issue #62 [F4]): neutral + dashed + a ⚙ marker, so the
+   computer's Tags read as derived and never get mistaken for the systemBlue
+   Tags Daniel hand-wrote.  Overrides .tag-chip (defined above, so this wins). */
+.tag-chip-engine {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--cs-muted);
+  background: var(--cs-card2);
+  border-color: var(--cs-border);
+  border-style: dashed;
+}
+.tag-chip-engine-mark { font-size: 9px; opacity: .75; }
+
 .lesson-controls { max-width: 360px; margin-bottom: 14px; }
 .lesson-strip-empty { color: var(--cs-dim); font-size: 12px; }
 .lesson-count {
