@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import dash
 import pandas as pd
+import plotly.graph_objects as go
 from dash import dcc, html
 
 import data
@@ -27,7 +28,9 @@ from components import (
     page_header,
     uscf_member_url,
 )
+from engine_analysis_core import win_pct_from_cp
 from pgn_stats_core import has_my_analysis, mainline_movetext
+from styles import COLORS, apply_dark_theme, rgba
 
 dash.register_page(
     __name__,
@@ -249,6 +252,128 @@ def _game_pgn(game: pd.Series, movetext: str) -> str:
     return f"{head}\n{movetext}".strip()
 
 
+def _correction_row(move_eval) -> html.Div | None:
+    """The engine's recommended correction for a judged move: the best move and
+    the refutation line it leads to.  None when the engine named no better move
+    (so a judged move without a correction simply shows its severity)."""
+    if move_eval is None or not move_eval.best_move:
+        return None
+    children = [
+        html.Span("Best", className="engine-correction-label"),
+        html.Span(move_eval.best_move, className="engine-best-move"),
+    ]
+    # The refutation line beyond the best move itself, as the engine gave it.
+    rest = move_eval.refutation_line[1:]
+    if rest:
+        children.append(html.Span(" ".join(rest), className="engine-refutation"))
+    return html.Div(className="engine-correction", children=children)
+
+
+def _eval_chart(analysis) -> dcc.Graph:
+    """The engine's evaluation across the Game, as a win-probability advantage
+    line (issue #63 [F7]).
+
+    One point per played move: White's win% from that move's evaluation, so 50%
+    is dead level, the line rising as White takes over and falling as Black does.
+    Neutral systemBlue (gold stays reserved for achievements; win/red for
+    outcomes) with a faint level line at 50%.
+    """
+    moves = analysis.moves
+    xs = [m.ply / 2.0 for m in moves]
+    ys = [win_pct_from_cp(m.eval_after * 100.0) for m in moves]
+
+    fig = go.Figure(go.Scatter(
+        x=xs, y=ys, mode="lines",
+        line=dict(color=COLORS["primary"], width=2, shape="spline"),
+        fill="tozeroy", fillcolor=rgba(COLORS["primary"], 0.16),
+        hovertemplate="move %{x:.0f} · White %{y:.0f}%<extra></extra>",
+    ))
+    apply_dark_theme(fig, title="Evaluation", xaxis_title="Move",
+                     yaxis_title="White win %", show_legend=False)
+    fig.update_yaxes(range=[0, 100])
+    fig.add_hline(y=50, line=dict(color=COLORS["muted"], width=1, dash="dot"))
+
+    return dcc.Graph(
+        id="engine-eval-chart", figure=fig,
+        config={"displayModeBar": False, "responsive": True},
+        style={"height": "190px"},
+    )
+
+
+def _judgment_row(mistake, move_eval) -> html.Div:
+    """One judged move: its severity (the F2 word), where it happened, and the
+    engine's recommended correction (best move + refutation line)."""
+    move_label = (f"{mistake.move_number}… {mistake.san}"
+                  if mistake.ply % 2 == 0 else f"{mistake.move_number}. {mistake.san}")
+    return html.Div(className=f"engine-judgment {mistake.severity}", children=[
+        html.Div(className="engine-judgment-head", children=[
+            html.Span(move_label, className="engine-move"),
+            html.Span(mistake.severity.capitalize(),
+                      className=f"engine-severity {mistake.severity}"),
+        ]),
+        _correction_row(move_eval),
+    ])
+
+
+def _engine_section(game: pd.Series) -> html.Div:
+    """
+    The Engine view (issue #63 [F7]) — the third board-switcher view, where
+    Daniel reviews where he went wrong and what was better.
+
+    Shows the engine's evaluation across the Game, his move judgments (the F2
+    inaccuracy/mistake/blunder severities), and the recommended corrections —
+    under the F5 AI-summary paragraph.  An unanalysed Game degrades to an
+    awaiting-analysis state rather than breaking (ADR 0004).
+
+    Hidden until the Engine switch reveals it (``assets/lpv-init.js``).
+    """
+    chapter_url = str(game.get("ChapterURL") or "")
+    analysis = data.get_game_analysis(chapter_url)
+
+    # An unanalysed Game has no evals to chart and no profile to judge — it
+    # degrades to the same quiet awaiting-analysis hint shown above the board,
+    # never an empty chart or a crash (ADR 0004).
+    if not analysis.analyzed:
+        return html.Div(
+            className="lpv-engine", style={"display": "none"},
+            children=[html.Div(className="awaiting-analysis-hint", children=[
+                html.Span("Awaiting analysis", className="awaiting-analysis-label"),
+                html.Span(
+                    " — request computer analysis on this Chapter on Lichess and "
+                    "the engine's evals, judgments, and corrections appear here "
+                    "after the next Sync.",
+                    className="awaiting-analysis-text",
+                ),
+            ])],
+        )
+
+    body: list = []
+
+    # The F5 AI summary, on top — a plain-English verdict generated from engine
+    # facts only.  It degrades cleanly to "" (no key / unanalysed / on failure),
+    # in which case the paragraph is simply omitted (the summary is enrichment,
+    # never a dependency; ADR 0004).
+    summary = data.get_game_summary(chapter_url)
+    if summary:
+        body.append(html.P(summary, className="engine-summary"))
+
+    # The engine's evaluation across the whole Game, charted.
+    body.append(_eval_chart(analysis))
+
+    # Each judged move is paired with its MoveEval (by ply) so the correction —
+    # the best move + refutation line, carried on the MoveEval — sits with the
+    # judgment.  Mirrors how the critical-moment section looks moves up by ply.
+    moves_by_ply = {m.ply: m for m in analysis.moves}
+    body.extend(
+        _judgment_row(mistake, moves_by_ply.get(mistake.ply))
+        for mistake in analysis.error_profile
+    )
+
+    return html.Div(
+        className="lpv-engine", style={"display": "none"}, children=body,
+    )
+
+
 def _board_section(game: pd.Series) -> html.Div:
     """
     The Game's interactive board, rendered by Lichess's open-source pgn-viewer
@@ -290,10 +415,18 @@ def _board_section(game: pd.Series) -> html.Div:
                         **{"data-view": "analysis"})
         )
 
+    # The Engine view (issue #63 [F7]) is always offered: an analysed Game
+    # shows its evals, judgments, and corrections; an unanalysed one degrades
+    # to an awaiting-analysis state inside the panel.
+    switches.append(
+        html.Button("Engine", className="lpv-switch", **{"data-view": "engine"})
+    )
+
     mount = html.Div(className="lpv", **data_attrs)
     return html.Div(className="game-board-card", children=[
         html.Div(className="lpv-switcher", children=switches),
         mount,
+        _engine_section(game),
     ])
 
 
