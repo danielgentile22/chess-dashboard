@@ -20,7 +20,7 @@ inline (that lives in `pgn_stats_core.py` / `uscf_core.py`). The persistent chro
 | `lessons.py` | `/lessons` | Lessons + Tag filtering, review mode (`?review=1`) |
 | `analysis.py` | `/analysis` | error-profile mistake-type distribution + awaiting-analysis list |
 | `reconciliation.py` | `/reconciliation` | Studies ↔ USCF disagreements |
-| `game_detail.py` | `/game/<id>` | embedded Lichess board + metadata + USCF record (`nav=False`) |
+| `game_detail.py` | `/game/<id>` | pgn-viewer board (Game / My Analysis switcher) + critical moment + metadata + USCF record (`nav=False`) |
 
 ## How a page is wired
 
@@ -56,6 +56,15 @@ Every page module, top to bottom:
 - **Theme through the shared tokens.** Colors come from `styles` (`COLORS`,
   `WDL_COLOR_MAP`, `apply_dark_theme`), never hardcoded hex — they must match the
   CSS `:root` block generated from `styles.THEME`.
+- **The one vendored front-end asset.** `game_detail.py` renders the board with
+  Lichess's open-source pgn-viewer, bundled locally in `assets/`
+  (`lichess-pgn-viewer.min.js` is an ES module, kept out of Dash's classic
+  `<script>` bundle via `assets_ignore` and imported on demand by
+  `assets/lpv-init.js`; `lichess-pgn-viewer.css` is self-contained — board,
+  pieces, and fonts are data-URIs). The page emits a `.lpv` mount with the moves
+  in `data-pgn-*` attributes and a `.lpv-switch` switcher; the init script does
+  the rest. Themed through the viewer's own `--c-lpv-*` variables mapped to
+  `--cs-*` tokens (`--board-color` ← `--cs-board`). It is the only client-side JS.
 
 ## Adding a page
 1. New `pages/<name>.py` with `dash.register_page(...)` + `layout()`.
