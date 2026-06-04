@@ -2817,6 +2817,21 @@ ANALYSIS_PGN = """\
 1. e4 e5 2. Nf3 Nc6 1-0
 """
 
+# A single analysed Game in which Daniel (White) blunders (eval craters from
+# +0.2 to -6.0 on move 2) but the export carried NO judgment text and NO better
+# line — so the move is judged a blunder with no recommended correction.
+BLUNDER_NO_LINE_PGN = """\
+[Event "Test"]
+[White "Daniel Gentile"]
+[Black "Foe Four"]
+[Result "0-1"]
+[StudyName "S"]
+[ChapterName "Daniel Gentile - Foe Four"]
+[ChapterURL "https://lichess.org/study/s/blunderD"]
+
+1. e4 { [%eval 0.2] } 1... e5 { [%eval 0.2] } 2. Qg4 { [%eval -6.0] } 2... d5 { [%eval -6.1] } 0-1
+"""
+
 # A single analysed Game in which Daniel (Black) makes no mistake at all: every
 # eval stays flat, so it has an accuracy (~100) but an empty error profile —
 # the matrix and histogram have nothing to show.
@@ -3004,3 +3019,120 @@ class TestGameDetailBoard:
         ))
         assert "empty-state" in str(card)
         assert self._mount(card) is None
+
+
+# ---------------------------------------------------------------------------
+# Game detail: the Engine view (issue #63 [F7])
+#
+# The third view in the F6 switcher: where Daniel reviews where he went wrong
+# and what was better.  The Engine view shows the engine's evaluation across
+# the Game, his move judgments (the F2 severities), and the recommended
+# corrections (best move + refutation line), under the F5 AI-summary paragraph.
+# An unanalysed Game shows an awaiting-analysis state rather than breaking.
+#
+# Oracle: ANALYSIS_PGN's analyzedA — Daniel (Black) plays the 3...b6 inaccuracy
+# with "e6 was best" and a sibling line (3...e6 4.Nf3), so his one judged move
+# carries a known severity (inaccuracy), SAN (b6), and correction (e6).
+# ---------------------------------------------------------------------------
+
+class TestGameDetailEngineView:
+    @staticmethod
+    def _engine(tree):
+        """The Engine view panel, if any (className carries 'lpv-engine')."""
+        for c in _walk_components(tree):
+            if "lpv-engine" in (getattr(c, "className", "") or "").split():
+                return c
+        return None
+
+    @staticmethod
+    def _switch_views(tree):
+        return {s.to_plotly_json()["props"].get("data-view")
+                for s in _walk_components(tree)
+                if "lpv-switch" in (getattr(s, "className", "") or "").split()}
+
+    def test_analyzed_game_gains_an_engine_view_in_the_switcher(
+        self, ui_app, analysis_store
+    ):
+        analysis_store(ANALYSIS_PGN)
+        from pages.game_detail import layout
+        tree = layout(chapter_id="analyzedA")
+        assert "engine" in self._switch_views(tree)
+        assert self._engine(tree) is not None
+
+    def test_engine_view_lists_his_move_judgments(self, ui_app, analysis_store):
+        # Daniel's one judged move in analyzedA: 3...b6, an inaccuracy.
+        analysis_store(ANALYSIS_PGN)
+        from pages.game_detail import layout
+        panel = str(self._engine(layout(chapter_id="analyzedA")))
+        assert "b6" in panel                       # the move he played
+        assert "naccuracy" in panel                # its recomputed severity
+
+    def test_engine_view_shows_the_recommended_correction(
+        self, ui_app, analysis_store
+    ):
+        # The engine preferred 3...e6 (with the line e6 Nf3) over his b6.
+        analysis_store(ANALYSIS_PGN)
+        from pages.game_detail import layout
+        panel = str(self._engine(layout(chapter_id="analyzedA")))
+        assert "e6" in panel                       # the best move
+        assert "Nf3" in panel                      # the rest of the refutation line
+
+    def test_engine_view_renders_the_ai_summary_paragraph(
+        self, ui_app, analysis_store, monkeypatch
+    ):
+        # The F5 summary needs an API key in real life; here we stand it in so
+        # the view's rendering of it (not the network call) is what's tested.
+        analysis_store(ANALYSIS_PGN)
+        import data
+        monkeypatch.setattr(
+            data, "get_game_summary",
+            lambda url: "A quiet positional slip on move three.",
+        )
+        from pages.game_detail import layout
+        panel = str(self._engine(layout(chapter_id="analyzedA")))
+        assert "A quiet positional slip on move three." in panel
+
+    def test_engine_view_degrades_cleanly_with_no_summary(
+        self, ui_app, analysis_store
+    ):
+        # No API key is configured in the test store, so the summary is "" — the
+        # paragraph is simply omitted; the judgments still render, no crash.
+        analysis_store(ANALYSIS_PGN)
+        from pages.game_detail import layout
+        panel = str(self._engine(layout(chapter_id="analyzedA")))
+        assert "engine-summary" not in panel       # no empty summary block
+        assert "b6" in panel                        # the judgments still render
+
+    def test_engine_view_charts_the_evaluation_across_the_game(
+        self, ui_app, analysis_store
+    ):
+        # The engine evaluation across the Game is its own chart in the view.
+        analysis_store(ANALYSIS_PGN)
+        from pages.game_detail import layout
+        panel = str(self._engine(layout(chapter_id="analyzedA")))
+        assert "Graph(" in panel                    # the eval advantage chart
+        assert "engine-eval-chart" in panel
+
+    def test_unanalyzed_game_engine_view_shows_awaiting_not_a_crash(
+        self, ui_app, analysis_store
+    ):
+        # plainB carries no engine evals — the Engine view degrades to the
+        # awaiting-analysis state rather than charting an empty board (ADR 0004).
+        analysis_store(ANALYSIS_PGN)
+        from pages.game_detail import layout
+        tree = layout(chapter_id="plainB")
+        assert "engine" in self._switch_views(tree)   # the tab is still offered
+        panel = str(self._engine(tree))
+        assert "Awaiting analysis" in panel
+        assert "engine-eval-chart" not in panel        # no chart for an empty Game
+
+    def test_a_judged_move_without_a_line_shows_only_its_severity(
+        self, ui_app, analysis_store
+    ):
+        # blunderD: the export gave no better line for his Qg4 blunder, so the
+        # judgment renders without a correction block (never a crash).
+        analysis_store(BLUNDER_NO_LINE_PGN)
+        from pages.game_detail import layout
+        panel = str(self._engine(layout(chapter_id="blunderD")))
+        assert "Qg4" in panel and "Blunder" in panel   # the judgment is there
+        assert "engine-correction" not in panel        # but no recommended line

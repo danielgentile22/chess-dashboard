@@ -1552,6 +1552,88 @@ a.game-card:hover { background: var(--cs-hover); }
   background: var(--cs-primary);
   color: var(--cs-text);
 }
+
+/* The Engine view (issue #63 [F7]) — the third board-switcher view: the F5 AI
+   summary on top, then the engine's evaluation chart, then his judged moves
+   with the recommended corrections.  Every colour reads from the shared --cs-*
+   tokens; severity ramps red → orange → grey for blunder → mistake →
+   inaccuracy (gold stays reserved for achievements, green for won outcomes). */
+.lpv-engine {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px;
+}
+.engine-summary {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--cs-card2);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--cs-text);
+  font-family: var(--cs-font-display);
+}
+.engine-judgment {
+  padding: 10px 14px;
+  background: var(--cs-card2);
+  border-radius: 8px;
+  border-left: 3px solid var(--cs-border);
+}
+.engine-judgment.blunder { border-left-color: var(--cs-loss-line); }
+.engine-judgment.mistake { border-left-color: var(--cs-warning-line); }
+.engine-judgment-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.engine-move {
+  font-family: var(--cs-font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+.engine-severity {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.engine-severity.blunder    { color: var(--cs-loss);    background: var(--cs-loss-bg); }
+.engine-severity.mistake    { color: var(--cs-warning); background: var(--cs-warning-wash); }
+.engine-severity.inaccuracy { color: var(--cs-muted);   background: var(--cs-card); }
+.engine-correction {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: 7px;
+}
+.engine-correction-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--cs-muted);
+}
+.engine-best-move {
+  font-family: var(--cs-font-data);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--cs-primary);
+}
+.engine-refutation {
+  font-family: var(--cs-font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--cs-muted);
+}
+
 .game-detail-side {
   display: flex;
   flex-direction: column;

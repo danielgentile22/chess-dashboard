@@ -20,7 +20,7 @@ inline (that lives in `pgn_stats_core.py` / `uscf_core.py`). The persistent chro
 | `lessons.py` | `/lessons` | Lessons + Tag filtering, review mode (`?review=1`) |
 | `analysis.py` | `/analysis` | error-profile mistake-type distribution + trends (accuracy & type over time w/ rating, phase×type matrix, move histogram) + awaiting-analysis list |
 | `reconciliation.py` | `/reconciliation` | Studies ↔ USCF disagreements |
-| `game_detail.py` | `/game/<id>` | pgn-viewer board (Game / My Analysis switcher) + critical moment + metadata + USCF record (`nav=False`) |
+| `game_detail.py` | `/game/<id>` | pgn-viewer board (Game / My Analysis / Engine switcher) + critical moment + metadata + USCF record (`nav=False`). The Engine view (F7) shows the AI summary, an eval chart, and his judged moves with corrections. |
 
 ## How a page is wired
 
@@ -65,6 +65,9 @@ Every page module, top to bottom:
   in `data-pgn-*` attributes and a `.lpv-switch` switcher; the init script does
   the rest. Themed through the viewer's own `--c-lpv-*` variables mapped to
   `--cs-*` tokens (`--board-color` ← `--cs-board`). It is the only client-side JS.
+  The **Engine** view (F7) is a server-rendered `.lpv-engine` sibling panel, not
+  a board: the init script toggles it against the board mount (and dispatches a
+  `resize` so its Plotly eval chart redraws when revealed).
 
 ## Adding a page
 1. New `pages/<name>.py` with `dash.register_page(...)` + `layout()`.
