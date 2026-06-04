@@ -56,6 +56,7 @@ __all__ = [
     "GameAnalysis",
     "Mistake",
     "win_pct_from_cp",
+    "player_accuracy",
     "classify_severity",
     "classify_phase",
     "analyze_game",
@@ -168,6 +169,7 @@ class GameAnalysis:
     moves: list[MoveEval] = field(default_factory=list)
     critical_moment: CriticalMoment | None = None
     error_profile: list[Mistake] = field(default_factory=list)
+    accuracy: float | None = None  # the player's 0–100 move accuracy, if known
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +184,39 @@ def win_pct_from_cp(cp: float) -> float:
     perspective (cp = 0 → 50, large positive → ~100, large negative → ~0).
     """
     return 50.0 + 50.0 * (2.0 / (1.0 + math.exp(-0.00368208 * cp)) - 1.0)
+
+
+# The published Lichess accuracy curve, mapping a move's win%-loss to a 0–100
+# accuracy: a loss of 0 is ~100%, and accuracy falls off exponentially as the
+# move sheds winning chances.  ``103.1668`` / ``0.04354`` / ``3.1669`` are
+# Lichess's own constants (CoachData / AccuracyPercent).
+def _move_accuracy(win_pct_drop: float) -> float:
+    """One move's accuracy (0–100) from the win% it cost the mover.
+
+    A move that does not lose win% — or improves the position (a negative drop) —
+    scores ~100; the worse the swing, the steeper the fall.  Clamped to 0–100 so
+    a recovered position never reads above perfect.
+    """
+    loss = max(0.0, win_pct_drop)
+    accuracy = 103.1668 * math.exp(-0.04354 * loss) - 3.1669
+    return max(0.0, min(100.0, accuracy))
+
+
+def player_accuracy(moves: Iterable[MoveEval], player_color: str) -> float | None:
+    """The player's move accuracy across a Game (0–100), or None.
+
+    The arithmetic mean of :func:`_move_accuracy` over the player's *own* moves —
+    one quality number that, unlike the result, does not depend on whether the
+    Game was won.  Returns None when the player's colour is unknown (headless use)
+    or the player made no moves, so callers can omit the Game from an accuracy
+    trend rather than chart a meaningless zero.
+    """
+    if not player_color:
+        return None
+    own = [_move_accuracy(m.win_pct_drop) for m in moves if m.side == player_color]
+    if not own:
+        return None
+    return sum(own) / len(own)
 
 
 # ---------------------------------------------------------------------------
@@ -679,6 +714,7 @@ def analyze_game(
         moves=moves,
         critical_moment=_critical_moment(moves, player_color, player_outcome),
         error_profile=_build_error_profile(game, moves, player_color),
+        accuracy=player_accuracy(moves, player_color),
     )
 
 

@@ -71,6 +71,12 @@ The part of the Game a mistake happened in — `opening`, `middlegame`, or `endg
 **Mistake Type**:
 What kind of error a mistake was — `tactical` (a forcing shot missed, or material dropped to a forcing sequence) or `positional` (a slow eval bleed with no forcing refutation) — by a deterministic heuristic over the moves, never an extra engine call.
 
+**Accuracy**:
+One 0–100 quality number for Daniel's play in a Game — the mean of the published Lichess per-move accuracy curve (`103.1668·exp(−0.04354·winLoss) − 3.1669`) over *his* moves only. Unlike the result it doesn't depend on whether he won, so it's the honest signal to trend. Computed in `engine_analysis_core` (`player_accuracy`) and carried on the `GameAnalysis`; None when his colour is unknown.
+
+**Analysis Trends**:
+The Analysis page's aggregates over the Error Profile across analysed Games (pure module `analysis_trends`, mirroring the Phase-4 analytics): the Accuracy trend over time with rating, the mistake-type trend with rating, the Phase × Mistake-Type matrix (his worst specific combination), and a histogram of the move numbers his mistakes land on (the time-trouble fingerprint). Games still awaiting analysis are excluded from every one.
+
 **AI Summary**:
 One plain-English paragraph about an analysed Game, written by Claude Haiku from the engine's *already-computed* facts (the Critical Moment and Error Profile) — never by asking the model to evaluate the position, so it cannot invent chess. Lives behind a single boundary module (`ai_summary`), the only place the dashboard touches the Anthropic API. Optional and resilient (see `docs/adr/0004`): with no `ANTHROPIC_API_KEY` it is a no-op empty string, any failure degrades silently, and a Sync that reached Lichess succeeds without it.
 
