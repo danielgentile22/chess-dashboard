@@ -1384,31 +1384,13 @@ class TestGameDetail:
         _walk(tree)
         assert not any(h.startswith("/game/") for h in hrefs)
 
-    def test_embed_url_derivation(self, ui_app, ui_data):
-        from pages.game_detail import embed_url
-        # The embed path is derived AND the dark-background parameter is appended,
-        # so opening a Game in the dark app no longer flashbangs the viewer (#43).
-        assert (embed_url("https://lichess.org/study/abc123/def456")
-                == "https://lichess.org/study/embed/abc123/def456?bg=dark")
-
-    def test_embed_url_dark_param_with_existing_query(self, ui_app, ui_data):
-        from pages.game_detail import embed_url
-        # A ChapterURL that already carries a query string still gets bg=dark,
-        # appended with & rather than a second ?.
-        assert (embed_url("https://lichess.org/study/abc123/def456?ply=3")
-                == "https://lichess.org/study/embed/abc123/def456?ply=3&bg=dark")
-
-    def test_embed_url_blank_returns_empty(self, ui_app, ui_data):
-        from pages.game_detail import embed_url
-        # A blank ChapterURL yields no embed URL — the caller skips the iframe.
-        assert embed_url("") == ""
-        assert embed_url("   ") == ""
-
     def test_detail_shows_board_metadata_and_lesson(self, ui_app, ui_data):
         from pages.game_detail import layout
         rendered = str(layout(chapter_id="chap0001"))
-        # The interactive board: an iframe on the Chapter's embed URL
-        assert "lichess.org/study/embed/teststudy/chap0001" in rendered
+        # The interactive board is now Lichess's pgn-viewer mounted locally
+        # (issue #60 [F6]), not an iframe embed.
+        assert "lpv" in rendered
+        assert "lichess.org/study/embed" not in rendered
         # Metadata alongside the board
         assert "Opponent A" in rendered
         assert "Test Open" in rendered
@@ -1423,7 +1405,7 @@ class TestGameDetail:
     def test_game_without_lesson_renders_gracefully(self, ui_app, ui_data):
         from pages.game_detail import layout
         rendered = str(layout(chapter_id="chap0002"))
-        assert "lichess.org/study/embed/teststudy/chap0002" in rendered
+        assert "lpv" in rendered                 # the board still renders
         assert "No Lesson" in rendered  # deliberate empty state, not a crash
 
     def test_game_without_chapter_url_renders_without_error(
@@ -2867,3 +2849,113 @@ class TestAnalysisPage:
         assert "empty-state" not in rendered   # we have analysis now
         assert "Graph(" in rendered            # the mistake-type chart renders
         assert "Foe Two" in rendered           # the still-awaiting Chapter is named
+
+
+# ---------------------------------------------------------------------------
+# Game detail: pgn-viewer board + view switcher (issue #60 [F6])
+#
+# The single Lichess iframe is replaced by Lichess's own open-source
+# pgn-viewer (a local asset), behind a Game / My Analysis view switcher.
+# Game (default) is a clean replay; My Analysis appears only when Daniel
+# annotated the Chapter himself.  The fixture Games are the perfect oracle:
+# chap0003 (prose) / chap0004 (a variation) / chap0005 (prose) carry his
+# annotations; chap0001 (Lesson-only) / chap0002 / chap0006 / chap0007 don't.
+# ---------------------------------------------------------------------------
+
+class TestGameDetailBoard:
+    def _board(self, chapter_id):
+        from pages.game_detail import layout
+        return layout(chapter_id=chapter_id)
+
+    @staticmethod
+    def _mount(tree):
+        """The pgn-viewer mount div, if any (className carries the 'lpv' token)."""
+        for c in _walk_components(tree):
+            classes = (getattr(c, "className", "") or "").split()
+            if "lpv" in classes:
+                return c
+        return None
+
+    def test_board_renders_via_pgn_viewer_not_an_iframe(self, ui_app, ui_data):
+        """The pgn-viewer mount replaces the iframe embed entirely."""
+        import dash
+        tree = self._board("chap0001")
+        iframes = [c for c in _walk_components(tree)
+                   if isinstance(c, dash.html.Iframe)]
+        assert not iframes, "the Lichess iframe should be gone"
+        assert self._mount(tree) is not None, "no pgn-viewer mount on the page"
+
+    def test_game_view_is_a_clean_replay_without_his_annotations(self, ui_app, ui_data):
+        """The default Game board shows the bare line — chap0003's comments are
+        stripped, so Daniel first sees the game before his analysis."""
+        mount = self._mount(self._board("chap0003"))
+        game_pgn = mount.to_plotly_json()["props"]["data-pgn-game"]
+        assert "Nf6" in game_pgn                    # the moves are there
+        assert "dubious move order" not in game_pgn  # his comment is stripped
+        assert "hung the bishop" not in game_pgn
+
+    @staticmethod
+    def _switches(tree):
+        return [c for c in _walk_components(tree)
+                if "lpv-switch" in (getattr(c, "className", "") or "").split()]
+
+    @staticmethod
+    def _view(switch):
+        return switch.to_plotly_json()["props"].get("data-view")
+
+    def test_view_switcher_defaults_to_game(self, ui_app, ui_data):
+        """A Game / My Analysis switcher sits with the board, defaulting to the
+        bare Game view (Daniel sees the game first)."""
+        switches = self._switches(self._board("chap0003"))
+        assert switches, "no view switcher on the detail page"
+        game_switch = next((s for s in switches if self._view(s) == "game"), None)
+        assert game_switch is not None, "no Game view in the switcher"
+        assert "active" in (getattr(game_switch, "className", "") or "").split()
+
+    def test_my_analysis_view_appears_only_when_he_annotated(self, ui_app, ui_data):
+        """chap0003 carries his comments → My Analysis is offered, with the
+        annotated PGN; chap0002 is bare → no My Analysis tab, no analysis PGN."""
+        annotated = self._board("chap0003")
+        assert "analysis" in {self._view(s) for s in self._switches(annotated)}
+        full = self._mount(annotated).to_plotly_json()["props"].get("data-pgn-analysis")
+        assert full and "dubious move order" in full   # his comment is carried here
+
+        bare = self._board("chap0002")
+        assert "analysis" not in {self._view(s) for s in self._switches(bare)}
+        bare_props = self._mount(bare).to_plotly_json()["props"]
+        assert bare_props.get("data-pgn-analysis") is None
+
+    def test_lesson_only_game_stays_a_plain_replay(self, ui_app, ui_data):
+        """chap0001's only annotation is a Lesson (its own card) — so it gets no
+        My Analysis tab (Daniel's call)."""
+        lesson_only = self._board("chap0001")
+        assert "analysis" not in {self._view(s) for s in self._switches(lesson_only)}
+
+    def test_board_is_oriented_from_his_side(self, ui_app, ui_data):
+        """The board faces the way Daniel played it — his colour at the bottom."""
+        import data
+        row = data.get_df()
+        row = row[row["ChapterURL"].str.endswith("/chap0003")].iloc[0]
+        mount = self._mount(self._board("chap0003"))
+        orientation = mount.to_plotly_json()["props"]["data-orientation"]
+        assert orientation == str(row["Color"]).lower()
+
+    def test_existing_detail_content_survives_the_board_swap(self, ui_app, ui_data):
+        """Swapping the board keeps the rest of the page: the critical-moment
+        section, the Lessons card, and the Open-on-Lichess link all remain."""
+        rendered = str(self._board("chap0001"))
+        assert "critical-moment" in rendered or "awaiting-analysis" in rendered
+        assert "Lesson" in rendered                       # the Lessons card
+        assert "Open on Lichess" in rendered              # the external link
+        assert "lichess.org/study/" in rendered           # its href target
+
+    def test_board_degrades_when_a_game_has_no_moves(self, ui_app, ui_data):
+        """A Game with no recorded moves shows a quiet empty state, not a viewer."""
+        import pandas as pd
+
+        from pages.game_detail import _board_section
+        card = _board_section(pd.Series(
+            {"Movetext": "", "Color": "White", "Opponent": "X"}
+        ))
+        assert "empty-state" in str(card)
+        assert self._mount(card) is None

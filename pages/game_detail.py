@@ -3,8 +3,10 @@ pages/game_detail.py
 ====================
 The Game detail view (issue #11) — one Game, in full.
 
-An embedded interactive Lichess board (the Chapter's embed URL, with Daniel's
-annotations and variations playable in place) alongside the Game's Lessons,
+An interactive board rendered by Lichess's open-source pgn-viewer (a local
+asset — issue #60 [F6]), behind a Game / My Analysis view switcher: Game is the
+bare replay, My Analysis (only when Daniel annotated the Chapter himself) plays
+his variations and comments in place.  Alongside it sit the Game's Lessons,
 Tags, and metadata, plus an "Open on Lichess" button.
 
 Reached by clicking a Game anywhere in the app (Games table, head-to-head
@@ -25,6 +27,7 @@ from components import (
     page_header,
     uscf_member_url,
 )
+from pgn_stats_core import has_my_analysis, mainline_movetext
 
 dash.register_page(
     __name__,
@@ -33,25 +36,6 @@ dash.register_page(
     title="Game — Chess Stats",
     nav=False,  # reached by clicking a Game, not from the nav tabs
 )
-
-
-def embed_url(chapter_url: str) -> str:
-    """
-    The dark-theme Lichess embed URL for a Chapter (issue #43 [E9]).
-
-    ChapterURL is https://lichess.org/study/{study}/{chapter}; the embeddable
-    board lives at https://lichess.org/study/embed/{study}/{chapter}. We append
-    Lichess's ``bg=dark`` background parameter so the board matches the dark
-    dashboard instead of flashbanging the viewer with a light board.
-
-    A blank ChapterURL yields ``""`` so the caller can skip the iframe.
-    """
-    if not chapter_url or not chapter_url.strip():
-        return ""
-    embed = chapter_url.replace("lichess.org/study/", "lichess.org/study/embed/")
-    # Append the dark-background param, respecting any query string already there.
-    separator = "&" if "?" in embed else "?"
-    return f"{embed}{separator}bg=dark"
 
 
 def _find_game(chapter_id: str | None) -> pd.Series | None:
@@ -239,6 +223,80 @@ def _lessons_card(game: pd.Series) -> html.Div:
     return content_card(title, *body)
 
 
+def _game_pgn(game: pd.Series, movetext: str) -> str:
+    """
+    Assemble a self-contained PGN (headers + movetext) for the pgn-viewer.
+
+    The board is rendered locally by Lichess's pgn-viewer (issue #60 [F6]), so
+    it needs the Game as a standalone PGN rather than an embed URL.  The headers
+    give the viewer the players, result, and date; *movetext* supplies the moves
+    (clean for the Game view, annotated for My Analysis).
+    """
+    player = data.get_player()
+    color = str(game.get("Color") or "")
+    opponent = str(game.get("Opponent") or "?")
+    white = player if color == "White" else opponent
+    black = opponent if color == "White" else player
+    headers = [
+        ("Event", game.get("Event")),
+        ("Date", game.get("Date")),
+        ("Round", game.get("Round")),
+        ("White", white),
+        ("Black", black),
+        ("Result", game.get("Result")),
+    ]
+    head = "".join(f'[{k} "{v}"]\n' for k, v in headers if str(v or "").strip())
+    return f"{head}\n{movetext}".strip()
+
+
+def _board_section(game: pd.Series) -> html.Div:
+    """
+    The Game's interactive board, rendered by Lichess's open-source pgn-viewer
+    (a local asset — issue #60 [F6]), replacing the old iframe embed.
+
+    The mount div carries the moves as a PGN; ``assets/lpv-init.js`` reads it
+    and instantiates the viewer, themed via the shared ``--cs-*`` tokens.  A
+    Game with no recorded moves degrades to a quiet empty state, never a broken
+    board.
+    """
+    movetext = str(game.get("Movetext") or "")
+    if not movetext.strip():
+        return html.Div(className="game-board-card", children=[
+            empty_state(
+                "♟",
+                "No board for this game",
+                "This Game has no recorded moves to replay.",
+            ),
+        ])
+
+    data_attrs = {
+        "data-pgn-game": _game_pgn(game, mainline_movetext(movetext)),
+        # Orient the board the way Daniel played it — his colour at the bottom.
+        "data-orientation": str(game.get("Color") or "white").lower(),
+    }
+
+    # The view switcher: Game (the bare replay) is always the default.  My
+    # Analysis is offered only when Daniel annotated this Chapter himself —
+    # his variations or comments — so unannotated Games aren't cluttered with
+    # an empty tab (issue #60 [F6]).
+    switches = [
+        html.Button("Game", className="lpv-switch active",
+                    **{"data-view": "game"}),
+    ]
+    if has_my_analysis(movetext):
+        data_attrs["data-pgn-analysis"] = _game_pgn(game, movetext)
+        switches.append(
+            html.Button("My Analysis", className="lpv-switch",
+                        **{"data-view": "analysis"})
+        )
+
+    mount = html.Div(className="lpv", **data_attrs)
+    return html.Div(className="game-board-card", children=[
+        html.Div(className="lpv-switcher", children=switches),
+        mount,
+    ])
+
+
 def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
     game = _find_game(chapter_id)
 
@@ -255,24 +313,7 @@ def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
         ])
 
     chapter_url = str(game.get("ChapterURL") or "")
-    board_embed = embed_url(chapter_url)
-    if board_embed:
-        board_card = html.Div(className="game-board-card", children=[
-            html.Iframe(
-                src=board_embed,
-                className="lichess-embed",
-                allow="fullscreen",
-            ),
-        ])
-    else:
-        # No ChapterURL — render the board card gracefully, never a broken iframe.
-        board_card = html.Div(className="game-board-card", children=[
-            empty_state(
-                "♟",
-                "No board for this game",
-                "This Game has no Lichess Chapter, so there's nothing to embed.",
-            ),
-        ])
+    board_card = _board_section(game)
 
     opponent = str(game.get("Opponent") or "Unknown opponent")
     outcome = str(game.get("Outcome") or "")

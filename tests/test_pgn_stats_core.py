@@ -19,10 +19,12 @@ from pgn_stats_core import (
     daily_activity,
     event_summary,
     game_length_data,
+    has_my_analysis,
     head_to_head,
     kpi_stats,
     lessons_table,
     load_games_from_text,
+    mainline_movetext,
     milestone_deltas,
     opening_summary,
     opponent_rating_bucket_summary,
@@ -1852,3 +1854,57 @@ class TestForfeitExclusion:
         counts = win_draw_loss_counts(frame)
 
         assert counts["Win"] == 2  # the forfeit counts: nothing says it's one
+
+
+# ---------------------------------------------------------------------------
+# "My Analysis" availability (issue #60 [F6])
+#
+# The Game-detail view offers a "My Analysis" board only when Daniel has
+# actually annotated the Chapter himself — his own variations or comments.
+# Lichess's machine annotations ([%eval]/[%clk]) never count, and a Lesson
+# comment doesn't either: Lessons already have their own card, so a Lesson-only
+# Game stays a plain replay (Daniel's call).
+# ---------------------------------------------------------------------------
+
+class TestHasMyAnalysis:
+    def test_a_typed_comment_makes_analysis_available(self):
+        """A move comment Daniel wrote is his analysis — the view appears."""
+        movetext = "1. e4 e5 { I misjudged this pawn break. } 2. Nf3 1-0"
+        assert has_my_analysis(movetext) is True
+
+    def test_a_variation_makes_analysis_available(self):
+        """An alternative line he entered is his analysis, even with no prose."""
+        movetext = "1. e4 e5 2. Nf3 (2. Bc4 Nf6) Nc6 1-0"
+        assert has_my_analysis(movetext) is True
+
+    def test_a_lesson_comment_alone_is_not_my_analysis(self):
+        """A Lesson already has its own card — a Lesson-only Game stays a plain
+        replay, so the My Analysis board doesn't just repeat it (Daniel's call)."""
+        movetext = "1. d4 Nf6 { Lesson: Develop before attacking. #opening } 2. c4 1-0"
+        assert has_my_analysis(movetext) is False
+
+    def test_machine_annotations_alone_are_not_my_analysis(self):
+        """Lichess's own [%eval]/[%clk] are never his analysis."""
+        movetext = "1. e4 { [%eval 0.2] } e5 { [%clk 0:59:50] } 2. Nf3 1-0"
+        assert has_my_analysis(movetext) is False
+
+    def test_blank_movetext_has_no_analysis(self):
+        assert has_my_analysis("") is False
+        assert has_my_analysis("   ") is False
+
+
+class TestMainlineMovetext:
+    """The clean replay (issue #60 [F6]): the default Game board shows the bare
+    line, with Daniel's comments and variations stripped out."""
+
+    def test_strips_comments_and_variations_keeping_the_played_line(self):
+        rich = "1. e4 e5 { sharp } 2. Nf3 (2. Bc4 Nf6) Nc6 1-0"
+        clean = mainline_movetext(rich)
+        assert "sharp" not in clean      # his comment is gone
+        assert "Bc4" not in clean        # the variation is gone
+        assert "Nf3" in clean and "Nc6" in clean   # the played moves remain
+        assert clean.rstrip().endswith("1-0")      # result preserved
+
+    def test_blank_movetext_stays_blank(self):
+        assert mainline_movetext("") == ""
+        assert mainline_movetext("   ") == ""
