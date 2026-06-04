@@ -2797,6 +2797,8 @@ ANALYSIS_PGN = """\
 [Event "Test"]
 [White "Foe One"]
 [Black "Daniel Gentile"]
+[WhiteElo "1600"]
+[BlackElo "1500"]
 [Result "0-1"]
 [StudyName "S"]
 [ChapterName "Foe One - Daniel Gentile"]
@@ -2813,6 +2815,21 @@ ANALYSIS_PGN = """\
 [ChapterURL "https://lichess.org/study/s/plainB"]
 
 1. e4 e5 2. Nf3 Nc6 1-0
+"""
+
+# A single analysed Game in which Daniel (Black) makes no mistake at all: every
+# eval stays flat, so it has an accuracy (~100) but an empty error profile —
+# the matrix and histogram have nothing to show.
+CLEAN_ANALYSIS_PGN = """\
+[Event "Test"]
+[White "Foe Three"]
+[Black "Daniel Gentile"]
+[Result "1/2-1/2"]
+[StudyName "S"]
+[ChapterName "Foe Three - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/s/cleanC"]
+
+1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.2] } 2. Nf3 { [%eval 0.2] } 2... Nf6 { [%eval 0.2] } 3. e3 { [%eval 0.1] } 3... e6 { [%eval 0.1] } 1/2-1/2
 """
 
 
@@ -2849,6 +2866,34 @@ class TestAnalysisPage:
         assert "empty-state" not in rendered   # we have analysis now
         assert "Graph(" in rendered            # the mistake-type chart renders
         assert "Foe Two" in rendered           # the still-awaiting Chapter is named
+
+    def test_all_four_trends_render_beside_the_distribution(
+        self, ui_app, analysis_store
+    ):
+        # Daniel's one analysed Game (his 3...b6 inaccuracy) feeds every trend.
+        analysis_store(ANALYSIS_PGN)
+        from pages.analysis import update_analysis
+        rendered = str(update_analysis(None))
+        for graph_id in (
+            "analysis-type-distribution",   # the F2 distribution still leads
+            "analysis-accuracy-trend",
+            "analysis-mistake-type-trend",
+            "analysis-phase-type-matrix",
+            "analysis-move-histogram",
+        ):
+            assert graph_id in rendered
+
+    def test_trends_degrade_to_empty_states_when_no_mistakes(
+        self, ui_app, analysis_store
+    ):
+        # An analysed Game with a clean profile still renders every card — each
+        # falls back to its own empty figure rather than crashing or blanking.
+        analysis_store(CLEAN_ANALYSIS_PGN)
+        from pages.analysis import update_analysis
+        rendered = str(update_analysis(None))
+        assert "analysis-accuracy-trend" in rendered     # accuracy still plots
+        assert "analysis-phase-type-matrix" in rendered  # but the matrix is empty
+        assert "empty-state" not in rendered             # not the page-level empty
 
 
 # ---------------------------------------------------------------------------

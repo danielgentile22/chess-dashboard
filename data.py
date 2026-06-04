@@ -31,6 +31,12 @@ import pandas as pd
 
 import ai_summary
 from analysis_cache import AnalysisCache
+from analysis_trends import (
+    accuracy_trend,
+    mistake_move_histogram,
+    mistake_type_trend,
+    phase_type_matrix,
+)
 from engine_analysis_core import (
     GameAnalysis,
     enrich_games_with_analysis,
@@ -411,6 +417,38 @@ def get_mistake_type_distribution() -> dict[str, int]:
     if _df.empty or "Analysis" not in _df.columns:
         return mistake_type_distribution([])
     return mistake_type_distribution(_df["Analysis"])
+
+
+def get_accuracy_trend() -> pd.DataFrame:
+    """
+    Per-Game move accuracy over time, with rating (issue #61 [F3]).
+
+    Empty before the first Sync or when nothing is analysed; Games awaiting
+    analysis are excluded.  Always returns a DataFrame, so the page never guards
+    (the aggregate is total over an empty or analysis-less store).
+    """
+    return accuracy_trend(_df)
+
+
+def get_mistake_type_trend() -> pd.DataFrame:
+    """
+    Tactical/positional mistake counts per analysed Game over time (issue #61).
+    """
+    return mistake_type_trend(_df)
+
+
+def get_phase_type_matrix() -> pd.DataFrame:
+    """
+    The phase × type matrix of Daniel's mistakes across analysed Games (#61).
+    """
+    return phase_type_matrix(_df)
+
+
+def get_mistake_move_histogram() -> pd.DataFrame:
+    """
+    Counts of Daniel's mistakes by the move number they happened on (#61).
+    """
+    return mistake_move_histogram(_df)
 
 
 def has_any_analysis() -> bool:
