@@ -9,7 +9,7 @@ stats, trends, and lessons with **Plotly Dash** (multi-page). USCF ratings data
 1. `CONTEXT.md` — the domain glossary (Game, Study, Sync, Series vs Rated Event,
    Official vs Live Rating, Forfeit, Reconciliation, Lesson, Tag…). Use these
    exact words; they have precise, non-interchangeable meanings.
-2. `docs/adr/000{1,2,3}-*.md` — the three load-bearing decisions (below).
+2. `docs/adr/000{1,2,3,4}-*.md` — the four load-bearing decisions (below).
 3. `README.md` — exhaustive feature tour, CLI flags, env vars, deployment.
 
 ## Intent Layer
@@ -42,6 +42,14 @@ tests pass:
 - **Lessons & Tags live on Lichess** (ADR 0002). A Lesson is a chapter comment
   starting with `Lesson:`; `#hashtags` become Tags. The app extracts both during
   Sync and never writes them. There is no app-side editor and no app database.
+- **Engine analysis is enrichment, never a dependency** (ADR 0004). It is *read*
+  from the computer analysis Lichess already embedded in the Study export
+  (`[%eval]` + judgments + variations) — no bundled engine, no analysis API. A
+  Sync that reaches Lichess succeeds whether or not any Game is analyzed; an
+  un-analyzed Game degrades to `analyzed=False`. The enrichment columns
+  (`Analysis`, `Analyzed`) *always* exist, so pages never check for them.
+  OTB time-trouble can't be auto-detected (no clock data) — the manual
+  `#time-trouble` Tag stays the only signal.
 - **No database; one module-level store.** `data.py` holds the Synced DataFrame at
   module scope. All callbacks read via `data.get_df()` and **never mutate** the
   result (`apply_filters` copies before filtering). `refresh()` swaps the store
@@ -67,6 +75,7 @@ tests pass:
 | `uscf_client.py` | USCF MUIR ratings-API HTTP client (the only USCF HTTP). |
 | `uscf_core.py` | Pure USCF interpretation: profile, Official/Live series, **matching engine**, `enrich_games`, `reconcile`, `apply_rating_lens`, standings/round numbers, achievements. (~1.6k lines.) |
 | `pgn_stats_core.py` | Pure PGN parsing + every statistics/insight function. Framework-agnostic. (~1.8k lines.) |
+| `engine_analysis_core.py` | Pure engine-analysis interpretation (ADR 0004): one Game's movetext → `GameAnalysis` (per-move evals, win% swings, the critical moment). `enrich_games_with_analysis` mirrors `uscf_core.enrich_games`. |
 | `shell.py` | Persistent chrome: header, nav tabs, lens toggle, Sync machinery (`sync-store`, toast, freshness). Never unmounts → filter state survives navigation. |
 | `filters.py` | Global filter drawer + the shared `FILTER_INPUTS` list and `get_filtered()` helper. |
 | `components.py` | Shared UI building blocks (cards, KPI tiles, form dots, profile card…). |

@@ -13,6 +13,7 @@ Parsing
   load_games_from_text     Parse PGN text (Lichess Study export) → same output.
   extract_lessons_and_tags Extract Lessons / Tags from a game's comments (ADR 0002).
   extract_mainline_san     A game's mainline moves as SAN strings (issue #16).
+  extract_movetext         Movetext with comments / [%eval] / variations kept (issue #57).
   apply_filters            Apply UI filter selections to the DataFrame.
 
 Overview
@@ -65,6 +66,7 @@ __all__ = [
     "load_games_from_text",
     "extract_lessons_and_tags",
     "extract_mainline_san",
+    "extract_movetext",
     "apply_filters",
     "win_draw_loss_counts",
     "termination_counts",
@@ -167,6 +169,30 @@ def extract_mainline_san(game) -> list[str]:
         sans.append(board.san(move))
         board.push(move)
     return sans
+
+
+def extract_movetext(game) -> str:
+    """
+    A Game's movetext with everything the mainline-SAN view throws away kept
+    intact: per-move comments, Lichess ``[%eval]`` annotations, NAGs, and
+    variations (issue #57 [F1]).
+
+    ``extract_mainline_san`` deliberately discards all of that — the
+    repertoire tree only wants what was played.  The engine-analysis pass
+    needs the opposite: the engine evaluations Lichess embedded in an
+    analysed Chapter survive into the core only if the parser stops dropping
+    them.  Storing the movetext (headers excluded — those already live in
+    their own columns) lets ``engine_analysis_core`` re-parse one Game in
+    isolation, exactly the way the USCF enrichment pass works off already
+    fetched data.
+
+    Returns the movetext as a string; an empty string for a Game with no
+    moves, so a caller can skip it without a presence check.
+    """
+    exporter = chess.pgn.StringExporter(
+        headers=False, variations=True, comments=True
+    )
+    return game.accept(exporter).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +348,9 @@ def load_games_from_text(
             # One mainline walk gives both the move list and the counts
             moves_san = extract_mainline_san(game)
             plies, fullmoves = len(moves_san), (len(moves_san) + 1) // 2
+            # The rich movetext (comments, [%eval], variations) kept for the
+            # engine-analysis pass — never disturbs the mainline-SAN view above.
+            movetext = extract_movetext(game)
 
             # Lichess Study identity (ADR 0001): ChapterURL is the permanent
             # identity of a Game; empty for PGNs that aren't Study exports.
@@ -344,7 +373,7 @@ def load_games_from_text(
                 "BlackRatingNum": safe_int(black_rating), "BlackID": black_id,
                 "Result": result, "Winner": winner_from_result(result),
                 "Termination": termination, "Plies": plies, "FullMoves": fullmoves,
-                "Moves": moves_san,
+                "Moves": moves_san, "Movetext": movetext,
                 "StudyName": study_name, "ChapterName": chapter_name,
                 "ChapterURL": chapter_url,
                 "Lessons": lessons, "Tags": tags,

@@ -298,6 +298,8 @@ chess-stats-dashboard/
 
 **Lessons live on Lichess** (ADR 0002). A Game's Lesson is a chapter comment starting with `Lesson:`; hashtags become Tags. The dashboard extracts both during Sync and never stores them itself — writing happens on Lichess only.
 
+**Engine analysis is enrichment, never a dependency** (ADR 0004). When you request Lichess's computer analysis on a Chapter, the Study export gains per-move `[%eval]` values, judgments, and recommended lines; the dashboard *reads* them — no bundled engine, no analysis API. `engine_analysis_core.py` (pure, like `pgn_stats_core`) turns one Game's movetext into a `GameAnalysis` whose headline is the **critical moment** — the single biggest win-probability swing, attributed to whichever side made it. A Sync that reaches Lichess succeeds whether or not any Game is analyzed; an un-analyzed Game degrades to `analyzed=False` and is shown as "awaiting analysis", never as an error. One caveat: OTB time-trouble can't be auto-detected (the export carries no clock data), so the manual `#time-trouble` Tag stays the only signal for it.
+
 **FIDE performance rating.** Calculated as `PR = avg_opponent_rating + 400 × log10(p / (1 − p))`, capped at ±800 from the average, matching the standard FIDE formula.
 
 ---
