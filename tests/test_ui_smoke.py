@@ -3136,3 +3136,88 @@ class TestGameDetailEngineView:
         panel = str(self._engine(layout(chapter_id="blunderD")))
         assert "Qg4" in panel and "Blunder" in panel   # the judgment is there
         assert "engine-correction" not in panel        # but no recommended line
+
+
+# ---------------------------------------------------------------------------
+# Engine-emitted Tags are source-tagged and render distinguishably (issue #62
+# [F4]).  An analysed Game tags itself in Daniel's taxonomy; those engine Tags
+# must look different from the ones he hand-wrote, wherever Tags render.
+# ---------------------------------------------------------------------------
+
+# An analysed Game where Daniel (Black) plays the 3...b6 opening slip — so the
+# engine emits #opening/#strategy — and the Chapter also carries his own Lesson
+# with a hand-written #endgame Tag, so one Game exercises both sources.
+ENGINE_TAGGED_PGN = """\
+[Event "Test"]
+[White "Foe One"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[StudyName "S"]
+[ChapterName "Foe One - Daniel Gentile"]
+[ChapterURL "https://lichess.org/study/s/tagA"]
+
+{ Lesson: Don't loosen the queenside so early. #endgame }
+1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.2] } 2. c4 { [%eval 0.2] } 2... Nf6 { [%eval 0.3] } 3. Nc3 { [%eval 0.3] } 3... b6 $6 { [%eval 1.8] Inaccuracy. e6 was best. } ( 3... e6 4. Nf3 ) 4. Bf4 { [%eval 1.7] } 0-1
+"""
+
+
+class TestEngineTagChips:
+    def test_tag_chips_marks_only_the_engine_sourced_tags(self):
+        from components import tag_chips
+        chips = tag_chips(
+            ["endgame", "opening"], {"endgame": "mine", "opening": "engine"}
+        )
+        his, engine = str(chips[0]), str(chips[1])
+        assert "#endgame" in his and "tag-chip-engine" not in his   # his stays plain
+        assert "#opening" in engine and "tag-chip-engine" in engine  # engine marked
+
+    @staticmethod
+    def _chip_is_engine(tree) -> dict:
+        """Map each rendered tag chip's '#tag' label → whether it's engine-marked."""
+        out = {}
+        for c in _walk_components(tree):
+            classes = (getattr(c, "className", "") or "").split()
+            if "tag-chip" not in classes:
+                continue
+            kids = c.to_plotly_json()["props"].get("children")
+            label = kids[0] if isinstance(kids, list) else kids
+            if isinstance(label, str) and label.startswith("#"):
+                out[label] = "tag-chip-engine" in classes
+        return out
+
+    def test_game_detail_marks_engine_tags_but_not_his_own(
+        self, ui_app, analysis_store
+    ):
+        # tagA: his hand-written #endgame plus the engine's #opening/#strategy
+        # from his 3...b6 slip — the engine chips are marked, his is not.
+        analysis_store(ENGINE_TAGGED_PGN)
+        from pages.game_detail import layout
+        chips = self._chip_is_engine(layout(chapter_id="tagA"))
+        assert chips["#endgame"] is False     # the Tag he wrote stays plain
+        assert chips["#opening"] is True       # the engine's Tag is marked
+
+    @staticmethod
+    def _enriched_lesson_row():
+        """The lessons_table row for the ENGINE_TAGGED_PGN Lesson Game."""
+        from engine_analysis_core import enrich_games_with_analysis
+        from pgn_stats_core import lessons_table, load_games_from_text
+        df, _ = load_games_from_text(ENGINE_TAGGED_PGN, player_name="Daniel Gentile")
+        return lessons_table(enrich_games_with_analysis(df)).iloc[0]
+
+    def test_lesson_card_marks_engine_tags(self):
+        from components import lesson_card
+        chips = self._chip_is_engine(lesson_card(self._enriched_lesson_row()))
+        assert chips["#endgame"] is False     # his Lesson's own Tag
+        assert chips["#opening"] is True       # the engine's Tag on the same card
+
+    def test_review_card_marks_engine_tags(self, ui_app):
+        # Pre-game review mode renders the same engine distinction on its cards.
+        from engine_analysis_core import enrich_games_with_analysis
+        from pages.lessons import render_review_card
+        from pgn_stats_core import load_games_from_text, review_queue
+        df, _ = load_games_from_text(ENGINE_TAGGED_PGN, player_name="Daniel Gentile")
+        queue = review_queue(enrich_games_with_analysis(df))
+        card, _progress = render_review_card(0, queue)
+        chips = self._chip_is_engine(card)
+        assert chips["#endgame"] is False
+        assert chips["#opening"] is True

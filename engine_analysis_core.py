@@ -62,6 +62,7 @@ __all__ = [
     "analyze_game",
     "enrich_games_with_analysis",
     "mistake_type_distribution",
+    "tags_from_error_profile",
 ]
 
 
@@ -170,6 +171,9 @@ class GameAnalysis:
     critical_moment: CriticalMoment | None = None
     error_profile: list[Mistake] = field(default_factory=list)
     accuracy: float | None = None  # the player's 0–100 move accuracy, if known
+    # The canonical Tags the error profile earns this Game (issue #62 [F4]) —
+    # the engine's own contribution to the Game's Tags, derived, never invented.
+    emitted_tags: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -708,13 +712,15 @@ def analyze_game(
     if not moves:
         return GameAnalysis(chapter_url=chapter_url)  # analysed=False, no data
 
+    error_profile = _build_error_profile(game, moves, player_color)
     return GameAnalysis(
         chapter_url=chapter_url,
         analyzed=True,
         moves=moves,
         critical_moment=_critical_moment(moves, player_color, player_outcome),
-        error_profile=_build_error_profile(game, moves, player_color),
+        error_profile=error_profile,
         accuracy=player_accuracy(moves, player_color),
+        emitted_tags=tags_from_error_profile(error_profile),
     )
 
 
@@ -738,8 +744,11 @@ def enrich_games_with_analysis(df: pd.DataFrame) -> pd.DataFrame:
         return enriched
 
     analyses: list[GameAnalysis] = []
+    hand_tags: list[list[str]] = []
     for _, row in enriched.iterrows():
         chapter_url = str(row.get("ChapterURL") or "")
+        row_tags = row.get("Tags")
+        hand_tags.append(list(row_tags) if isinstance(row_tags, list) else [])
         try:
             analysis = analyze_game(
                 str(row.get("Movetext") or ""),
@@ -754,12 +763,73 @@ def enrich_games_with_analysis(df: pd.DataFrame) -> pd.DataFrame:
 
     enriched["Analysis"] = analyses
     enriched["Analyzed"] = [a.analyzed for a in analyses]
+
+    # Engine-emitted Tags flow into the existing Tags column, with a parallel
+    # source map per Game recording mine-vs-engine (issue #62 [F4], ADR 0002).
+    merged = [_merge_engine_tags(hand, a.emitted_tags)
+              for hand, a in zip(hand_tags, analyses)]
+    if "Tags" in enriched.columns:
+        enriched["Tags"] = [m[0] for m in merged]
+    enriched["TagSources"] = [m[1] for m in merged]
     return enriched
+
+
+def _merge_engine_tags(
+    hand_tags: list[str], emitted_tags: list[str]
+) -> tuple[list[str], dict[str, str]]:
+    """Union a Game's hand-written Tags with the engine's emitted Tags, plus a
+    per-Tag source map (issue #62 [F4]).
+
+    Hand-written Tags keep their order and their ``"mine"`` source — even when
+    the engine emits the same Tag, his stays his (ADR 0002: nothing he wrote
+    changes).  Engine Tags he didn't write are appended in taxonomy order and
+    marked ``"engine"`` so they render distinguishably.
+    """
+    sources = {tag: "mine" for tag in hand_tags}
+    merged = list(hand_tags)
+    for tag in emitted_tags:
+        if tag not in sources:
+            sources[tag] = "engine"
+            merged.append(tag)
+    return merged, sources
 
 
 # ---------------------------------------------------------------------------
 # Aggregates across Games (the Analysis page's first view)
 # ---------------------------------------------------------------------------
+
+# The slice of the canonical Tag taxonomy (pgn_stats_core.CANONICAL_TAGS) the
+# engine can emit from an error profile, in taxonomy order.  ``#calculation``
+# and ``#time-trouble`` are deliberately absent: the engine has no signal that
+# distinguishes a miscalculation from a missed tactic, and the Study export
+# carries no clock data — so those stay hand-written only (issue #62, ADR 0004).
+_EMITTED_TAG_ORDER = ["opening", "tactics", "endgame", "blunder", "strategy"]
+
+
+def tags_from_error_profile(error_profile: Iterable[Mistake]) -> list[str]:
+    """The canonical Tags a Game's error profile earns it (issue #62 [F4]).
+
+    Maps the player's classified mistakes into the existing Tag taxonomy so an
+    analysed Game tags itself — no hand-written comment required.  Each mistake
+    contributes by its classifications: a tactical mistake → ``tactics``, a
+    positional one → ``strategy``, any blunder-severity move → ``blunder``, and
+    an opening/endgame-phase mistake → ``opening``/``endgame``.  The result is
+    deduplicated and ordered by the taxonomy; an empty profile earns no Tags.
+    """
+    earned: set[str] = set()
+    for mistake in error_profile:
+        if mistake.phase == "opening":
+            earned.add("opening")
+        elif mistake.phase == "endgame":
+            earned.add("endgame")
+        if mistake.mistake_type == "tactical":
+            earned.add("tactics")
+        elif mistake.mistake_type == "positional":
+            earned.add("strategy")
+        if mistake.severity == "blunder":
+            earned.add("blunder")
+    return [tag for tag in _EMITTED_TAG_ORDER if tag in earned]
+
 
 def mistake_type_distribution(analyses: Iterable[GameAnalysis]) -> dict[str, int]:
     """The tactical-vs-positional split of the player's mistakes across *analyses*.

@@ -26,6 +26,7 @@ from components import (
     content_card,
     empty_state,
     page_header,
+    tag_chips,
     uscf_member_url,
 )
 from engine_analysis_core import win_pct_from_cp
@@ -217,9 +218,12 @@ def _lessons_card(game: pd.Series) -> html.Div:
 
     tags = game.get("Tags") or []
     if tags:
-        body.append(html.Div(className="tag-strip", children=[
-            html.Span(f"#{t}", className="tag-chip") for t in tags
-        ]))
+        # Engine-emitted Tags (issue #62 [F4]) render distinguishably from the
+        # ones Daniel hand-wrote, via the per-Game source map.
+        body.append(html.Div(
+            className="tag-strip",
+            children=tag_chips(tags, game.get("TagSources")),
+        ))
 
     n = len(lessons)
     title = "Lesson" if n <= 1 else f"Lessons ({n})"

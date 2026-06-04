@@ -49,7 +49,10 @@ The takeaway Daniel wrote for a Game — a Lichess chapter comment starting with
 _Avoid_: note, annotation (an annotation is any chapter comment; a Lesson is the marked takeaway)
 
 **Tag**:
-A hashtag (e.g. `#endgame`, `#time-trouble`) appearing in any of a Game's chapter comments. Tags categorize what a Game taught and are filterable in the dashboard. The canonical taxonomy below is the default vocabulary; new freeform tags are allowed and surface on the Lessons page with counts so fragmentation stays visible.
+A hashtag (e.g. `#endgame`, `#time-trouble`) appearing in any of a Game's chapter comments. Tags categorize what a Game taught and are filterable in the dashboard. The canonical taxonomy below is the default vocabulary; new freeform tags are allowed and surface on the Lessons page with counts so fragmentation stays visible. A Tag is either **hand-written** (one Daniel typed in a comment) or **engine-emitted** (see below); the two render distinguishably but live together in the one `Tags` column, so the Lessons page, recurring-weakness detection, and review mode count both.
+
+**Engine-emitted Tag**:
+A canonical Tag an analysed Game earns itself from its Error Profile, with no comment written (issue #62 [F4]) — a tactical mistake → `#tactics`, a positional one → `#strategy`, any blunder → `#blunder`, an opening/endgame-phase mistake → `#opening`/`#endgame`. Derived enrichment, never written back to Lichess (ADR 0002): each carries a source of `engine` (vs `mine`) in the parallel `TagSources` map and renders with a muted ⚙ chip so Daniel can always tell the computer's Tags from his own. `#calculation` and `#time-trouble` are deliberately never auto-emitted — the engine has no signal that separates a miscalculation from a missed tactic, and the export carries no clock data — so those stay hand-written only.
 
 **Streak**:
 A run of consecutive Games with the same outcome, ordered by date. The current win streak drives the fire indicator; the longest win streak is a tracked personal best.

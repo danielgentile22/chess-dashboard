@@ -208,6 +208,33 @@ def form_indicator(form: dict) -> list:
     return children
 
 
+# The source value that marks a Tag as the engine's, not Daniel's (issue #62).
+ENGINE_TAG_SOURCE = "engine"
+
+
+def tag_chips(tags, sources=None, *, base_class: str = "tag-chip") -> list:
+    """A Game's Tags as chips, marking the engine-emitted ones (issue #62 [F4]).
+
+    *sources* maps each Tag to ``"mine"`` or ``"engine"``; a Tag missing from it
+    is treated as hand-written.  Engine-emitted Tags get an extra
+    ``tag-chip-engine`` class and a small ⚙ marker so Daniel can always tell the
+    computer's Tags from the ones he wrote himself — wherever Tags render.
+    """
+    sources = sources or {}
+    chips = []
+    for tag in tags:
+        engine = sources.get(tag) == ENGINE_TAG_SOURCE
+        children = [f"#{tag}"]
+        if engine:
+            children.append(html.Span("⚙", className="tag-chip-engine-mark"))
+        chips.append(html.Span(
+            children,
+            className=base_class + (" tag-chip-engine" if engine else ""),
+            title="Engine-emitted Tag" if engine else None,
+        ))
+    return chips
+
+
 def lesson_card(row, *, show_opponent: bool = True) -> html.Div:
     """
     One Lesson as a quote card: the takeaway text, its source Game's context,
@@ -236,10 +263,9 @@ def lesson_card(row, *, show_opponent: bool = True) -> html.Div:
                 "  ·  ".join(b for b in meta_bits if b),
                 className=f"lesson-meta outcome-{outcome.lower()}",
             ),
-            html.Span(className="lesson-card-tags", children=[
-                html.Span(f"#{t}", className="tag-chip tag-chip-small")
-                for t in row["Tags"]
-            ]),
+            html.Span(className="lesson-card-tags", children=tag_chips(
+                row["Tags"], row.get("TagSources"), base_class="tag-chip tag-chip-small",
+            )),
             dcc.Link("View game →", href=detail_path, className="lesson-game-link")
             if detail_path else None,
         ]),
