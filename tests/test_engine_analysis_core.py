@@ -24,11 +24,13 @@ import pytest
 from engine_analysis_core import (
     GameAnalysis,
     Mistake,
+    MoveEval,
     analyze_game,
     classify_phase,
     classify_severity,
     enrich_games_with_analysis,
     mistake_type_distribution,
+    player_accuracy,
     win_pct_from_cp,
 )
 from pgn_stats_core import load_games_from_text
@@ -368,8 +370,54 @@ class TestMistakeType:
 
 
 # ---------------------------------------------------------------------------
-# The mistake-type distribution (the Analysis page's first aggregate)
+# Per-Game accuracy (the published Lichess accuracy formula, issue #61 [F3])
 # ---------------------------------------------------------------------------
+
+def _move(side: str, win_pct_drop: float) -> MoveEval:
+    """A MoveEval carrying just the side + win%-drop accuracy depends on."""
+    return MoveEval(
+        ply=1, move_number=1, side=side, san="x",
+        eval_before=0.0, eval_after=0.0,
+        win_pct_before=50.0, win_pct_after=50.0, win_pct_drop=win_pct_drop,
+    )
+
+
+class TestPlayerAccuracy:
+    """``player_accuracy`` averages the per-move Lichess accuracy formula
+    ``103.1668*exp(-0.04354*winLoss) - 3.1669`` over the player's own moves."""
+
+    def test_is_the_mean_of_the_per_move_formula(self):
+        moves = [_move("White", 0.0), _move("White", 20.0)]
+        a0 = 103.1668 * math.exp(-0.04354 * 0.0) - 3.1669
+        a1 = 103.1668 * math.exp(-0.04354 * 20.0) - 3.1669
+        expected = (min(100.0, a0) + a1) / 2
+        assert player_accuracy(moves, "White") == pytest.approx(expected)
+
+    def test_only_the_players_own_moves_count(self):
+        # The opponent's blunder must not flatter — or dent — the player's score.
+        clean = [_move("White", 0.0), _move("White", 0.0)]
+        with_opponent = clean + [_move("Black", 80.0)]
+        assert player_accuracy(with_opponent, "White") == pytest.approx(
+            player_accuracy(clean, "White")
+        )
+
+    def test_a_flawless_game_is_essentially_100(self):
+        moves = [_move("White", 0.0), _move("White", -5.0)]  # one improving move
+        assert player_accuracy(moves, "White") == pytest.approx(100.0, abs=0.001)
+
+    def test_unknown_color_or_no_moves_is_none(self):
+        assert player_accuracy([_move("White", 10.0)], "") is None
+        assert player_accuracy([_move("Black", 10.0)], "White") is None
+        assert player_accuracy([], "White") is None
+
+    def test_analyze_game_carries_the_accuracy(self):
+        # A holder of the GameAnalysis (the trend, a future Engine view) gets the
+        # number ready — analysed Games carry it, unanalysed ones carry None.
+        ga = _georgina()
+        assert ga.accuracy is not None
+        assert 0.0 < ga.accuracy < 100.0
+        plain = analyze_game("1. e4 e5 1-0", player_color="White")
+        assert plain.accuracy is None
 
 class TestMistakeTypeDistribution:
     """``mistake_type_distribution`` totals tactical vs positional mistakes across
@@ -566,6 +614,27 @@ class TestSyncIntegration:
         assert data.get_mistake_type_distribution() == {
             "tactical": 0, "positional": 1,
         }
+
+    def test_trend_accessors_come_from_the_store(self, store_from_pgn):
+        data = store_from_pgn(GEORGINA_PGN)
+        # One analysed Game → one accuracy point, in range.
+        acc = data.get_accuracy_trend()
+        assert len(acc) == 1
+        assert 0.0 < acc.iloc[0]["Accuracy"] < 100.0
+        # Its single mistake (the positional g5) shows up across the aggregates.
+        trend = data.get_mistake_type_trend()
+        assert len(trend) == 1
+        assert int(trend.iloc[0]["Positional"]) == 1
+        assert int(data.get_phase_type_matrix().to_numpy().sum()) == 1
+        assert int(data.get_mistake_move_histogram()["Count"].sum()) == 1
+
+    def test_trend_accessors_exist_before_any_sync(self):
+        import data
+        data.reset()
+        assert data.get_accuracy_trend().empty
+        assert data.get_mistake_type_trend().empty
+        assert data.get_phase_type_matrix().empty
+        assert data.get_mistake_move_histogram().empty
 
     def test_refresh_keeps_the_analysis(self, store_from_pgn):
         import sync

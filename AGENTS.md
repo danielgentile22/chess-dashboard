@@ -81,7 +81,8 @@ tests pass:
 | `uscf_client.py` | USCF MUIR ratings-API HTTP client (the only USCF HTTP). |
 | `uscf_core.py` | Pure USCF interpretation: profile, Official/Live series, **matching engine**, `enrich_games`, `reconcile`, `apply_rating_lens`, standings/round numbers, achievements. (~1.6k lines.) |
 | `pgn_stats_core.py` | Pure PGN parsing + every statistics/insight function. Framework-agnostic. (~1.8k lines.) |
-| `engine_analysis_core.py` | Pure engine-analysis interpretation (ADR 0004): one Game's movetext → `GameAnalysis` (per-move evals, win% swings, the critical moment, error profile). `enrich_games_with_analysis` mirrors `uscf_core.enrich_games`. |
+| `engine_analysis_core.py` | Pure engine-analysis interpretation (ADR 0004): one Game's movetext → `GameAnalysis` (per-move evals, win% swings, the critical moment, error profile, `player_accuracy`). `enrich_games_with_analysis` mirrors `uscf_core.enrich_games`. |
+| `analysis_trends.py` | Pure Analysis-page aggregates over the error profile (ADR 0004), mirroring the Phase-4 analytics: accuracy trend, mistake-type trend (both rating-overlaid), phase × type matrix, mistake move-number histogram. DataFrame-in → data-out; awaiting-analysis Games excluded. |
 | `ai_summary.py` | The AI-summary boundary (ADR 0004) — the *only* Anthropic HTTP. `build_prompt` (facts only) + `summarize` (no-op without a key, degrades silently, cache-aware). |
 | `analysis_cache.py` | Disposable `analysis_cache.json`: AI Summaries keyed by Game identity + facts fingerprint, so an unchanged Game isn't re-billed. USCF-cache lifecycle (never a source of truth). |
 | `shell.py` | Persistent chrome: header, nav tabs, lens toggle, Sync machinery (`sync-store`, toast, freshness). Never unmounts → filter state survives navigation. |

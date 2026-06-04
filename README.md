@@ -247,7 +247,8 @@ chess-stats-dashboard/
 ├── components.py            # Shared UI building blocks (cards, KPI tiles, form dots, …)
 ├── styles.py                # Color palette, dark-theme helpers, empty_fig()
 ├── pgn_stats_core.py        # PGN parsing, statistics, and insights functions
-├── engine_analysis_core.py  # Pure engine-analysis: movetext → GameAnalysis (evals, critical moment, error profile)
+├── engine_analysis_core.py  # Pure engine-analysis: movetext → GameAnalysis (evals, critical moment, error profile, accuracy)
+├── analysis_trends.py       # Pure Analysis-page aggregates: accuracy/type trends, phase×type matrix, move histogram
 ├── ai_summary.py            # AI-summary boundary — the only module that talks HTTP to Anthropic
 ├── analysis_cache.py        # Disposable AI-summary cache (analysis_cache.json), USCF-cache lifecycle
 ├── pages/                   # One module per page (Dash Pages)
@@ -258,7 +259,7 @@ chess-stats-dashboard/
 │   ├── events.py            #   /events    Series → Rated Events
 │   ├── games.py             #   /games     full games table
 │   ├── lessons.py           #   /lessons   Lessons + Tag filtering
-│   ├── analysis.py          #   /analysis  engine error-profile mistake-type distribution
+│   ├── analysis.py          #   /analysis  error-profile distribution + trends (accuracy, type, phase×type, histogram)
 │   ├── reconciliation.py    #   /reconciliation  Studies ↔ USCF disagreements
 │   └── game_detail.py       #   /game/<id> pgn-viewer board (Game / My Analysis) + metadata + USCF record
 ├── assets/
@@ -274,7 +275,8 @@ chess-stats-dashboard/
 │   ├── test_lichess_client.py  # Lichess client tests (mocked HTTP)
 │   ├── test_uscf_client.py  # USCF client tests (mocked HTTP, real response shapes)
 │   ├── test_uscf_core.py    # Profile, rating series, matching engine, reconciliation tests
-│   ├── test_engine_analysis_core.py  # Engine-analysis parsing/classification tests
+│   ├── test_engine_analysis_core.py  # Engine-analysis parsing/classification/accuracy tests
+│   ├── test_analysis_trends.py  # Analysis-page trend aggregates (DataFrame-in → data-out)
 │   ├── test_ai_summary.py   # AI-summary boundary tests (mocked Anthropic client)
 │   ├── test_analysis_cache.py  # Disposable AI-summary cache lifecycle tests
 │   ├── test_sync.py         # Sync orchestrator tests (stubbed clients)
