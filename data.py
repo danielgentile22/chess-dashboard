@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+from engine_analysis_core import GameAnalysis, enrich_games_with_analysis
 from sync import (
     SyncError,
     SyncResult,
@@ -139,14 +140,16 @@ def initialize(
             study_ids, player_name=player_name, token=token, cache_path=cache_path
         )
     except SyncError as exc:
-        booted = _boot_from_cache(exc)
+        _boot_from_cache(exc)
         _sync_uscf_into_store()
-        return booted
+        _run_analysis_into_store()
+        return _df, _player
 
     if result.df.empty:
         raise RuntimeError(f"No games found in designated Studies: {study_ids}")
     _swap(result)
     _sync_uscf_into_store()
+    _run_analysis_into_store()
     logger.info("Synced %d games for player %r", len(_df), _player)
     return _df, _player
 
@@ -176,6 +179,21 @@ def _sync_uscf_into_store() -> None:
 
     # Which achievements has this Sync seen for the first time? (issue #36)
     _detect_new_achievements()
+
+
+def _run_analysis_into_store() -> None:
+    """
+    Read the engine analysis Lichess embedded in each Game's Study export and
+    attach it as enrichment (issue #57 [F1]), following the USCF pattern.
+
+    The Analysis / Analyzed columns always exist afterwards — a Game with no
+    requested computer analysis simply degrades to ``analyzed=False`` — so
+    pages never check for their presence.  Analysis is enrichment, never a
+    dependency (ADR 0004): a Sync that reached Lichess succeeds whether or not
+    any Game is analysed.
+    """
+    global _df
+    _df = enrich_games_with_analysis(_df)
 
 
 def _detect_new_achievements() -> None:
@@ -264,6 +282,7 @@ def refresh() -> RefreshOutcome:
 
         _swap(result)
         _sync_uscf_into_store()  # USCF failing never fails the Sync (ADR 0003)
+        _run_analysis_into_store()  # nor does engine analysis (ADR 0004)
         logger.info(
             "Sync complete: %d games (%d new)", len(result.df), len(new_games)
         )
@@ -294,6 +313,39 @@ def _swap(result: SyncResult) -> None:
 def get_df() -> pd.DataFrame:
     """Return the full (unfiltered) DataFrame. Never mutate the result."""
     return _df
+
+
+def get_game_analysis(chapter_url: str) -> GameAnalysis:
+    """
+    The engine analysis for the Game at *chapter_url* (issue #57 [F1]).
+
+    Always returns a GameAnalysis — an empty one (``analyzed=False``) for a
+    Game with no requested analysis, an unknown URL, or before the first Sync —
+    so pages never guard on its presence (ADR 0004).
+    """
+    if not chapter_url or _df.empty or "Analysis" not in _df.columns:
+        return GameAnalysis(chapter_url=chapter_url or "")
+    matches = _df[_df["ChapterURL"] == chapter_url]
+    if matches.empty:
+        return GameAnalysis(chapter_url=chapter_url)
+    analysis = matches.iloc[0]["Analysis"]
+    return analysis if isinstance(analysis, GameAnalysis) else GameAnalysis(
+        chapter_url=chapter_url
+    )
+
+
+def get_awaiting_analysis() -> pd.DataFrame:
+    """
+    The Games still awaiting computer analysis (issue #57 [F1]): a real Chapter
+    (one with a ChapterURL) whose Study export carried no engine evaluations.
+
+    Returns a copy so callers never mutate the store.  Empty when every Game is
+    analysed, or before the first Sync.  The accessor always exists.
+    """
+    if _df.empty or "Analyzed" not in _df.columns:
+        return _df.copy()
+    awaiting = _df[(~_df["Analyzed"].astype(bool)) & (_df["ChapterURL"] != "")]
+    return awaiting.copy()
 
 
 def get_uscf_profile() -> UscfProfile | None:

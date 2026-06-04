@@ -1993,6 +1993,62 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   color: var(--cs-text);
 }
 
+/* The critical-moment headline on a Game's detail view (issue #57): the
+   single biggest win-probability swing, framed for Daniel.  Toned by whose
+   swing it was — the opponent's blunder reads as a win, Daniel's own as a
+   loss — independent of how the Game finally ended.                       */
+.critical-moment-banner {
+  margin: 0 0 14px;
+  padding: 11px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  background: var(--cs-card2);
+  border: 1px solid var(--cs-border);
+  border-left: 3px solid var(--cs-dim);
+  border-radius: 6px;
+}
+.critical-moment-banner.opponent { border-left-color: var(--cs-win-line); }
+.critical-moment-banner.player   { border-left-color: var(--cs-loss-line); }
+.critical-moment-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  color: var(--cs-muted);
+}
+.critical-moment-headline {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+.critical-moment-detail {
+  font-family: var(--cs-font-data);
+  font-size: 12px;
+  color: var(--cs-muted);
+}
+
+/* The quiet awaiting-analysis hint when a Chapter hasn't been analysed yet
+   (issue #57): never blank, always teaching the one click.               */
+.awaiting-analysis-hint {
+  margin: 0 0 14px;
+  padding: 9px 14px;
+  background: var(--cs-card2);
+  border: 1px solid var(--cs-border);
+  border-left: 3px solid var(--cs-dim);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--cs-muted);
+}
+.awaiting-analysis-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  color: var(--cs-text);
+}
+
 /* The USCF record card on a Game's detail view (issue #28): the opponent
    as USCF knows them, linking to their page on the ratings site.        */
 .uscf-opponent-link {

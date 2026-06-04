@@ -168,6 +168,45 @@ def _forfeit_tag(game: pd.Series) -> html.Div | None:
     ])
 
 
+def _critical_moment_section(game: pd.Series) -> html.Div | None:
+    """
+    The Game's critical-moment headline (issue #57 [F1]) — the single biggest
+    win-probability swing, framed for Daniel, shown alongside the board.
+
+    An analysed Game shows the verdict ("Won after your opponent's blunder on
+    move 16 (Bd4)"); an un-analysed Chapter shows a quiet awaiting-analysis
+    hint that teaches the one click, so the page degrades cleanly and never
+    blanks (ADR 0004).  A Game with no Chapter at all shows nothing.
+    """
+    chapter_url = str(game.get("ChapterURL") or "")
+    analysis = data.get_game_analysis(chapter_url)
+    moment = analysis.critical_moment
+
+    if analysis.analyzed and moment is not None:
+        tone = "player" if moment.by_player else "opponent"
+        move = next((m for m in analysis.moves if m.ply == moment.ply), None)
+        detail = [f"eval {moment.eval_before:+.2f} → {moment.eval_after:+.2f}"]
+        if move is not None and move.best_move:
+            detail.append(f"engine preferred {move.best_move}")
+        return html.Div(className=f"critical-moment-banner {tone}", children=[
+            html.Span("Critical moment", className="critical-moment-label"),
+            html.Span(moment.headline, className="critical-moment-headline"),
+            html.Span(" · ".join(detail), className="critical-moment-detail"),
+        ])
+
+    # Not analysed — never blank; teach the one click (PRD #54).
+    if not chapter_url.strip():
+        return None
+    return html.Div(className="awaiting-analysis-hint", children=[
+        html.Span("Awaiting analysis", className="awaiting-analysis-label"),
+        html.Span(
+            " — request computer analysis on this Chapter on Lichess and the "
+            "critical-moment verdict appears here after the next Sync.",
+            className="awaiting-analysis-text",
+        ),
+    ])
+
+
 def _lessons_card(game: pd.Series) -> html.Div:
     lessons = game.get("Lessons") or []
     if lessons:
@@ -252,6 +291,9 @@ def layout(chapter_id: str | None = None, **kwargs) -> html.Div:
 
         # No game was actually played (issue #29) — say so prominently
         _forfeit_tag(game),
+
+        # The why-I-won/lost verdict in context with the board (issue #57)
+        _critical_moment_section(game),
 
         html.Div(className="game-detail-grid", children=[
             # The Chapter's interactive board — annotations and variations
