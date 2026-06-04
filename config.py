@@ -39,6 +39,19 @@ class Config:
     # down (ADR 0003). Disposable, gitignored, never a source of truth.
     USCF_CACHE_PATH: str = os.environ.get("USCF_CACHE_PATH", "uscf_cache.json").strip()
 
+    # Optional Anthropic API key for the AI game summaries (issue #59 [F5]).
+    # Without it the summary step is a no-op — the dashboard runs unchanged.
+    ANTHROPIC_API_KEY: str | None = (
+        os.environ.get("ANTHROPIC_API_KEY", "").strip() or None
+    )
+
+    # Where engine-analysis AI summaries are cached so unchanged Games aren't
+    # re-billed (issue #59).  Disposable, gitignored, never a source of truth
+    # (ADR 0004), exactly like the USCF cache.
+    ANALYSIS_CACHE_PATH: str = os.environ.get(
+        "ANALYSIS_CACHE_PATH", "analysis_cache.json"
+    ).strip()
+
     # Player name override. Empty string → auto-detect from the Games.
     PLAYER_NAME: str | None = os.environ.get("PLAYER_NAME", "").strip() or None
 

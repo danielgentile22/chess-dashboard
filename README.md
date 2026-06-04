@@ -116,6 +116,7 @@ python app.py --study 6jYtXHGp
 | `--token` | `$LICHESS_API_TOKEN` | Lichess API token (only for private studies) |
 | `--uscf-member` | `$USCF_MEMBER_ID` | USCF member ID whose record enriches the Games (omit to run Lichess-only) |
 | `--uscf-cache` | `uscf_cache.json` | USCF response cache for offline fallback |
+| `--analysis-cache` | `analysis_cache.json` | AI-summary cache so unchanged Games aren't re-billed |
 | `--host` | `127.0.0.1` | Host to bind to |
 | `--port` | `8050` | Port to listen on |
 | `--debug` | off | Enable Dash hot-reload mode |
@@ -144,6 +145,8 @@ python app.py --study 6jYtXHGp --player "Last, First"
 | `CACHE_PATH` | PGN cache of the last successful Sync, used as offline fallback (default: `games.pgn`) |
 | `USCF_MEMBER_ID` | USCF member ID whose record enriches the Games (unset → Lichess-only) |
 | `USCF_CACHE_PATH` | USCF response cache, used as fallback when USCF is unreachable (default: `uscf_cache.json`) |
+| `ANTHROPIC_API_KEY` | Optional Anthropic key for the plain-English AI game summaries; unset → the summary step is a no-op and the dashboard runs unchanged |
+| `ANALYSIS_CACHE_PATH` | AI-summary cache so unchanged Games aren't re-billed (default: `analysis_cache.json`) |
 | `HOST` / `PORT` / `DEBUG` | Server binding and debug mode |
 
 ### Offline resilience
@@ -151,6 +154,8 @@ python app.py --study 6jYtXHGp --player "Last, First"
 Every successful Sync writes a local PGN cache. If Lichess is unreachable when the app starts, it boots from that cache and shows a "cached data" notice; if a Sync from the header button fails, the data you're looking at stays untouched and an error toast appears. The cache is disposable — the designated Studies on Lichess remain the only source of truth.
 
 USCF gets the same treatment (`uscf_cache.json`): when the USCF API is unreachable, USCF surfaces show the last successful Sync's data with an "unavailable since" warning — and the Sync itself still succeeds.
+
+The plain-English AI game summaries follow the same contract (`analysis_cache.json`): each is cached by Game identity so an unchanged Game is never re-billed, and if the summary step is unavailable (no key, or the API is down) the Sync still succeeds — the summary just doesn't appear.
 
 ---
 
@@ -242,6 +247,9 @@ chess-stats-dashboard/
 ├── components.py            # Shared UI building blocks (cards, KPI tiles, form dots, …)
 ├── styles.py                # Color palette, dark-theme helpers, empty_fig()
 ├── pgn_stats_core.py        # PGN parsing, statistics, and insights functions
+├── engine_analysis_core.py  # Pure engine-analysis: movetext → GameAnalysis (evals, critical moment, error profile)
+├── ai_summary.py            # AI-summary boundary — the only module that talks HTTP to Anthropic
+├── analysis_cache.py        # Disposable AI-summary cache (analysis_cache.json), USCF-cache lifecycle
 ├── pages/                   # One module per page (Dash Pages)
 │   ├── overview.py          #   /          KPIs, streaks, W/D/L, milestones
 │   ├── trends.py            #   /trends    rating, activity, time controls, upsets
@@ -250,6 +258,7 @@ chess-stats-dashboard/
 │   ├── events.py            #   /events    Series → Rated Events
 │   ├── games.py             #   /games     full games table
 │   ├── lessons.py           #   /lessons   Lessons + Tag filtering
+│   ├── analysis.py          #   /analysis  engine error-profile mistake-type distribution
 │   ├── reconciliation.py    #   /reconciliation  Studies ↔ USCF disagreements
 │   └── game_detail.py       #   /game/<id> embedded Lichess board + metadata + USCF record
 ├── assets/
@@ -262,6 +271,9 @@ chess-stats-dashboard/
 │   ├── test_lichess_client.py  # Lichess client tests (mocked HTTP)
 │   ├── test_uscf_client.py  # USCF client tests (mocked HTTP, real response shapes)
 │   ├── test_uscf_core.py    # Profile, rating series, matching engine, reconciliation tests
+│   ├── test_engine_analysis_core.py  # Engine-analysis parsing/classification tests
+│   ├── test_ai_summary.py   # AI-summary boundary tests (mocked Anthropic client)
+│   ├── test_analysis_cache.py  # Disposable AI-summary cache lifecycle tests
 │   ├── test_sync.py         # Sync orchestrator tests (stubbed clients)
 │   ├── test_config.py       # Config parsing tests
 │   ├── test_data.py         # Data store tests (stubbed clients)
