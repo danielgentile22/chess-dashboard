@@ -67,6 +67,8 @@ __all__ = [
     "extract_lessons_and_tags",
     "extract_mainline_san",
     "extract_movetext",
+    "mainline_movetext",
+    "has_my_analysis",
     "apply_filters",
     "win_draw_loss_counts",
     "termination_counts",
@@ -195,6 +197,27 @@ def extract_movetext(game) -> str:
     return game.accept(exporter).strip()
 
 
+def mainline_movetext(movetext: str) -> str:
+    """
+    *movetext* reduced to the bare played line — comments, ``[%eval]``
+    annotations, NAGs, and variations all stripped (issue #60 [F6]).
+
+    This is the inverse of :func:`extract_movetext`: it feeds the Game-detail
+    pgn-viewer its default "clean replay" view, where Daniel first sees the bare
+    game before switching to his own annotated analysis.  A blank or unparseable
+    movetext yields ``""`` so a caller can skip it without a presence check.
+    """
+    if not movetext or not movetext.strip():
+        return ""
+    game = chess.pgn.read_game(io.StringIO(movetext))
+    if game is None:
+        return ""
+    exporter = chess.pgn.StringExporter(
+        headers=False, variations=False, comments=False
+    )
+    return game.accept(exporter).strip()
+
+
 # ---------------------------------------------------------------------------
 # Lessons and Tags (ADR 0002 — Lichess comment conventions)
 # ---------------------------------------------------------------------------
@@ -264,6 +287,44 @@ def extract_lessons_and_tags(game) -> tuple[list[str], list[str]]:
                 tags.append(tag)
 
     return lessons, tags
+
+
+def has_my_analysis(movetext: str) -> bool:
+    """
+    Whether *movetext* carries Daniel's own annotations — the signal the
+    Game-detail view uses to offer a "My Analysis" board (issue #60 [F6]).
+
+    True when he added something to the Chapter himself: a comment of his own.
+    Lichess's machine annotations (``[%eval]`` / ``[%clk]``) are stripped first,
+    so they never count.
+
+    A blank or unparseable movetext is simply "no analysis" — never an error.
+    """
+    if not movetext or not movetext.strip():
+        return False
+    game = chess.pgn.read_game(io.StringIO(movetext))
+    if game is None:
+        return False
+
+    if _has_variation(game):
+        return True
+
+    for raw in _all_comments(game):
+        text = _LICHESS_DIRECTIVE_RE.sub("", raw).strip()
+        # A Lesson is its own surface (ADR 0002); only other prose counts here.
+        if text and not _LESSON_RE.match(text):
+            return True
+    return False
+
+
+def _has_variation(game) -> bool:
+    """True if the game tree branches anywhere — an alternative line he added."""
+    node = game
+    while node.variations:
+        if len(node.variations) > 1:
+            return True
+        node = node.variations[0]
+    return False
 
 
 def outcome_for_player(result: str, color: str) -> str:

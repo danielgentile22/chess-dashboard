@@ -26,7 +26,7 @@ The dashboard is a multi-page app — each page loads only its own charts, so it
 | **Analysis** | Your **error profile** from the engine analysis Lichess embeds: the **tactical-vs-positional split** of your own mistakes across every analyzed game (the single biggest weakness at a glance) · a list of the Chapters still **awaiting analysis** (the one click at the board) |
 | **Reconciliation** | Every disagreement between your Studies and USCF, grouped and actionable: color conflicts (both versions side by side) · USCF-rated games missing from your Studies · games USCF hasn't rated · chapters missing opponent IDs · typed ratings that don't match the Official Rating — each with fix-on-Lichess links and Dismiss |
 
-Clicking a Game anywhere opens its **detail view**: an embedded interactive Lichess board (your annotations and variations playable in place) alongside the Game's Lessons, Tags, metadata, and — when the Game is matched — its **USCF record** (Rated Event, Section, rating system, and the opponent as USCF registers them, linking to their page on ratings.uschess.org).
+Clicking a Game anywhere opens its **detail view**: an interactive board rendered by Lichess's open-source **pgn-viewer** (bundled as a local asset, not an iframe), behind a **Game / My Analysis** switcher — Game is a clean replay, My Analysis (shown only when you annotated the Chapter yourself) plays your variations and comments in place. Alongside it sit the critical-moment headline, the Game's Lessons, Tags, metadata, and — when the Game is matched — its **USCF record** (Rated Event, Section, rating system, and the opponent as USCF registers them, linking to their page on ratings.uschess.org).
 
 ### Pre-game review mode
 
@@ -260,9 +260,12 @@ chess-stats-dashboard/
 │   ├── lessons.py           #   /lessons   Lessons + Tag filtering
 │   ├── analysis.py          #   /analysis  engine error-profile mistake-type distribution
 │   ├── reconciliation.py    #   /reconciliation  Studies ↔ USCF disagreements
-│   └── game_detail.py       #   /game/<id> embedded Lichess board + metadata + USCF record
+│   └── game_detail.py       #   /game/<id> pgn-viewer board (Game / My Analysis) + metadata + USCF record
 ├── assets/
-│   └── custom.css           # Dark theme, typography, component styles
+│   ├── custom.css           # Dark theme, typography, component styles
+│   ├── lichess-pgn-viewer.min.js  # Vendored Lichess pgn-viewer (ES module, served on demand)
+│   ├── lichess-pgn-viewer.css     # Vendored pgn-viewer styles (self-contained: board, pieces, fonts)
+│   └── lpv-init.js          # Mounts the pgn-viewer + wires the Game / My Analysis switcher
 ├── docs/adr/                # Architecture decision records
 ├── tests/
 │   ├── conftest.py          # Shared fixtures (sample Studies, USCF responses, UI app)

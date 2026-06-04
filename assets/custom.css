@@ -1502,13 +1502,55 @@ a.game-card:hover { background: var(--cs-hover); }
   padding: 10px;
   overflow: hidden;
 }
-.lichess-embed {
+
+/* Lichess pgn-viewer board (issue #60 [F6]) — themed entirely through the
+   viewer's own CSS variables, so every colour comes from the shared --cs-*
+   palette (no hardcoded board hex).  --board-color is the light square; the
+   viewer overlays the dark squares at 20% opacity, giving a dark board. */
+.game-board-card .lpv {
+  --board-color: var(--cs-board);
+  --c-lpv-bg: var(--cs-card);
+  --c-lpv-bg-pane: var(--cs-card);
+  --c-lpv-bg-movelist: var(--cs-card);
+  --c-lpv-bg-player: var(--cs-card2);
+  --c-lpv-bg-controls: var(--cs-card2);
+  --c-lpv-bg-variation: var(--cs-card2);
+  --c-lpv-font: var(--cs-muted);
+  --c-lpv-font-shy: var(--cs-dim);
+  --c-lpv-border: var(--cs-border);
+  --c-lpv-accent: var(--cs-primary);
+  --c-lpv-accent-over: var(--cs-text);
+  --c-lpv-current-move: var(--cs-primary);
+  --c-lpv-move-hover: var(--cs-hover);
+  --c-lpv-fbt-hover: var(--cs-text);
+  --c-lpv-past-moves: var(--cs-text);
   width: 100%;
-  height: 640px;
-  border: none;
-  border-radius: 6px;
+}
+
+/* The Game / My Analysis view switcher — a small segmented control. */
+.lpv-switcher {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding: 3px;
   background: var(--cs-card2);
-  display: block;
+  border-radius: 9px;
+}
+.lpv-switch {
+  border: none;
+  background: transparent;
+  color: var(--cs-muted);
+  font-family: var(--cs-font-body);
+  font-size: 0.85rem;
+  padding: 5px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.lpv-switch:hover { color: var(--cs-text); }
+.lpv-switch.active {
+  background: var(--cs-primary);
+  color: var(--cs-text);
 }
 .game-detail-side {
   display: flex;
@@ -2559,7 +2601,6 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
 
   /* Game detail: board scales, metadata stacks below (issue #11) */
   .game-detail-grid { grid-template-columns: 1fr; }
-  .lichess-embed { height: max(420px, 115vw); }
   .game-detail-header { flex-direction: column; gap: 8px; }
   .outcome-badge { margin-top: 0; }
 

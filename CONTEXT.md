@@ -77,6 +77,9 @@ One plain-English paragraph about an analysed Game, written by Claude Haiku from
 **Analysis Cache**:
 The disposable `analysis_cache.json` that stores AI Summaries by Game identity (the ChapterURL plus a fingerprint of the facts), so an unchanged Game is never re-billed and a re-analysed one is summarised afresh. Same lifecycle as the USCF cache — never a source of truth, every filesystem misfortune degrades to "no cache".
 
+**My Analysis**:
+The Game-detail board view that plays Daniel's *own* annotations — his variations and comments on that Chapter, from the retained PGN — in place. It is offered only when he actually added them; a Lesson-only Game (its Lesson has its own card) or a bare Game shows just the default **Game** view (a clean replay with his annotations stripped). The board is rendered by Lichess's open-source pgn-viewer bundled as a local asset, not an iframe embed, themed from the shared `--cs-*` tokens (dark board, no flashbang).
+
 ## Tag taxonomy
 
 | Tag | Means |

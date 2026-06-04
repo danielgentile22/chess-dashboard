@@ -72,6 +72,10 @@ COLORS = {
     "accent":  "#d9a13d",  # achievement gold (softened) — achievements only
     "primary": "#0a84ff",  # systemBlue — interactive
     "warning": "#ff9f0a",  # systemOrange — conflict / warning
+    # Chess board — the light square; the pgn-viewer overlays dark squares at
+    # 20% opacity on top, so one muted-slate value yields a dark board that
+    # reads against both piece colours, no flashbang (issue #60 [F6]).
+    "board":   "#595d66",
 }
 
 # Outcome → colour mapping used in Plotly ``color_discrete_map``
@@ -151,6 +155,8 @@ THEME: dict[str, str] = {
     "--cs-accent":  COLORS["accent"],
     "--cs-primary": COLORS["primary"],
     "--cs-warning": COLORS["warning"],
+    # Chess board square (pgn-viewer) — issue #60 [F6]
+    "--cs-board":   COLORS["board"],
     # Gold-discipline washes — every gold tint derives from the gold token so
     # nothing can drift from it.
     "--cs-accent-wash":   rgba(COLORS["accent"], 0.12),
