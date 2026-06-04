@@ -37,6 +37,9 @@ games.pgn
 # Local USCF response cache (enrichment, never a source of truth — ADR 0003)
 uscf_cache.json
 
+# Local engine-analysis AI-summary cache (never a source of truth — ADR 0004)
+analysis_cache.json
+
 # IDE
 .vscode/
 .idea/

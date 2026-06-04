@@ -10,14 +10,21 @@ of the store + orchestrator through the store's public interface.
 from __future__ import annotations
 
 import contextlib
+from pathlib import Path
 from unittest import mock
 
 import pytest
 
+import ai_summary
 import data
 import sync
 from lichess_client import LichessUnreachableError, StudyNotFoundError
 from uscf_client import UscfUnreachableError
+
+GEORGINA_PGN = (
+    Path(__file__).parent / "fixtures" / "analyzed-georgina-chin.pgn"
+).read_text()
+GEORGINA_URL = "https://lichess.org/study/6jYtXHGp/GKSICQAY"
 
 
 @pytest.fixture(autouse=True)
@@ -960,3 +967,53 @@ class TestReconciliationDuringSync:
         data._df = raw_df
 
         assert data.get_reconciliation() == []
+
+
+class TestAnalysisSummaries:
+    """The AI-summary ingestion (issue #59 [F5]): a Sync runs ai_summary per
+    analysed Game and the store exposes the result.  The boundary is stubbed
+    like the USCF client; the summary is enrichment, never a dependency."""
+
+    def test_analyzed_game_gets_a_summary_exposed_by_the_store(self, tmp_path):
+        with stub_studies(study1=GEORGINA_PGN), \
+             mock.patch.object(ai_summary, "_call_anthropic",
+                               return_value="You won after your opponent blundered."):
+            data.initialize(
+                ["study1"], player_name="Daniel Gentile",
+                anthropic_api_key="sk-test",
+                analysis_cache_path=str(tmp_path / "analysis_cache.json"),
+            )
+        assert data.get_game_summary(GEORGINA_URL) == (
+            "You won after your opponent blundered."
+        )
+
+    def test_no_key_still_syncs_with_empty_summaries_and_no_call(self):
+        """No API key → the dashboard runs unchanged; the boundary is untouched
+        (and the no_network guard would trip if it weren't)."""
+        with stub_studies(study1=GEORGINA_PGN), \
+             mock.patch.object(ai_summary, "_call_anthropic") as seam:
+            df, _ = data.initialize(["study1"], player_name="Daniel Gentile")
+
+        assert len(df) == 1  # the Sync succeeded
+        assert data.get_game_summary(GEORGINA_URL) == ""
+        seam.assert_not_called()
+
+    def test_boundary_failure_does_not_fail_the_sync(self):
+        """Any client failure degrades silently — the Sync still serves the
+        Game, just without a summary (issue #59, ADR 0004)."""
+        with stub_studies(study1=GEORGINA_PGN), \
+             mock.patch.object(ai_summary, "_call_anthropic",
+                               side_effect=RuntimeError("Anthropic is down")):
+            df, _ = data.initialize(
+                ["study1"], player_name="Daniel Gentile",
+                anthropic_api_key="sk-test",
+            )
+
+        assert len(df) == 1
+        assert data.get_game_summary(GEORGINA_URL) == ""
+
+    def test_unknown_game_summary_is_empty(self, sample_pgn_text):
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+        assert data.get_game_summary("https://lichess.org/study/x/never") == ""
+        assert data.get_game_summary("") == ""

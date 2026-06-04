@@ -28,8 +28,9 @@ tests pass:
 
 - **One HTTP boundary per source.** `lichess_client.py` is the *only* module that
   talks HTTP to Lichess; `uscf_client.py` is the *only* one that talks HTTP to
-  USCF. Everything downstream works on already-fetched data. Never add a
-  `requests`/`httpx` call anywhere else.
+  USCF; `ai_summary.py` is the *only* one that talks HTTP to Anthropic (the AI
+  game summaries). Everything downstream works on already-fetched data. Never add
+  a `requests`/`httpx` call anywhere else.
 - **USCF is enrichment, never a dependency** (ADR 0003). A Sync that reaches
   Lichess but not USCF must still succeed. USCF surfaces degrade to cached data +
   an "unavailable since" warning. Enrichment columns *always* exist on the
@@ -47,7 +48,12 @@ tests pass:
   (`[%eval]` + judgments + variations) — no bundled engine, no analysis API. A
   Sync that reaches Lichess succeeds whether or not any Game is analyzed; an
   un-analyzed Game degrades to `analyzed=False`. The enrichment columns
-  (`Analysis`, `Analyzed`) *always* exist, so pages never check for them.
+  (`Analysis`, `Analyzed`, `Summary`) *always* exist, so pages never check for
+  them. The plain-English **AI Summary** (Claude Haiku, via `ai_summary`) is the
+  same kind of optional enrichment: it summarizes the engine's *already-computed*
+  facts only — never asked to evaluate chess — and with no `ANTHROPIC_API_KEY`,
+  or on any client failure, it degrades to `""` without failing the Sync. Cached
+  in the disposable `analysis_cache.json` so an unchanged Game is never re-billed.
   OTB time-trouble can't be auto-detected (no clock data) — the manual
   `#time-trouble` Tag stays the only signal.
 - **No database; one module-level store.** `data.py` holds the Synced DataFrame at
@@ -75,7 +81,9 @@ tests pass:
 | `uscf_client.py` | USCF MUIR ratings-API HTTP client (the only USCF HTTP). |
 | `uscf_core.py` | Pure USCF interpretation: profile, Official/Live series, **matching engine**, `enrich_games`, `reconcile`, `apply_rating_lens`, standings/round numbers, achievements. (~1.6k lines.) |
 | `pgn_stats_core.py` | Pure PGN parsing + every statistics/insight function. Framework-agnostic. (~1.8k lines.) |
-| `engine_analysis_core.py` | Pure engine-analysis interpretation (ADR 0004): one Game's movetext → `GameAnalysis` (per-move evals, win% swings, the critical moment). `enrich_games_with_analysis` mirrors `uscf_core.enrich_games`. |
+| `engine_analysis_core.py` | Pure engine-analysis interpretation (ADR 0004): one Game's movetext → `GameAnalysis` (per-move evals, win% swings, the critical moment, error profile). `enrich_games_with_analysis` mirrors `uscf_core.enrich_games`. |
+| `ai_summary.py` | The AI-summary boundary (ADR 0004) — the *only* Anthropic HTTP. `build_prompt` (facts only) + `summarize` (no-op without a key, degrades silently, cache-aware). |
+| `analysis_cache.py` | Disposable `analysis_cache.json`: AI Summaries keyed by Game identity + facts fingerprint, so an unchanged Game isn't re-billed. USCF-cache lifecycle (never a source of truth). |
 | `shell.py` | Persistent chrome: header, nav tabs, lens toggle, Sync machinery (`sync-store`, toast, freshness). Never unmounts → filter state survives navigation. |
 | `filters.py` | Global filter drawer + the shared `FILTER_INPUTS` list and `get_filtered()` helper. |
 | `components.py` | Shared UI building blocks (cards, KPI tiles, form dots, profile card…). |

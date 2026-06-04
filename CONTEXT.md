@@ -71,6 +71,12 @@ The part of the Game a mistake happened in — `opening`, `middlegame`, or `endg
 **Mistake Type**:
 What kind of error a mistake was — `tactical` (a forcing shot missed, or material dropped to a forcing sequence) or `positional` (a slow eval bleed with no forcing refutation) — by a deterministic heuristic over the moves, never an extra engine call.
 
+**AI Summary**:
+One plain-English paragraph about an analysed Game, written by Claude Haiku from the engine's *already-computed* facts (the Critical Moment and Error Profile) — never by asking the model to evaluate the position, so it cannot invent chess. Lives behind a single boundary module (`ai_summary`), the only place the dashboard touches the Anthropic API. Optional and resilient (see `docs/adr/0004`): with no `ANTHROPIC_API_KEY` it is a no-op empty string, any failure degrades silently, and a Sync that reached Lichess succeeds without it.
+
+**Analysis Cache**:
+The disposable `analysis_cache.json` that stores AI Summaries by Game identity (the ChapterURL plus a fingerprint of the facts), so an unchanged Game is never re-billed and a re-analysed one is summarised afresh. Same lifecycle as the USCF cache — never a source of truth, every filesystem misfortune degrades to "no cache".
+
 ## Tag taxonomy
 
 | Tag | Means |
