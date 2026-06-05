@@ -32,13 +32,13 @@ run-debug: install  ## Start with hot-reload debug mode
 	$(PYTHON) app.py --study $(STUDY) --debug
 
 test: install-dev  ## Run the test suite
-	$(PYTEST) tests/ -v --cov=pgn_stats_core --cov=lichess_client --cov=uscf_client --cov=uscf_core --cov=engine_analysis_core --cov=analysis_trends --cov=coach_match_core --cov=sync --cov=data --cov=config --cov=shell --cov=filters --cov=components --cov=pages --cov-report=term-missing
+	$(PYTEST) tests/ -v --cov=pgn_stats_core --cov=lichess_client --cov=uscf_client --cov=uscf_core --cov=engine_analysis_core --cov=analysis_trends --cov=coach_match_core --cov=sync --cov=data --cov=config --cov=auth --cov=user_config --cov=shell --cov=filters --cov=components --cov=pages --cov-report=term-missing
 
 lint: install-dev  ## Lint with ruff
 	$(RUFF) check . --fix
 
 typecheck: install-dev  ## Type check with mypy
-	$(VENV)/bin/mypy pgn_stats_core.py lichess_client.py uscf_client.py uscf_core.py engine_analysis_core.py analysis_trends.py coach_match_core.py ai_summary.py analysis_cache.py sync.py data.py config.py
+	$(VENV)/bin/mypy pgn_stats_core.py lichess_client.py uscf_client.py uscf_core.py engine_analysis_core.py analysis_trends.py coach_match_core.py ai_summary.py analysis_cache.py sync.py data.py config.py auth.py user_config.py
 
 clean:         ## Remove virtual environment and caches
 	rm -rf $(VENV) __pycache__ .pytest_cache .mypy_cache .ruff_cache

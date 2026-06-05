@@ -71,8 +71,14 @@ def _index_template(root_block: str) -> str:
 
 def build_app(study_ids: list[str], player_name=None, token=None, cache_path=None,
               uscf_member_id=None, uscf_cache_path=None,
-              anthropic_api_key=None, analysis_cache_path=None):
-    """Sync the designated Studies, build the Dash app, and return (dash_app, server)."""
+              anthropic_api_key=None, analysis_cache_path=None,
+              users=None, secret_key=None):
+    """Sync the designated Studies, build the Dash app, and return (dash_app, server).
+
+    When *users* is a non-empty multi-user config (issue #71 [G1]), the whole
+    server is gated behind a login: an unauthenticated request never reaches a
+    page.  With no users it runs ungated, single-user, exactly as before.
+    """
     from dash import Dash
 
     _df, detected = data.initialize(
@@ -111,6 +117,15 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
     def health():
         return "ok", 200
 
+    # The login gate (issue #71 [G1]).  Installed only when users are
+    # configured; coach material is private, so a gated server is the only
+    # place it may render.
+    if users:
+        import auth
+        auth.install_auth(
+            dash_app.server, users, secret_key=secret_key or config.SECRET_KEY,
+        )
+
     return dash_app, dash_app.server
 
 
@@ -141,6 +156,8 @@ if config.STUDY_IDS:
             uscf_cache_path=config.USCF_CACHE_PATH,
             anthropic_api_key=config.ANTHROPIC_API_KEY,
             analysis_cache_path=config.ANALYSIS_CACHE_PATH,
+            users=config.USERS,
+            secret_key=config.SECRET_KEY,
         )
     except (SyncError, RuntimeError) as _exc:
         _exit_with_sync_error(_exc, f"LICHESS_STUDY_IDS={config.STUDY_IDS!r}")

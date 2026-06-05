@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import os
 
+from user_config import UserRecord, parse_users
+
 
 def parse_study_ids(raw: str) -> list[str]:
     """Parse a comma-separated list of Lichess study IDs ('a, b' → ['a', 'b'])."""
@@ -54,6 +56,16 @@ class Config:
 
     # Player name override. Empty string → auto-detect from the Games.
     PLAYER_NAME: str | None = os.environ.get("PLAYER_NAME", "").strip() or None
+
+    # Multi-user access (issue #71 [G1]).  A JSON array of user records (see
+    # user_config); empty means the dashboard runs single-user and ungated,
+    # exactly as before.  A malformed block raises clearly here, at load.
+    USERS: dict[str, UserRecord] = parse_users(os.environ.get("USCF_DASHBOARD_USERS", ""))
+
+    # Signs the login session cookie (issue #71).  MUST be set to a stable,
+    # secret value in any multi-user deployment so sessions survive restarts
+    # and cannot be forged; the dev default is fine only for a private laptop.
+    SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-insecure-change-me").strip()
 
     # Server binding
     HOST: str = os.environ.get("HOST", "127.0.0.1")
