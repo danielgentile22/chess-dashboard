@@ -67,6 +67,12 @@ class Config:
     # and cannot be forged; the dev default is fine only for a private laptop.
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-insecure-change-me").strip()
 
+    # Where each user's disposable caches live (issue #72 [G2]): one subdirectory
+    # per user under here, so users' PGN/USCF/analysis caches never collide.
+    # Disposable like every other cache (ADR 0001/0003); a host without a
+    # writable disk just goes without them.
+    DATA_DIR: str = os.environ.get("DATA_DIR", ".user-data").strip()
+
     # Server binding
     HOST: str = os.environ.get("HOST", "127.0.0.1")
     PORT: int = int(os.environ.get("PORT", "8050"))

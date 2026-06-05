@@ -75,17 +75,30 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
               users=None, secret_key=None):
     """Sync the designated Studies, build the Dash app, and return (dash_app, server).
 
-    When *users* is a non-empty multi-user config (issue #71 [G1]), the whole
-    server is gated behind a login: an unauthenticated request never reaches a
-    page.  With no users it runs ungated, single-user, exactly as before.
+    When *users* is a non-empty multi-user config (PRD #55), the whole server is
+    gated behind a login (issue #71 [G1]) and the data store becomes per-user
+    (issue #72 [G2]): each user is Synced against their own Studies / token /
+    USCF member ID, and the request's authenticated user is activated before any
+    page renders.  With no users it runs ungated, single-user, exactly as before.
     """
     from dash import Dash
 
-    _df, detected = data.initialize(
-        study_ids, player_name=player_name, token=token, cache_path=cache_path,
-        uscf_member_id=uscf_member_id, uscf_cache_path=uscf_cache_path,
-        anthropic_api_key=anthropic_api_key, analysis_cache_path=analysis_cache_path,
-    )
+    if users:
+        # Multi-user (issue #72): a store per user, Synced eagerly against each
+        # user's own config; the per-request hook below activates the right one.
+        data.register_users(
+            users, data_dir=config.DATA_DIR, anthropic_api_key=anthropic_api_key,
+        )
+        for username in users:
+            data.sync_user(username)
+        detected = "Multi-user"
+    else:
+        _df, detected = data.initialize(
+            study_ids, player_name=player_name, token=token, cache_path=cache_path,
+            uscf_member_id=uscf_member_id, uscf_cache_path=uscf_cache_path,
+            anthropic_api_key=anthropic_api_key,
+            analysis_cache_path=analysis_cache_path,
+        )
 
     # Creating the app imports every module in pages/ (each registers its own
     # route and callbacks), so the data store must be initialized first.
@@ -117,14 +130,25 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
     def health():
         return "ok", 200
 
-    # The login gate (issue #71 [G1]).  Installed only when users are
-    # configured; coach material is private, so a gated server is the only
-    # place it may render.
+    # The login gate (issue #71 [G1]) + per-request user activation (issue #72
+    # [G2]).  Installed only when users are configured; coach material is
+    # private, so a gated server is the only place it may render.
     if users:
         import auth
         auth.install_auth(
             dash_app.server, users, secret_key=secret_key or config.SECRET_KEY,
         )
+
+        # Runs after the auth gate (registration order): once a request is past
+        # the gate, resolve its authenticated user so every accessor reads that
+        # user's store.  An unauthenticated request is redirected by the gate
+        # before reaching here.
+        @dash_app.server.before_request
+        def _activate_request_user():
+            user = auth.current_user()
+            data.activate(user)
+            if user:
+                data.ensure_synced(user)
 
     return dash_app, dash_app.server
 
@@ -145,7 +169,10 @@ def _exit_with_sync_error(exc: Exception, study_label: str) -> None:
 
 server = None
 
-if config.STUDY_IDS:
+# Boot when either a single global Study list (single-user) or a multi-user
+# config (PRD #55) is present.  Multi-user needs no global STUDY_IDS — each
+# user's Studies live in their own config record.
+if config.STUDY_IDS or config.USERS:
     try:
         _app, server = build_app(
             config.STUDY_IDS,

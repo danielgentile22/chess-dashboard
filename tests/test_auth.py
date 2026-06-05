@@ -10,6 +10,8 @@ the way a browser exercises it.
 """
 from __future__ import annotations
 
+from unittest import mock
+
 import flask
 import pytest
 
@@ -186,3 +188,43 @@ class TestBuildAppGate:
         with preserve_dash_callbacks():
             assert server.test_client().get("/").status_code == 200
         data.reset()
+
+
+# ---------------------------------------------------------------------------
+# Per-user isolation through the gated app (issues #71 + #72)
+# ---------------------------------------------------------------------------
+
+class TestGatedIsolation:
+    def test_each_logged_in_user_activates_their_own_store(self, tmp_path):
+        """Through the real gated server, the request's authenticated user is
+        the store every accessor resolves to — never another user's."""
+        import data
+        from tests.conftest import preserve_dash_callbacks
+
+        import pandas as pd
+
+        users = _users()  # daniel + friend
+        data.reset()
+        with mock.patch("data.sync_user"):  # don't really Sync at build
+            from app import build_app
+            _dash_app, server = build_app([], users=users, secret_key="test-secret")
+        # Give the two stores distinct, recognisable data.
+        data._registry["daniel"].df = pd.DataFrame({"ChapterURL": ["d1"]})
+        data._registry["daniel"].initialized = True
+        data._registry["friend"].df = pd.DataFrame({"ChapterURL": ["f1", "f2"]})
+        data._registry["friend"].initialized = True
+
+        try:
+            # build_app populated Dash's global callback list; snapshot it so the
+            # requests below (which drain it) don't steal ui_app's callbacks.
+            with preserve_dash_callbacks():
+                # The before_request hook resolves the session user and activates
+                # that user's store — so each user's accessor reads only theirs.
+                for username, expected in [("daniel", ["d1"]), ("friend", ["f1", "f2"])]:
+                    with server.test_request_context("/"):
+                        from flask import session
+                        session["user"] = username
+                        server.preprocess_request()
+                        assert list(data.get_df()["ChapterURL"]) == expected
+        finally:
+            data.reset()

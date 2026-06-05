@@ -1,28 +1,35 @@
 """
 data.py
 =======
-Application-wide refreshable data store.
+Application data store — a registry of per-user stores (issue #72 [G2]).
 
-At startup the designated Lichess Studies are Synced (fetched, merged,
-deduped) and stored as a module-level DataFrame.  A Sync can also happen
-while the app is running (the Sync button): ``refresh()`` re-fetches
-everything and atomically swaps the in-memory data — readers always see
-either the previous complete dataset or the new one, never a mix, and a
-failed Sync never disturbs current data.
+Before multi-user (PRD #55), this module was a single module-level singleton:
+one ``_df``, one ``_uscf``, swapped atomically.  It is now a **registry of
+per-user stores** keyed by the authenticated user.  Every accessor resolves
+against the *current* user's store; a Sync runs per user against that user's
+Study IDs, Lichess token, and USCF member ID.  One user's accessors never
+return another user's data (ADR 0005).
 
-Offline resilience: every successful Sync refreshes a local PGN cache.
-When Lichess is unreachable at startup, the app boots from that cache
-(``source()`` reports "cache" so the UI can say so); when there is no
-cache either, startup fails with a clear error.
+How "current" is resolved
+-------------------------
+The active user is a thread-local set per request (Flask handles each request
+on one thread).  With no user active — local CLI use, the ungated single-user
+mode, and the entire existing test suite — the active store is a single default
+store, and ``initialize()`` / ``refresh()`` / every accessor behave exactly as
+they did before the registry existed.  Multi-user adds ``register_users`` /
+``sync_user`` / ``activate``; the gated app activates the request's user before
+any page renders.
 
-All callbacks read via ``get_df()`` and never mutate the result;
-``apply_filters`` inside pgn_stats_core copies before filtering, so reads
-are safe under concurrent Dash callbacks.
+Each store still swaps its data atomically (``_swap``): readers always see
+either the previous complete dataset or the new one, never a mix, and a failed
+Sync never disturbs current data.  Offline resilience (boot from PGN cache) and
+USCF/analysis enrichment work per store, exactly as before.
 """
 from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -66,44 +73,92 @@ from uscf_core import (
     match_games,
     reconcile,
 )
+from user_config import UserRecord
 
 logger = logging.getLogger(__name__)
 
-# --- store state (swapped atomically under _sync_lock) ---------------------
-_df: pd.DataFrame = pd.DataFrame()
-_player: str = ""
-_sync_failures: list[tuple[str, str]] = []
-_synced_at: datetime | None = None
-_source: str = "lichess"          # "lichess" | "cache"
-_cached_at: datetime | None = None  # only meaningful when _source == "cache"
 
-# --- USCF enrichment (ADR 0003: optional, never required) ------------------
-_uscf: UscfSyncResult = UscfSyncResult()
-# USCF Game Records ↔ Games (issue #28); empty when USCF is off/unavailable
-_match_result: MatchResult = MatchResult()
-# Dismissed Reconciliation entries (issue #30): in-memory now, persisted
-# best-effort in the USCF cache so they survive restarts
-_dismissed: set[str] = set()
-# Achievement IDs every Sync so far has seen (issue #36): None = never recorded.
-# In-memory state seeded from / persisted to the USCF cache, like dismissals.
-_seen_achievement_ids: set[str] | None = None
-# Achievements first seen by the last Sync — the ones to celebrate (issue #36)
-_new_achievements: list[UscfAchievement] = []
+# ---------------------------------------------------------------------------
+# A per-user store: everything one user's pages read, and how to re-Sync it.
+# ---------------------------------------------------------------------------
 
-# --- the designated Studies (remembered so refresh() can re-Sync) ----------
-_study_ids: list[str] = []
-_player_name: str | None = None
-_token: str | None = None
-_cache_path: str | None = None
-_uscf_member_id: str | None = None
-_uscf_cache_path: str | None = None
-# AI-summary boundary config (issue #59 [F5]): both optional. No key → the
-# summary step is a no-op; the cache path makes summaries survive restarts.
-_anthropic_api_key: str | None = None
-_analysis_cache_path: str | None = None
+@dataclass
+class Store:
+    """One user's data and the configuration a Sync needs to refresh it.
 
-# Guards against doubled Syncs (button mashing); refresh() never blocks on it.
-_sync_lock = threading.Lock()
+    Fields are swapped atomically inside the store on Sync (``_swap``); readers
+    of an accessor see one consistent snapshot.
+    """
+
+    # --- data state ---------------------------------------------------------
+    df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    player: str = ""
+    sync_failures: list[tuple[str, str]] = field(default_factory=list)
+    synced_at: datetime | None = None
+    source: str = "lichess"            # "lichess" | "cache"
+    cached_at: datetime | None = None  # only meaningful when source == "cache"
+
+    # --- USCF enrichment (ADR 0003: optional, never required) ---------------
+    uscf: UscfSyncResult = field(default_factory=UscfSyncResult)
+    match_result: MatchResult = field(default_factory=MatchResult)
+    dismissed: set[str] = field(default_factory=set)
+    seen_achievement_ids: set[str] | None = None
+    new_achievements: list[UscfAchievement] = field(default_factory=list)
+
+    # --- the configuration a refresh()/Sync needs ---------------------------
+    study_ids: list[str] = field(default_factory=list)
+    coach_study_ids: list[str] = field(default_factory=list)  # ingested in #74
+    player_name: str | None = None
+    token: str | None = None
+    cache_path: str | None = None
+    uscf_member_id: str | None = None
+    uscf_cache_path: str | None = None
+    anthropic_api_key: str | None = None
+    analysis_cache_path: str | None = None
+
+    # True once this store has had a Sync attempted (so a multi-user deploy
+    # never re-Syncs a user's store on every request — issue #72).
+    initialized: bool = False
+
+    # Guards against doubled Syncs (button mashing); refresh() never blocks on it.
+    sync_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+
+# ---------------------------------------------------------------------------
+# The registry + the active store (thread-local per request)
+# ---------------------------------------------------------------------------
+
+# The key of the single store used in single-user / ungated mode and by the
+# existing test suite (no authenticated user → this store).
+_DEFAULT_USER = ""
+
+_registry: dict[str, Store] = {_DEFAULT_USER: Store()}
+_active = threading.local()
+
+
+def activate(username: str | None) -> None:
+    """Make *username*'s store the one accessors resolve, for this thread.
+
+    ``None`` (or an unknown user) falls back to the default store — the gated
+    app calls this with the request's authenticated user before any page
+    renders; everything else leaves it at the default.
+    """
+    _active.user = username if username else _DEFAULT_USER
+
+
+def _active_key() -> str:
+    return getattr(_active, "user", _DEFAULT_USER)
+
+
+def _current() -> Store:
+    """The store for the active user — never None (unknown users get a fresh,
+    empty store so accessors degrade gracefully rather than KeyError)."""
+    key = _active_key()
+    store = _registry.get(key)
+    if store is None:
+        store = Store()
+        _registry[key] = store
+    return store
 
 
 @dataclass
@@ -117,6 +172,10 @@ class RefreshOutcome:
     failures: list[tuple[str, str]] = field(default_factory=list)
 
 
+# ---------------------------------------------------------------------------
+# Single-user entry point (CLI, ungated mode, existing tests)
+# ---------------------------------------------------------------------------
+
 def initialize(
     study_ids: list[str],
     player_name: str | None = None,
@@ -128,53 +187,71 @@ def initialize(
     analysis_cache_path: str | None = None,
 ) -> tuple[pd.DataFrame, str]:
     """
-    Sync all designated Studies and cache the merged DataFrame module-wide.
+    Sync all designated Studies into the default store and serve them.
 
-    Remembers the Study list / token / cache path so ``refresh()`` can
-    re-Sync later.  When Lichess is unreachable and a cache from a previous
-    successful Sync exists at *cache_path*, the app boots from the cache
-    instead (the dashboard never goes blank because Lichess is down).
-
-    When *uscf_member_id* is given, the Sync also fetches that member's USCF
-    record as enrichment.  USCF being unreachable never fails the Sync
-    (ADR 0003); with a *uscf_cache_path*, USCF surfaces degrade to the last
-    successful Sync's cached data instead of disappearing.
+    Behaves exactly as before the registry: it configures and Syncs the single
+    default store (the one every accessor resolves to when no user is active).
+    When Lichess is unreachable and a cache from a previous successful Sync
+    exists at *cache_path*, the store boots from the cache instead.  USCF being
+    unreachable never fails the Sync (ADR 0003).
 
     Raises
     ------
     sync.SyncError : no designated Study could be fetched AND no cache exists.
     RuntimeError   : the Studies contained no games.
     """
-    global _study_ids, _player_name, _token, _cache_path
-    global _uscf_member_id, _uscf_cache_path
-    global _anthropic_api_key, _analysis_cache_path
-    _study_ids, _player_name, _token, _cache_path = (
-        list(study_ids), player_name, token, cache_path,
+    store = _registry[_DEFAULT_USER]
+    _configure(
+        store, study_ids, player_name=player_name, token=token,
+        cache_path=cache_path, uscf_member_id=uscf_member_id,
+        uscf_cache_path=uscf_cache_path, anthropic_api_key=anthropic_api_key,
+        analysis_cache_path=analysis_cache_path,
     )
-    _uscf_member_id, _uscf_cache_path = uscf_member_id, uscf_cache_path
-    _anthropic_api_key, _analysis_cache_path = anthropic_api_key, analysis_cache_path
-
     logger.info("Syncing %d designated Studies from Lichess", len(study_ids))
+    _sync_store(store)
+    if not store.df.empty:
+        logger.info("Synced %d games for player %r", len(store.df), store.player)
+    return store.df, store.player
+
+
+def _configure(store: Store, study_ids: list[str], **cfg) -> None:
+    """Remember the Study list / token / cache paths so a Sync can run later."""
+    store.study_ids = list(study_ids)
+    store.coach_study_ids = list(cfg.get("coach_study_ids") or [])
+    store.player_name = cfg.get("player_name")
+    store.token = cfg.get("token")
+    store.cache_path = cfg.get("cache_path")
+    store.uscf_member_id = cfg.get("uscf_member_id")
+    store.uscf_cache_path = cfg.get("uscf_cache_path")
+    store.anthropic_api_key = cfg.get("anthropic_api_key")
+    store.analysis_cache_path = cfg.get("analysis_cache_path")
+
+
+def _sync_store(store: Store) -> None:
+    """Run a full Sync into *store*: Lichess (or its cache), then USCF and
+    engine-analysis enrichment.  Raises SyncError / RuntimeError the same way
+    ``initialize`` documents; callers that must not fail (the lazy multi-user
+    Sync) wrap this."""
+    store.initialized = True
     try:
         result = sync_studies(
-            study_ids, player_name=player_name, token=token, cache_path=cache_path
+            store.study_ids, player_name=store.player_name,
+            token=store.token, cache_path=store.cache_path,
         )
     except SyncError as exc:
-        _boot_from_cache(exc)
-        _sync_uscf_into_store()
-        _run_analysis_into_store()
-        return _df, _player
+        _boot_from_cache(store, exc)
+        _sync_uscf_into_store(store)
+        _run_analysis_into_store(store)
+        return
 
     if result.df.empty:
-        raise RuntimeError(f"No games found in designated Studies: {study_ids}")
-    _swap(result)
-    _sync_uscf_into_store()
-    _run_analysis_into_store()
-    logger.info("Synced %d games for player %r", len(_df), _player)
-    return _df, _player
+        raise RuntimeError(f"No games found in designated Studies: {store.study_ids}")
+    _swap(store, result)
+    _sync_uscf_into_store(store)
+    _run_analysis_into_store(store)
 
 
-def _sync_uscf_into_store() -> None:
+def _sync_uscf_into_store(store: Store) -> None:
     """
     Run the USCF half of a Sync and enrich the Games with whatever matching
     produces (a no-op USCF result when no member ID is configured).
@@ -182,44 +259,41 @@ def _sync_uscf_into_store() -> None:
     The enrichment columns always exist afterwards — with USCF off or down,
     every Game is simply unmatched — so pages never check for their presence.
     """
-    global _uscf, _match_result, _df, _dismissed
-    if not _uscf_member_id:
-        _uscf = UscfSyncResult()
+    if not store.uscf_member_id:
+        store.uscf = UscfSyncResult()
     else:
-        _uscf = sync_uscf(_uscf_member_id, cache_path=_uscf_cache_path)
+        store.uscf = sync_uscf(store.uscf_member_id, cache_path=store.uscf_cache_path)
 
     # Match & enrich (issue #28): USCF Game Records attach to Games
-    _match_result = match_games(_df, _uscf.game_records)
-    _df = enrich_games(_df, _match_result)
+    store.match_result = match_games(store.df, store.uscf.game_records)
+    store.df = enrich_games(store.df, store.match_result)
     # Real round numbers from the crosstables (issue #34)
-    _df = attach_round_numbers(_df, _uscf.standings, _uscf_member_id or "")
+    store.df = attach_round_numbers(
+        store.df, store.uscf.standings, store.uscf_member_id or ""
+    )
 
     # Dismissed Reconciliation entries survive restarts via the cache (#30)
-    _dismissed = set(UscfCache(_uscf_cache_path).dismissals()) | _dismissed
+    store.dismissed = set(UscfCache(store.uscf_cache_path).dismissals()) | store.dismissed
 
     # Which achievements has this Sync seen for the first time? (issue #36)
-    _detect_new_achievements()
+    _detect_new_achievements(store)
 
 
-def _run_analysis_into_store() -> None:
+def _run_analysis_into_store(store: Store) -> None:
     """
     Read the engine analysis Lichess embedded in each Game's Study export and
     attach it as enrichment (issue #57 [F1]), following the USCF pattern.
 
     The Analysis / Analyzed / Summary columns always exist afterwards — a Game
     with no requested computer analysis simply degrades to ``analyzed=False``
-    with an empty Summary — so pages never check for their presence.  Analysis
-    is enrichment, never a dependency (ADR 0004): a Sync that reached Lichess
-    succeeds whether or not any Game is analysed, and whether or not the AI
-    summary boundary is reachable.
+    with an empty Summary — so pages never check for their presence (ADR 0004).
     """
-    global _df
-    enriched = enrich_games_with_analysis(_df)
-    enriched["Summary"] = _summaries_for(enriched)
-    _df = enriched
+    enriched = enrich_games_with_analysis(store.df)
+    enriched["Summary"] = _summaries_for(store, enriched)
+    store.df = enriched
 
 
-def _summaries_for(enriched: pd.DataFrame) -> list[str]:
+def _summaries_for(store: Store, enriched: pd.DataFrame) -> list[str]:
     """One plain-English summary per Game (issue #59 [F5]), via the AI boundary.
 
     Empty for an unanalysed Game, when no API key is configured, or on any
@@ -228,101 +302,102 @@ def _summaries_for(enriched: pd.DataFrame) -> list[str]:
     """
     if "Analysis" not in enriched.columns:
         return [""] * len(enriched)
-    cache = AnalysisCache(_analysis_cache_path)
+    cache = AnalysisCache(store.analysis_cache_path)
     return [
-        ai_summary.summarize(analysis, api_key=_anthropic_api_key, cache=cache)
+        ai_summary.summarize(analysis, api_key=store.anthropic_api_key, cache=cache)
         if isinstance(analysis, GameAnalysis) else ""
         for analysis in enriched["Analysis"]
     ]
 
 
-def _detect_new_achievements() -> None:
+def _detect_new_achievements(store: Store) -> None:
     """
     Compare this Sync's achievements against everything previous Syncs have
     seen, so genuinely fresh norms/awards get celebrated — exactly once.
 
     The very first recording (no seen-state anywhere) registers everything
-    silently: celebrating months-old achievements on the first Sync after
-    this feature lands would be noise, not news.  A USCF outage records
-    nothing — cached/absent achievements are never "new".
+    silently.  A USCF outage records nothing — cached/absent achievements are
+    never "new".
     """
-    global _new_achievements, _seen_achievement_ids
-    if not _uscf.available or _uscf.from_cache:
-        _new_achievements = []
+    if not store.uscf.available or store.uscf.from_cache:
+        store.new_achievements = []
         return
 
-    cache = UscfCache(_uscf_cache_path)
+    cache = UscfCache(store.uscf_cache_path)
     seen: set[str] | None
-    if _seen_achievement_ids is not None:
-        seen = _seen_achievement_ids               # this run already knows
+    if store.seen_achievement_ids is not None:
+        seen = store.seen_achievement_ids               # this run already knows
     else:
         cached = cache.seen_achievements()
         seen = set(cached) if cached is not None else None
 
-    current = _uscf.achievements
+    current = store.uscf.achievements
     if seen is None:
-        _new_achievements = []                     # first recording — silent
+        store.new_achievements = []                     # first recording — silent
     else:
-        _new_achievements = [a for a in current if a.achievement_id not in seen]
+        store.new_achievements = [
+            a for a in current if a.achievement_id not in seen
+        ]
 
-    _seen_achievement_ids = (seen or set()) | {a.achievement_id for a in current}
-    cache.record_achievements(sorted(_seen_achievement_ids))
+    store.seen_achievement_ids = (seen or set()) | {a.achievement_id for a in current}
+    cache.record_achievements(sorted(store.seen_achievement_ids))
 
 
-def _boot_from_cache(sync_error: SyncError) -> tuple[pd.DataFrame, str]:
+def _boot_from_cache(store: Store, sync_error: SyncError) -> None:
     """Fall back to the PGN cache of the last successful Sync, if there is one."""
-    global _df, _player, _sync_failures, _synced_at, _source, _cached_at
-
-    if not _cache_path or not os.path.exists(_cache_path):
+    if not store.cache_path or not os.path.exists(store.cache_path):
         # No cache → the original Sync failure is the clearest error to show
         raise sync_error
 
     logger.warning("Lichess unreachable (%s) — booting from cache %s",
-                   sync_error, _cache_path)
-    df, player, cached_at = load_from_cache(_cache_path, player_name=_player_name)
+                   sync_error, store.cache_path)
+    df, player, cached_at = load_from_cache(store.cache_path,
+                                            player_name=store.player_name)
     if df.empty:
         raise sync_error
 
-    _df, _player, _sync_failures = df, player, []
-    _synced_at = None  # there has been no successful Sync this run
-    _source, _cached_at = "cache", cached_at
+    store.df, store.player, store.sync_failures = df, player, []
+    store.synced_at = None  # there has been no successful Sync this run
+    store.source, store.cached_at = "cache", cached_at
     logger.info("Loaded %d games from cache (last Synced %s)", len(df), cached_at)
-    return _df, _player
 
 
 def refresh() -> RefreshOutcome:
     """
-    Re-Sync all designated Studies and atomically swap the in-memory data.
+    Re-Sync the active user's designated Studies and atomically swap their data.
 
     Never raises and never disturbs current data on failure.  If a Sync is
-    already running, reports ``already_running`` instead of starting another.
+    already running for this store, reports ``already_running``.
     """
-    if not _study_ids:
-        return RefreshOutcome(status="error", error="The data store was never initialized.")
+    store = _current()
+    if not store.study_ids:
+        return RefreshOutcome(status="error",
+                              error="The data store was never initialized.")
 
-    if not _sync_lock.acquire(blocking=False):
+    if not store.sync_lock.acquire(blocking=False):
         logger.info("Sync already running — ignoring duplicate trigger")
         return RefreshOutcome(status="already_running")
 
     try:
         previous_urls = (
-            set(_df["ChapterURL"]) - {""} if not _df.empty else set()
+            set(store.df["ChapterURL"]) - {""} if not store.df.empty else set()
         )
         result = sync_studies(
-            _study_ids, player_name=_player_name, token=_token, cache_path=_cache_path
+            store.study_ids, player_name=store.player_name,
+            token=store.token, cache_path=store.cache_path,
         )
         if result.df.empty:
             return RefreshOutcome(
                 status="error",
-                error=f"No games found in designated Studies: {_study_ids}",
+                error=f"No games found in designated Studies: {store.study_ids}",
             )
 
         new_df = detect_new_games(result.df, previous_urls)
         new_games = new_df[["Opponent", "Outcome", "Result", "Date"]].to_dict("records")
 
-        _swap(result)
-        _sync_uscf_into_store()  # USCF failing never fails the Sync (ADR 0003)
-        _run_analysis_into_store()  # nor does engine analysis (ADR 0004)
+        _swap(store, result)
+        _sync_uscf_into_store(store)  # USCF failing never fails the Sync (ADR 0003)
+        _run_analysis_into_store(store)  # nor does engine analysis (ADR 0004)
         logger.info(
             "Sync complete: %d games (%d new)", len(result.df), len(new_games)
         )
@@ -333,26 +408,102 @@ def refresh() -> RefreshOutcome:
         logger.warning("Sync failed; keeping current data: %s", exc)
         return RefreshOutcome(status="error", error=str(exc))
     finally:
-        _sync_lock.release()
+        store.sync_lock.release()
 
 
-def _swap(result: SyncResult) -> None:
+def _swap(store: Store, result: SyncResult) -> None:
     """Atomically replace the store's contents with a (live) Sync result."""
-    global _df, _player, _sync_failures, _synced_at, _source, _cached_at
-    # Single bytecode-level rebind per name; readers see old or new, never a mix.
-    _df, _player, _sync_failures, _synced_at, _source, _cached_at = (
-        result.df,
-        result.player,
-        result.failures,
-        datetime.now(timezone.utc),
-        "lichess",
-        None,
-    )
+    store.df = result.df
+    store.player = result.player
+    store.sync_failures = result.failures
+    store.synced_at = datetime.now(timezone.utc)
+    store.source = "lichess"
+    store.cached_at = None
 
+
+# ---------------------------------------------------------------------------
+# Multi-user entry points (issue #72 [G2])
+# ---------------------------------------------------------------------------
+
+def register_users(
+    users: dict[str, UserRecord],
+    *,
+    data_dir: str | None = None,
+    anthropic_api_key: str | None = None,
+) -> None:
+    """
+    Register a store per configured user, each pointed at that user's Studies,
+    Lichess token, and USCF member ID (issue #72).
+
+    Caches are per-user — a subdirectory of *data_dir* keyed by username — so
+    one user's PGN/USCF/analysis caches never collide with another's.  The
+    stores are *not* Synced here; call ``sync_user`` (eagerly at build, or
+    lazily on first access).
+    """
+    base = data_dir or ".user-data"
+    for username, record in users.items():
+        user_dir = os.path.join(base, _safe_dirname(username))
+        store = Store()
+        _configure(
+            store, list(record.study_ids),
+            coach_study_ids=list(record.coach_study_ids),
+            token=record.lichess_token,
+            uscf_member_id=record.uscf_member_id,
+            cache_path=os.path.join(user_dir, "games.pgn"),
+            uscf_cache_path=os.path.join(user_dir, "uscf_cache.json"),
+            analysis_cache_path=os.path.join(user_dir, "analysis_cache.json"),
+            anthropic_api_key=anthropic_api_key,
+        )
+        _registry[username] = store
+
+
+def sync_user(username: str) -> None:
+    """
+    Sync *username*'s store now (issue #72).
+
+    Degrades gracefully: a user whose Studies are unreachable (and who has no
+    cache) ends up with an empty store rather than crashing the app — coach and
+    USCF content are enrichment, never a dependency, and an unreachable main
+    Study at boot must not take the whole multi-user app down.
+    """
+    store = _registry.get(username)
+    if store is None:
+        return
+    try:
+        _sync_store(store)
+    except (SyncError, RuntimeError) as exc:
+        logger.warning("Could not Sync user %r (serving empty): %s", username, exc)
+
+
+def ensure_synced(username: str) -> None:
+    """Sync *username*'s store the first time it is needed, not on every
+    request (issue #72)."""
+    store = _registry.get(username)
+    if store is not None and not store.initialized:
+        sync_user(username)
+
+
+def _safe_dirname(username: str) -> str:
+    """A filesystem-safe directory name for a username (config-controlled, but
+    sanitised anyway)."""
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", username)
+    return safe or "user"
+
+
+def reset() -> None:
+    """Clear the whole registry back to a single empty default store (tests)."""
+    _registry.clear()
+    _registry[_DEFAULT_USER] = Store()
+    _active.user = _DEFAULT_USER
+
+
+# ---------------------------------------------------------------------------
+# Accessors — every one resolves against the active user's store
+# ---------------------------------------------------------------------------
 
 def get_df() -> pd.DataFrame:
     """Return the full (unfiltered) DataFrame. Never mutate the result."""
-    return _df
+    return _current().df
 
 
 def get_game_analysis(chapter_url: str) -> GameAnalysis:
@@ -360,12 +511,12 @@ def get_game_analysis(chapter_url: str) -> GameAnalysis:
     The engine analysis for the Game at *chapter_url* (issue #57 [F1]).
 
     Always returns a GameAnalysis — an empty one (``analyzed=False``) for a
-    Game with no requested analysis, an unknown URL, or before the first Sync —
-    so pages never guard on its presence (ADR 0004).
+    Game with no requested analysis, an unknown URL, or before the first Sync.
     """
-    if not chapter_url or _df.empty or "Analysis" not in _df.columns:
+    df = _current().df
+    if not chapter_url or df.empty or "Analysis" not in df.columns:
         return GameAnalysis(chapter_url=chapter_url or "")
-    matches = _df[_df["ChapterURL"] == chapter_url]
+    matches = df[df["ChapterURL"] == chapter_url]
     if matches.empty:
         return GameAnalysis(chapter_url=chapter_url)
     analysis = matches.iloc[0]["Analysis"]
@@ -379,13 +530,12 @@ def get_game_summary(chapter_url: str) -> str:
     The plain-English AI summary for the Game at *chapter_url* (issue #59 [F5]).
 
     Always returns a string — ``""`` for a Game with no requested analysis, no
-    configured API key, an unknown URL, or before the first Sync — so the Engine
-    view never guards on its presence (the summary is enrichment, never a
-    dependency; ADR 0004).
+    configured API key, an unknown URL, or before the first Sync.
     """
-    if not chapter_url or _df.empty or "Summary" not in _df.columns:
+    df = _current().df
+    if not chapter_url or df.empty or "Summary" not in df.columns:
         return ""
-    matches = _df[_df["ChapterURL"] == chapter_url]
+    matches = df[df["ChapterURL"] == chapter_url]
     if matches.empty:
         return ""
     return str(matches.iloc[0]["Summary"] or "")
@@ -396,253 +546,183 @@ def get_awaiting_analysis() -> pd.DataFrame:
     The Games still awaiting computer analysis (issue #57 [F1]): a real Chapter
     (one with a ChapterURL) whose Study export carried no engine evaluations.
 
-    Returns a copy so callers never mutate the store.  Empty when every Game is
-    analysed, or before the first Sync.  The accessor always exists.
+    Returns a copy so callers never mutate the store.
     """
-    if _df.empty or "Analyzed" not in _df.columns:
-        return _df.copy()
-    awaiting = _df[(~_df["Analyzed"].astype(bool)) & (_df["ChapterURL"] != "")]
+    df = _current().df
+    if df.empty or "Analyzed" not in df.columns:
+        return df.copy()
+    awaiting = df[(~df["Analyzed"].astype(bool)) & (df["ChapterURL"] != "")]
     return awaiting.copy()
 
 
 def get_mistake_type_distribution() -> dict[str, int]:
     """
-    The tactical-vs-positional split of Daniel's mistakes across every analysed
-    Game (issue #58) — the Analysis page's headline aggregate.
-
-    Always returns the two-key tally; ``{"tactical": 0, "positional": 0}`` before
-    the first Sync or when nothing is analysed yet.  Games still awaiting analysis
-    contribute nothing, so they are excluded from the distribution.
+    The tactical-vs-positional split of the player's mistakes across every
+    analysed Game (issue #58) — the Analysis page's headline aggregate.
     """
-    if _df.empty or "Analysis" not in _df.columns:
+    df = _current().df
+    if df.empty or "Analysis" not in df.columns:
         return mistake_type_distribution([])
-    return mistake_type_distribution(_df["Analysis"])
+    return mistake_type_distribution(df["Analysis"])
 
 
 def get_accuracy_trend() -> pd.DataFrame:
-    """
-    Per-Game move accuracy over time, with rating (issue #61 [F3]).
-
-    Empty before the first Sync or when nothing is analysed; Games awaiting
-    analysis are excluded.  Always returns a DataFrame, so the page never guards
-    (the aggregate is total over an empty or analysis-less store).
-    """
-    return accuracy_trend(_df)
+    """Per-Game move accuracy over time, with rating (issue #61 [F3])."""
+    return accuracy_trend(_current().df)
 
 
 def get_mistake_type_trend() -> pd.DataFrame:
-    """
-    Tactical/positional mistake counts per analysed Game over time (issue #61).
-    """
-    return mistake_type_trend(_df)
+    """Tactical/positional mistake counts per analysed Game over time (#61)."""
+    return mistake_type_trend(_current().df)
 
 
 def get_phase_type_matrix() -> pd.DataFrame:
-    """
-    The phase × type matrix of Daniel's mistakes across analysed Games (#61).
-    """
-    return phase_type_matrix(_df)
+    """The phase × type matrix of the player's mistakes across analysed Games."""
+    return phase_type_matrix(_current().df)
 
 
 def get_mistake_move_histogram() -> pd.DataFrame:
-    """
-    Counts of Daniel's mistakes by the move number they happened on (#61).
-    """
-    return mistake_move_histogram(_df)
+    """Counts of the player's mistakes by the move number they happened on."""
+    return mistake_move_histogram(_current().df)
 
 
 def has_any_analysis() -> bool:
-    """
-    True once at least one Game carries requested computer analysis (issue #58).
-
-    Drives the Analysis page's empty state: before this is true there is nothing
-    to distribute, so the page shows its "request analysis" placeholder instead
-    of an empty chart.
-    """
-    if _df.empty or "Analyzed" not in _df.columns:
+    """True once at least one Game carries requested computer analysis (#58)."""
+    df = _current().df
+    if df.empty or "Analyzed" not in df.columns:
         return False
-    return bool(_df["Analyzed"].astype(bool).any())
+    return bool(df["Analyzed"].astype(bool).any())
 
 
 def get_uscf_profile() -> UscfProfile | None:
     """The member's USCF profile, or None when unavailable / not configured."""
-    return _uscf.profile
+    return _current().uscf.profile
 
 
 def get_uscf_matches() -> MatchResult:
-    """
-    The last Sync's USCF Game Record ↔ Game matching (issue #28).
-
-    Both leftovers (unmatched Games, unmatched records) are exposed —
-    Reconciliation is built from them.  Empty when USCF is off/unavailable.
-    """
-    return _match_result
+    """The last Sync's USCF Game Record ↔ Game matching (issue #28)."""
+    return _current().match_result
 
 
 def get_reconciliation() -> list[ReconciliationEntry]:
     """
     Every open disagreement between the Studies and USCF (issue #30),
     dismissed entries excluded.
-
-    Empty when USCF isn't configured or has never been reached — with no
-    USCF data at all there is nothing meaningful to reconcile against.
     """
-    if not uscf_enabled() or not _uscf.available:
+    store = _current()
+    if not uscf_enabled() or not store.uscf.available:
         return []
     # Mid-Sync, the store briefly holds the freshly-swapped Lichess df before
     # USCF enrichment rebinds it.  No enrichment columns yet → nothing to
     # reconcile yet; the next callback (post-Sync) sees the full picture.
-    if "UscfColorConflict" not in _df.columns:
+    if "UscfColorConflict" not in store.df.columns:
         return []
     return reconcile(
-        _df, _match_result, _uscf.official_series, dismissed=frozenset(_dismissed)
+        store.df, store.match_result, store.uscf.official_series,
+        dismissed=frozenset(store.dismissed),
     )
 
 
 def dismiss_reconciliation_entry(entry_id: str) -> None:
-    """
-    Dismiss a Reconciliation entry ("USCF is wrong" / "intentionally skipped").
-
-    Takes effect immediately; persists best-effort in the USCF cache so it
-    survives Syncs and restarts (a redeploy may resurrect it — issue #30's
-    documented limitation).
-    """
-    _dismissed.add(entry_id)
-    UscfCache(_uscf_cache_path).add_dismissal(entry_id)
+    """Dismiss a Reconciliation entry ("USCF is wrong" / "intentionally
+    skipped").  Persists best-effort in the USCF cache (issue #30)."""
+    store = _current()
+    store.dismissed.add(entry_id)
+    UscfCache(store.uscf_cache_path).add_dismissal(entry_id)
 
 
 def get_official_series() -> list[OfficialRatingPoint]:
     """The Official Rating series: one point per supplement month, chronological."""
-    return _uscf.official_series
+    return _current().uscf.official_series
 
 
 def get_live_series() -> list[LiveRatingPoint]:
     """The Live Rating series: one point per Regular-rated Section, chronological,
     decimals preserved. Continuous: each post-rating is the next pre-rating."""
-    return _uscf.live_series
+    return _current().uscf.live_series
 
 
 def get_uscf_events() -> list[UscfEvent]:
-    """Every Rated Event the member has entered, chronological (issue #33).
-    Empty when USCF is off/unavailable."""
-    return _uscf.member_events
+    """Every Rated Event the member has entered, chronological (issue #33)."""
+    return _current().uscf.member_events
 
 
 def get_uscf_standings() -> dict[tuple[str, str], list[StandingEntry]]:
     """The crosstables of played OTB Sections (issue #34), keyed by
-    (event_id, section name).  Empty when USCF is off/unavailable."""
-    return _uscf.standings
+    (event_id, section name)."""
+    return _current().uscf.standings
 
 
 def get_opponent_profiles() -> dict[str, UscfProfile]:
-    """Opponents' current USCF profiles keyed by member ID (issue #35) —
-    the "they're 1580 now" half of then-vs-now.  Empty when USCF is
-    off/unavailable; missing opponents are simply absent."""
-    return _uscf.opponent_profiles
+    """Opponents' current USCF profiles keyed by member ID (issue #35)."""
+    return _current().uscf.opponent_profiles
 
 
 def get_uscf_achievements() -> list[UscfAchievement]:
-    """The member's official achievements — norms and awards, chronological
-    (issue #36). Empty when USCF is off/unavailable."""
-    return _uscf.achievements
+    """The member's official achievements — norms and awards, chronological."""
+    return _current().uscf.achievements
 
 
 def get_new_achievements() -> list[UscfAchievement]:
-    """
-    Achievements first seen by the last Sync — the ones to celebrate
-    (issue #36).  Empty on the first-ever recording (existing achievements
-    are registered silently) and whenever USCF data is cached or absent.
-    """
-    return _new_achievements
+    """Achievements first seen by the last Sync — the ones to celebrate (#36)."""
+    return _current().new_achievements
 
 
 def uscf_synced_at() -> datetime | None:
     """When USCF data was last successfully fetched (None if never)."""
-    return _uscf.synced_at
+    return _current().uscf.synced_at
 
 
 def uscf_failure() -> str:
     """Why USCF data is unavailable ('' when it isn't, or USCF isn't configured)."""
-    return _uscf.failure
+    return _current().uscf.failure
 
 
 def uscf_from_cache() -> bool:
     """True when the USCF data shown is the previous successful Sync's cache."""
-    return _uscf.from_cache
+    return _current().uscf.from_cache
 
 
 def uscf_unavailable_since() -> str | None:
-    """
-    'USCF unavailable since <time>' when showing cached USCF data, else None.
-
-    The one place this wording lives — the header freshness label and the
-    profile card staleness notice both use it.
-    """
-    if not _uscf.from_cache:
+    """'USCF unavailable since <time>' when showing cached USCF data, else None."""
+    uscf = _current().uscf
+    if not uscf.from_cache:
         return None
-    when = (f"{_uscf.synced_at:%Y-%m-%d %H:%M} UTC" if _uscf.synced_at
+    when = (f"{uscf.synced_at:%Y-%m-%d %H:%M} UTC" if uscf.synced_at
             else "an earlier run")
     return f"USCF unavailable since {when}"
 
 
 def uscf_enabled() -> bool:
-    """True when a USCF member ID is configured for this run."""
-    return _uscf_member_id is not None
+    """True when a USCF member ID is configured for the active store."""
+    return _current().uscf_member_id is not None
 
 
 def get_player() -> str:
     """Return the detected / configured player name."""
-    return _player
+    return _current().player
 
 
 def get_sync_failures() -> list[tuple[str, str]]:
     """(study_id, reason) for each designated Study the last Sync could not fetch."""
-    return _sync_failures
+    return _current().sync_failures
 
 
 def synced_at() -> datetime | None:
     """When the last successful Sync completed (UTC), or None if never."""
-    return _synced_at
+    return _current().synced_at
 
 
 def source() -> str:
     """Where the current data came from: 'lichess' (live Sync) or 'cache'."""
-    return _source
+    return _current().source
 
 
 def cached_at() -> datetime | None:
     """When the cache being shown was written (only set when source() == 'cache')."""
-    return _cached_at
+    return _current().cached_at
 
 
 def is_loaded() -> bool:
-    """True if data has been successfully initialised."""
-    return not _df.empty
-
-
-def reset() -> None:
-    """Clear the store (used by tests)."""
-    global _df, _player, _sync_failures, _synced_at, _source, _cached_at
-    global _study_ids, _player_name, _token, _cache_path
-    global _uscf, _uscf_member_id, _uscf_cache_path, _match_result, _dismissed
-    global _seen_achievement_ids, _new_achievements
-    global _anthropic_api_key, _analysis_cache_path
-    _df = pd.DataFrame()
-    _player = ""
-    _sync_failures = []
-    _synced_at = None
-    _source = "lichess"
-    _cached_at = None
-    _study_ids = []
-    _player_name = None
-    _token = None
-    _cache_path = None
-    _uscf = UscfSyncResult()
-    _uscf_member_id = None
-    _uscf_cache_path = None
-    _match_result = MatchResult()
-    _dismissed = set()
-    _seen_achievement_ids = None
-    _new_achievements = []
-    _anthropic_api_key = None
-    _analysis_cache_path = None
+    """True if the active store has been successfully initialised."""
+    return not _current().df.empty

@@ -845,13 +845,14 @@ class TestRefresh:
         with stub_studies(study1=sample_pgn_text):
             data.initialize(["study1"], player_name="Test Player")
 
-            # Simulate an in-flight Sync holding the lock
-            acquired = data._sync_lock.acquire(blocking=False)
+            # Simulate an in-flight Sync holding the active store's lock
+            lock = data._current().sync_lock
+            acquired = lock.acquire(blocking=False)
             assert acquired
             try:
                 outcome = data.refresh()
             finally:
-                data._sync_lock.release()
+                lock.release()
 
         assert outcome.status == "already_running"
         assert len(data.get_df()) == 7  # nothing changed
@@ -964,7 +965,7 @@ class TestReconciliationDuringSync:
 
         # Simulate the mid-Sync window: the df is raw parser output again
         raw_df, _ = load_games_from_text(MATCHED_PGN, player_name="Test Player")
-        data._df = raw_df
+        data._current().df = raw_df
 
         assert data.get_reconciliation() == []
 
@@ -1017,3 +1018,121 @@ class TestAnalysisSummaries:
             data.initialize(["study1"], player_name="Test Player")
         assert data.get_game_summary("https://lichess.org/study/x/never") == ""
         assert data.get_game_summary("") == ""
+
+
+# ---------------------------------------------------------------------------
+# Per-user store registry (issue #72 [G2], ADR 0005)
+# ---------------------------------------------------------------------------
+
+# One Game for a different player, so a user's data is unmistakably their own.
+BOB_PGN = """\
+[Event "Bob's Open"]
+[Site "Capital City"]
+[Date "2024.02.02"]
+[Round "1"]
+[White "Bob Smith"]
+[Black "Rival R"]
+[Result "1-0"]
+[StudyName "Bob Study"]
+[ChapterName "Bob Smith - Rival R"]
+[ChapterURL "https://lichess.org/study/bobstudy/chapBOB1"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 1-0
+"""
+
+
+def _record(username, **overrides):
+    from user_config import UserRecord, hash_password
+
+    base = dict(username=username, password_hash=hash_password("pw"),
+                study_ids=("s-" + username,), coach_study_ids=(),
+                uscf_member_id=None, lichess_token=None)
+    base.update(overrides)
+    return UserRecord(**base)
+
+
+class TestPerUserRegistry:
+    def test_each_user_sees_only_their_own_games(self, sample_pgn_text, tmp_path):
+        """Two users, two Studies, full isolation: one user's accessor never
+        returns another user's Games (ADR 0005)."""
+        users = {
+            "alice": _record("alice", study_ids=("s-alice",)),
+            "bob": _record("bob", study_ids=("s-bob",)),
+        }
+        with stub_studies(**{"s-alice": sample_pgn_text, "s-bob": BOB_PGN}):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("alice")
+            data.sync_user("bob")
+
+        data.activate("alice")
+        assert len(data.get_df()) == 7
+        assert data.get_player() == "Test Player"
+        assert "Bob Smith" not in set(data.get_df()["White"])
+
+        data.activate("bob")
+        assert len(data.get_df()) == 1
+        assert data.get_player() == "Bob Smith"
+        assert set(data.get_df()["Opponent"]) == {"Rival R"}
+
+    def test_sync_runs_against_each_users_own_config(self, sample_pgn_text, tmp_path):
+        """A user is Synced against *their* Study IDs / token / USCF member ID."""
+        captured: dict[str, dict] = {}
+
+        def fake_fetch(study_id, **kwargs):
+            captured[study_id] = kwargs
+            return sample_pgn_text if study_id == "s-alice" else BOB_PGN
+
+        users = {"alice": _record("alice", lichess_token="tok-alice"),
+                 "bob": _record("bob")}
+        with mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("alice")
+            data.sync_user("bob")
+
+        # Alice's private token was used to fetch her Study, not bob's
+        assert captured["s-alice"]["token"] == "tok-alice"
+        assert captured["s-bob"]["token"] is None
+
+    def test_activate_unknown_user_is_empty_not_an_error(self, tmp_path):
+        data.register_users({"alice": _record("alice")}, data_dir=str(tmp_path))
+        data.activate("nobody")
+        assert data.get_df().empty
+        assert data.is_loaded() is False
+
+    def test_activate_none_resolves_the_default_store(self, sample_pgn_text):
+        """No active user → the single-user default store (CLI / ungated mode)."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+        data.activate("someone")
+        assert data.get_df().empty       # someone has no store
+        data.activate(None)
+        assert len(data.get_df()) == 7   # back to the default store
+
+    def test_unreachable_main_study_degrades_to_empty_not_a_crash(self, tmp_path):
+        """A user whose Study is unreachable (and has no cache) ends up with an
+        empty store rather than crashing the multi-user app (ADR 0003 spirit)."""
+        users = {"alice": _record("alice")}
+        with stub_studies(**{"s-alice": StudyNotFoundError("gone")}):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("alice")  # must not raise
+        data.activate("alice")
+        assert data.get_df().empty
+
+    def test_ensure_synced_loads_once_then_is_a_noop(self, sample_pgn_text, tmp_path):
+        users = {"alice": _record("alice")}
+        with stub_studies(**{"s-alice": sample_pgn_text}) as fetch:
+            data.register_users(users, data_dir=str(tmp_path))
+            data.ensure_synced("alice")
+            data.ensure_synced("alice")  # second call must not re-Sync
+            calls_after = fetch.call_count
+        assert calls_after == 1
+        data.activate("alice")
+        assert len(data.get_df()) == 7
+
+    def test_reset_clears_every_user_store(self, sample_pgn_text, tmp_path):
+        with stub_studies(**{"s-alice": sample_pgn_text}):
+            data.register_users({"alice": _record("alice")}, data_dir=str(tmp_path))
+            data.sync_user("alice")
+        data.reset()
+        data.activate("alice")
+        assert data.get_df().empty
