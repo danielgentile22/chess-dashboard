@@ -796,6 +796,56 @@ def get_coach_matches() -> tuple:
     return _current().coach.result.matches
 
 
+def get_coach_notes() -> list[dict]:
+    """
+    The Coach's Notes feed (issue #75 [G5]): every prose comment the coach wrote
+    on a matched Game, newest Game first, each carrying the link back to its
+    Game.
+
+    Only matched Games contribute — the coach's teaching positions and online
+    games never appear (they were never matched).  Within one Game the notes
+    keep their move order; across Games they sort newest first.  Empty when no
+    coach content is available.
+    """
+    store = _current()
+    df = store.df
+    if df.empty or "ChapterURL" not in df.columns:
+        return []
+
+    games_by_url = {
+        row["ChapterURL"]: row
+        for _, row in df.iterrows() if row["ChapterURL"]
+    }
+
+    notes: list[dict] = []
+    for match in store.coach.result.matches:
+        game = games_by_url.get(match.chapter_url)
+        if game is None:
+            continue  # the main Study is the source of truth (ADR 0001)
+        chapter_id = match.chapter_url.rstrip("/").rsplit("/", 1)[-1]
+        for comment in match.chapter.comments:
+            notes.append({
+                "text": comment.text,
+                "move_number": comment.move_number,
+                "chapter_url": match.chapter_url,
+                "chapter_id": chapter_id,
+                "opponent": str(game.get("Opponent") or ""),
+                "outcome": str(game.get("Outcome") or ""),
+                "date": str(game.get("Date") or ""),
+                "date_dt": game.get("Date_dt"),
+            })
+
+    # Within a Game, keep move order (stable); across Games, newest first.
+    notes.sort(key=lambda n: n["move_number"])
+    notes.sort(key=lambda n: _sortable_date(n["date_dt"]), reverse=True)
+    return notes
+
+
+def _sortable_date(value) -> pd.Timestamp:
+    """A Game's date as a sortable Timestamp — undated Games sort oldest."""
+    return pd.Timestamp.min if value is None or pd.isna(value) else value
+
+
 def coach_synced_at() -> datetime | None:
     """When coach content was last successfully fetched (None if never)."""
     return _current().coach.synced_at

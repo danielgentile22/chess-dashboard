@@ -1219,3 +1219,61 @@ class TestCoachContent:
         assert data.has_coach_review(GEORGINA_URL) is False
         data.activate("daniel")
         assert data.has_coach_review(GEORGINA_URL) is True
+
+
+ALAN_URL = "https://lichess.org/study/6jYtXHGp/usttMW1p"
+JIN_URL = "https://lichess.org/study/6jYtXHGp/ivGdIkuD"
+
+
+class TestCoachNotesFeed:
+    """The Coach's Notes feed accessor (issue #75 [G5])."""
+
+    def _setup(self, tmp_path):
+        users = {"daniel": _record("daniel", study_ids=("s-main",),
+                                   coach_study_ids=("s-coach",))}
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+
+    def test_feed_collects_every_matched_games_prose(self, tmp_path):
+        self._setup(tmp_path)
+        notes = data.get_coach_notes()
+        # 7 (Georgina) + 2 (Alan) + 1 (Jin) prose comments across matched Games
+        assert len(notes) == 10
+
+    def test_each_note_links_to_its_matched_game(self, tmp_path):
+        self._setup(tmp_path)
+        notes = data.get_coach_notes()
+        matched = {GEORGINA_URL, ALAN_URL, JIN_URL}
+        assert all(n["chapter_url"] in matched for n in notes)
+        # the chapter_id used for the /game/<id> link is carried
+        assert all(n["chapter_id"] for n in notes)
+
+    def test_feed_is_newest_first(self, tmp_path):
+        self._setup(tmp_path)
+        dates = [n["date_dt"] for n in data.get_coach_notes()
+                 if n["date_dt"] is not None]
+        assert dates == sorted(dates, reverse=True)
+
+    def test_unmatched_teaching_positions_never_appear(self, tmp_path):
+        self._setup(tmp_path)
+        texts = " ".join(n["text"] for n in data.get_coach_notes())
+        # the extras' comments (blitz/endgame/master) must not leak in
+        assert "teaching joke" not in texts
+        assert "Build the bridge" not in texts
+        assert "attacking ideas" not in texts
+
+    def test_note_carries_opponent_and_text(self, tmp_path):
+        self._setup(tmp_path)
+        notes = data.get_coach_notes()
+        georgina = [n for n in notes if n["chapter_url"] == GEORGINA_URL]
+        assert any("Caro-Kann again" in n["text"] for n in georgina)
+        assert all(n["opponent"] for n in georgina)
+
+    def test_no_coach_content_is_an_empty_feed(self, sample_pgn_text, tmp_path):
+        with stub_studies(**{"s-alice": sample_pgn_text}):
+            data.register_users({"alice": _record("alice")}, data_dir=str(tmp_path))
+            data.sync_user("alice")
+        data.activate("alice")
+        assert data.get_coach_notes() == []
