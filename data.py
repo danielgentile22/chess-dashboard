@@ -44,18 +44,21 @@ from analysis_trends import (
     mistake_type_trend,
     phase_type_matrix,
 )
+from coach_match_core import CoachChapter, CoachComment
 from engine_analysis_core import (
     GameAnalysis,
     enrich_games_with_analysis,
     mistake_type_distribution,
 )
 from sync import (
+    CoachSyncResult,
     SyncError,
     SyncResult,
     UscfCache,
     UscfSyncResult,
     detect_new_games,
     load_from_cache,
+    sync_coach,
     sync_studies,
     sync_uscf,
 )
@@ -105,14 +108,18 @@ class Store:
     seen_achievement_ids: set[str] | None = None
     new_achievements: list[UscfAchievement] = field(default_factory=list)
 
+    # --- coach review (issue #74 [G4]: enrichment, never required) ----------
+    coach: CoachSyncResult = field(default_factory=CoachSyncResult)
+
     # --- the configuration a refresh()/Sync needs ---------------------------
     study_ids: list[str] = field(default_factory=list)
-    coach_study_ids: list[str] = field(default_factory=list)  # ingested in #74
+    coach_study_ids: list[str] = field(default_factory=list)
     player_name: str | None = None
     token: str | None = None
     cache_path: str | None = None
     uscf_member_id: str | None = None
     uscf_cache_path: str | None = None
+    coach_cache_path: str | None = None
     anthropic_api_key: str | None = None
     analysis_cache_path: str | None = None
 
@@ -223,6 +230,7 @@ def _configure(store: Store, study_ids: list[str], **cfg) -> None:
     store.cache_path = cfg.get("cache_path")
     store.uscf_member_id = cfg.get("uscf_member_id")
     store.uscf_cache_path = cfg.get("uscf_cache_path")
+    store.coach_cache_path = cfg.get("coach_cache_path")
     store.anthropic_api_key = cfg.get("anthropic_api_key")
     store.analysis_cache_path = cfg.get("analysis_cache_path")
 
@@ -242,6 +250,7 @@ def _sync_store(store: Store) -> None:
         _boot_from_cache(store, exc)
         _sync_uscf_into_store(store)
         _run_analysis_into_store(store)
+        _run_coach_into_store(store)
         return
 
     if result.df.empty:
@@ -249,6 +258,7 @@ def _sync_store(store: Store) -> None:
     _swap(store, result)
     _sync_uscf_into_store(store)
     _run_analysis_into_store(store)
+    _run_coach_into_store(store)
 
 
 def _sync_uscf_into_store(store: Store) -> None:
@@ -291,6 +301,21 @@ def _run_analysis_into_store(store: Store) -> None:
     enriched = enrich_games_with_analysis(store.df)
     enriched["Summary"] = _summaries_for(store, enriched)
     store.df = enriched
+
+
+def _run_coach_into_store(store: Store) -> None:
+    """
+    Fetch the user's coach Studies and match their Chapters to the Games
+    (issue #74 [G4]), following the USCF disposable-cache pattern.
+
+    Coach content is enrichment, never a dependency (ADR 0003): a coach Study
+    being unreachable degrades to cached/empty and never disturbs the Games.
+    The user's main Study stays the source of truth (ADR 0001).
+    """
+    store.coach = sync_coach(
+        store.coach_study_ids, store.df,
+        token=store.token, cache_path=store.coach_cache_path,
+    )
 
 
 def _summaries_for(store: Store, enriched: pd.DataFrame) -> list[str]:
@@ -398,6 +423,7 @@ def refresh() -> RefreshOutcome:
         _swap(store, result)
         _sync_uscf_into_store(store)  # USCF failing never fails the Sync (ADR 0003)
         _run_analysis_into_store(store)  # nor does engine analysis (ADR 0004)
+        _run_coach_into_store(store)  # nor does coach content (ADR 0003)
         logger.info(
             "Sync complete: %d games (%d new)", len(result.df), len(new_games)
         )
@@ -443,6 +469,13 @@ def register_users(
     base = data_dir or ".user-data"
     for username, record in users.items():
         user_dir = os.path.join(base, _safe_dirname(username))
+        # Best-effort: a host without a writable disk (Render free tier) just
+        # goes without caches — the caches are disposable (ADR 0001/0003).
+        try:
+            os.makedirs(user_dir, exist_ok=True)
+        except OSError as exc:
+            logger.warning("Could not create cache dir %r (continuing): %s",
+                           user_dir, exc)
         store = Store()
         _configure(
             store, list(record.study_ids),
@@ -451,6 +484,7 @@ def register_users(
             uscf_member_id=record.uscf_member_id,
             cache_path=os.path.join(user_dir, "games.pgn"),
             uscf_cache_path=os.path.join(user_dir, "uscf_cache.json"),
+            coach_cache_path=os.path.join(user_dir, "coach.pgn"),
             analysis_cache_path=os.path.join(user_dir, "analysis_cache.json"),
             anthropic_api_key=anthropic_api_key,
         )
@@ -726,3 +760,47 @@ def cached_at() -> datetime | None:
 def is_loaded() -> bool:
     """True if the active store has been successfully initialised."""
     return not _current().df.empty
+
+
+# ---------------------------------------------------------------------------
+# Coach review accessors (issue #74 [G4])
+# ---------------------------------------------------------------------------
+
+def get_coach_chapter(chapter_url: str) -> CoachChapter | None:
+    """The coach's Chapter matched to the Game at *chapter_url*, or None.
+
+    None for a Game the coach never reviewed, an unknown URL, or when no coach
+    Studies are configured — so the Coach view degrades gracefully (issue #74).
+    """
+    if not chapter_url:
+        return None
+    return _current().coach.result.chapter_for(chapter_url)
+
+
+def get_coach_comments(chapter_url: str) -> tuple[CoachComment, ...]:
+    """The coach's prose comments for the Game at *chapter_url* ((), never None)."""
+    if not chapter_url:
+        return ()
+    return _current().coach.result.comments_for(chapter_url)
+
+
+def has_coach_review(chapter_url: str) -> bool:
+    """True when the coach reviewed the Game at *chapter_url* — drives whether
+    the Coach view/tab appears at all (issue #74)."""
+    return get_coach_chapter(chapter_url) is not None
+
+
+def get_coach_matches() -> tuple:
+    """Every coach Chapter ↔ Game pairing (issue #74) — the Coach's Notes feed
+    (issue #75) reads this.  Empty when no coach Studies are configured."""
+    return _current().coach.result.matches
+
+
+def coach_synced_at() -> datetime | None:
+    """When coach content was last successfully fetched (None if never)."""
+    return _current().coach.synced_at
+
+
+def coach_from_cache() -> bool:
+    """True when the coach content shown is the previous Sync's cache."""
+    return _current().coach.from_cache

@@ -1136,3 +1136,86 @@ class TestPerUserRegistry:
         data.reset()
         data.activate("alice")
         assert data.get_df().empty
+
+
+# ---------------------------------------------------------------------------
+# Coach content ingestion in the store (issue #74 [G4])
+# ---------------------------------------------------------------------------
+
+SNAPSHOT_PGN = (
+    Path(__file__).parent / "fixtures" / "uscf" / "lichess-study-snapshot.pgn"
+).read_text()
+COACH_PGN = (Path(__file__).parent / "fixtures" / "coach-study.pgn").read_text()
+
+
+class TestCoachContent:
+    def _daniel(self):
+        return {"daniel": _record("daniel", study_ids=("s-main",),
+                                  coach_study_ids=("s-coach",))}
+
+    def test_matched_coach_content_is_exposed_by_the_store(self, tmp_path):
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
+            data.register_users(self._daniel(), data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+
+        assert data.has_coach_review(GEORGINA_URL) is True
+        chapter = data.get_coach_chapter(GEORGINA_URL)
+        assert chapter is not None
+        assert len(data.get_coach_comments(GEORGINA_URL)) == 7
+
+    def test_a_game_with_no_coach_review_has_none(self, tmp_path):
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
+            data.register_users(self._daniel(), data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+        # A real Game the coach never reviewed → graceful absence, not an error
+        some_unreviewed = (
+            "https://lichess.org/study/6jYtXHGp/RP1Age0G"  # Torrin Cummings
+        )
+        assert data.has_coach_review(some_unreviewed) is False
+        assert data.get_coach_chapter(some_unreviewed) is None
+        assert data.get_coach_comments(some_unreviewed) == ()
+
+    def test_coach_study_unreachable_never_fails_the_sync(self, tmp_path):
+        with stub_studies(**{"s-main": SNAPSHOT_PGN,
+                             "s-coach": StudyNotFoundError("private")}):
+            data.register_users(self._daniel(), data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+        # The Lichess Sync still succeeded — all 63 Games are there
+        assert len(data.get_df()) == 63
+        # …just without coach content
+        assert data.has_coach_review(GEORGINA_URL) is False
+
+    def test_coach_content_survives_a_brief_outage_from_cache(self, tmp_path):
+        users = self._daniel()
+        data.register_users(users, data_dir=str(tmp_path))
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
+            data.sync_user("daniel")
+        # Next Sync, coach Study is down → served from cache
+        with stub_studies(**{"s-main": SNAPSHOT_PGN,
+                             "s-coach": StudyNotFoundError("private")}):
+            data.sync_user("daniel")
+        data.activate("daniel")
+        assert data.has_coach_review(GEORGINA_URL) is True
+        assert data.coach_from_cache() is True
+
+    def test_coach_content_is_isolated_per_user(self, sample_pgn_text, tmp_path):
+        """A user with no coach Studies sees no coach content, even alongside a
+        user who has it."""
+        users = {
+            "daniel": _record("daniel", study_ids=("s-main",),
+                              coach_study_ids=("s-coach",)),
+            "alice": _record("alice", study_ids=("s-alice",)),
+        }
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN,
+                             "s-alice": sample_pgn_text}):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("daniel")
+            data.sync_user("alice")
+
+        data.activate("alice")
+        assert data.has_coach_review(GEORGINA_URL) is False
+        data.activate("daniel")
+        assert data.has_coach_review(GEORGINA_URL) is True

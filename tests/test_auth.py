@@ -198,10 +198,10 @@ class TestGatedIsolation:
     def test_each_logged_in_user_activates_their_own_store(self, tmp_path):
         """Through the real gated server, the request's authenticated user is
         the store every accessor resolves to — never another user's."""
+        import pandas as pd
+
         import data
         from tests.conftest import preserve_dash_callbacks
-
-        import pandas as pd
 
         users = _users()  # daniel + friend
         data.reset()
