@@ -1819,6 +1819,56 @@ a.game-card:hover { background: var(--cs-hover); }
 .lesson-game-link:hover { text-decoration: underline; }
 .empty-state-tags { justify-content: center; margin-top: 16px; }
 
+/* Coach's Notes feed (issue #75 [G5]) — the coach's prose, kept visually
+   distinct from the user's own Lessons above: a left accent rail, a faint
+   wash, and the king glyph instead of the lesson bulb. */
+.coach-notes-feed { margin-top: 22px; }
+.coach-notes-feed .content-card {
+  border-left: 3px solid var(--cs-primary);
+  background-image: linear-gradient(90deg, var(--cs-primary-wash), transparent 55%);
+}
+.coach-notes-subtitle {
+  font-size: 12.5px;
+  color: var(--cs-primary);
+  margin: -4px 0 14px;
+}
+.coach-note-card {
+  padding: 4px 0 14px;
+  border-bottom: 1px solid var(--cs-border);
+  margin-bottom: 14px;
+}
+.coach-note-card:last-child { border-bottom: none; margin-bottom: 0; }
+.coach-note-quote {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.coach-note-mark { color: var(--cs-primary); font-size: 16px; line-height: 1.4; }
+.coach-note-text { line-height: 1.55; }
+.coach-note-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding-left: 25px;
+}
+.coach-note-meta {
+  font-size: 12px;
+  color: var(--cs-muted);
+  font-family: var(--cs-font-data);
+}
+.coach-note-meta.outcome-win  { color: var(--cs-win); }
+.coach-note-meta.outcome-loss { color: var(--cs-loss); }
+.coach-note-link {
+  font-size: 12px;
+  color: var(--cs-primary) !important;
+  text-decoration: none;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.coach-note-link:hover { text-decoration: underline; }
+
 /* Clickable table rows (Games / H2H / Event detail) */
 .clickable-rows .dash-spreadsheet-inner td { cursor: pointer; }
 .clickable-rows .dash-spreadsheet-inner tr:hover td {

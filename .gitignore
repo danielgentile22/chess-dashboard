@@ -40,6 +40,10 @@ uscf_cache.json
 # Local engine-analysis AI-summary cache (never a source of truth — ADR 0004)
 analysis_cache.json
 
+# Per-user disposable caches (issue #72 [G2], ADR 0005): one subdir per user.
+# Never a source of truth; never commit a user's game/USCF/coach data.
+.user-data/
+
 # IDE
 .vscode/
 .idea/

@@ -426,6 +426,19 @@ def _board_section(game: pd.Series) -> html.Div:
         html.Button("Engine", className="lpv-switch", **{"data-view": "engine"})
     )
 
+    # The Coach view (issue #74 [G4]) is offered only when the coach reviewed
+    # this Game — his annotated line, with all his variations and notes, played
+    # in the same board.  A Game with no coach match simply has no Coach tab
+    # (gracefully, never an error); coach material is private, so it renders
+    # only behind the auth gate.
+    chapter_url = str(game.get("ChapterURL") or "")
+    coach_chapter = data.get_coach_chapter(chapter_url)
+    if coach_chapter is not None:
+        data_attrs["data-pgn-coach"] = _game_pgn(game, coach_chapter.movetext)
+        switches.append(
+            html.Button("Coach", className="lpv-switch", **{"data-view": "coach"})
+        )
+
     mount = html.Div(className="lpv", **data_attrs)
     return html.Div(className="game-board-card", children=[
         html.Div(className="lpv-switcher", children=switches),

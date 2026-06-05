@@ -1,0 +1,108 @@
+[Event "Coach review — Caro-Kann"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "Georgina Chin"]
+[Black "Daniel Gentile"]
+[Result "0-1"]
+[StudyName "GM Midnight_Chess — Reviews"]
+[ChapterName "Georgina Chin (your win)"]
+[ChapterURL "https://lichess.org/study/coachAAAA/gc000001"]
+
+{ Caro-Kann again — solid. Our plan: don't let her trade you into a passive structure. }
+1. e4 c6 2. Nc3 d5 3. d3
+{ [%eval -0.17] d3 is too quiet; here you already stand fine. } ( 3. Nxd5 Nh6 )
+3... dxe4 4. Nxe4 ( 4. Nd5 ) 4... Nf6 { [%eval 0.09] } 5. Nxf6+ exf6
+{ [%eval 0.06] Good — the doubled f-pawns hand you the half-open e-file. Use it. }
+6. Nf3 ( 6. Nh3 Rg8 7. Ng5 ) 6... Bg4 7. Be2 ( 7. Ng5 ) 7... Bd6
+{ [%eval -0.05] } 8. O-O ( 8. Ng5 Rg8 ) 8... O-O
+{ Castling done on both sides; now find a plan for the c8-bishop. } 9. Be3 ( 9.
+Ng5 ) 9... Nd7 10. Nd4 ( 10. Ng5 Kh8 ) 10... Bxe2 11. Nxe2 ( 11. Ne6 ) 11...
+Qc7 { The ...Qc7 and ...Rfe8 manoeuvre is exactly what we drilled. } 12. Ng3
+{ Here she drifted; the initiative is yours now. } ( 12. Bxa7 Kh8 ) 12... Rfe8
+{ Keep improving the worst piece before you commit to a break. } ( 12... Kh8 )
+13. Qd2 Nf8 14. c4 Rad8 15. Rac1 g5 16. Bd4 Bxg3 17. fxg3 Rxd4 18. Rxf6 Qe5 19.
+Rf3 Ne6 20. Re1 Qc5 21. Rfe3 Red8 22. b3 Rxd3 23. Qf2 Rxe3 24. Qxe3 Rd1 0-1
+
+[Event "Coach review"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "Alan Lopez Melgoza"]
+[Black "Daniel Gentile"]
+[Result "1-0"]
+[StudyName "GM Midnight_Chess — Reviews"]
+[ChapterName "Alan Lopez Melgoza (tough loss)"]
+[ChapterURL "https://lichess.org/study/coachAAAA/alm00002"]
+
+{ You drifted in a King's-Indian-reversed; watch the e5 break. } 1. d4 g6 2.
+Be3 Bg7 3. Nf3 a6 4. Nc3 b5 5. a3 Bb7 6. Bf4 d6 7. e4 Nd7 8. Be2 Rc8 9. e5
+{ [%eval 1.2] e5 was the move you missed — it opens the long diagonal. } ( 9.
+Bh6 Nxh6 10. Ng5 ) 9... dxe5 10. dxe5 Bxf3 11. Bxf3 Nxe5 12. Bb7 Rb8 13. Bxa6
+c6 14. Bxe5 Bxe5 15. Qe2 Bxc3+ 16. bxc3 Qa5 17. Qe5 Qxa6 18. Qxh8 Kf8 19. Qxh7
+Qa5 20. Qh3 Rd8 21. O-O Rd2 22. Qc8+ Kg7 23. Qxc6 Rxc2 24. Rfc1 Qxa3 25. Re1
+Rxc3 26. Qxb5 Rc5 27. Qd7 Qb2 28. Rab1 Qc3 29. h3 Qf6 30. Rbd1 Rc2 31. Qd4 e6
+32. Qxf6+ Nxf6 33. Ra1 Rc7 34. Rac1 Re7 35. Rc8 Rd7 36. Ra1 Re7 37. Raa8 Rd7
+38. g4 Re7 39. g5 1-0
+
+[Event "Coach review"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "Daniel Gentile"]
+[Black "Jin William Shao"]
+[Result "0-1"]
+[StudyName "GM Midnight_Chess — Reviews"]
+[ChapterName "Jin William Shao (sharp)"]
+[ChapterURL "https://lichess.org/study/coachAAAA/jin00003"]
+
+1. e4 c5 2. a3 Nc6
+{ The b4 gambit is double-edged — you need precise follow-up. } 3. b4 cxb4 4.
+axb4 Nxb4 5. c3 Nc6 6. d4 d5 7. Nd2 e6 8. Bd3 g6 9. Ngf3 Bg7 10. e5 Nge7 11. h4
+O-O 12. h5 Nf5 13. g4 Nh6 14. Nb1 f5 15. hxg6 fxg4 16. Bxh6 Bxh6 17. Rxh6 Rxf3
+18. Rxh7 Qg5 19. Na3 Ne7 20. Qc2 g3 21. Rxe7 gxf2+ 22. Kf1 Qg1+ 23. Ke2 f1=Q+
+24. Kd2 Qe3# 0-1
+
+[Event "Online blitz"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "Midnight_Chess"]
+[Black "NN"]
+[Result "1-0"]
+[StudyName "GM Midnight_Chess — Reviews"]
+[ChapterName "Online blitz brilliancy"]
+[ChapterURL "https://lichess.org/study/coachAAAA/blitz004"]
+
+1. e4 e5 2. Qh5 Nc6 3. Bc4 g6 4. Qf3 Nf6 5. Qb3
+{ Don't play like this — a teaching joke. } 1-0
+
+[Event "Endgame technique"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+[StudyName "GM Midnight_Chess — Reviews"]
+[ChapterName "Lucena position"]
+[ChapterURL "https://lichess.org/study/coachAAAA/endg005"]
+[FEN "1K6/1P6/8/8/8/8/r7/R1k5 w - - 0 1"]
+[SetUp "1"]
+
+1. Kc8+ Kd2 2. Kd8 Ke3 { Build the bridge — homework, not your game. } *
+
+[Event "Immortal Game"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "Anderssen"]
+[Black "Kieseritzky"]
+[Result "1-0"]
+[StudyName "GM Midnight_Chess — Reviews"]
+[ChapterName "Anderssen's Immortal"]
+[ChapterURL "https://lichess.org/study/coachAAAA/mast006"]
+
+1. e4 e5 2. f4 exf4 3. Bc4 Qh4+ 4. Kf1 b5 5. Bxb5 Nf6 6. Nf3 Qh6
+{ Study the attacking ideas — a classic, not your game. } 1-0
+

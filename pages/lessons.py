@@ -26,6 +26,7 @@ from dash import ALL, Input, Output, State, callback, ctx, dcc, html, no_update
 
 import data
 from components import (
+    coach_note_card,
     content_card,
     lesson_card,
     page_header,
@@ -92,6 +93,10 @@ def layout(review: str | None = None, opponent: str | None = None, **kwargs) -> 
 
         # The Lessons themselves
         html.Div(id="lessons-list"),
+
+        # The coach's prose, newest first — kept visually distinct from the
+        # user's own Lessons above (issue #75 [G5]).
+        _coach_notes_feed(),
     ]
 
     # Review mode rides on top of the page (issue #19).  The page's entry
@@ -107,6 +112,33 @@ def layout(review: str | None = None, opponent: str | None = None, **kwargs) -> 
 # ---------------------------------------------------------------------------
 # Rendering helpers
 # ---------------------------------------------------------------------------
+
+def _coach_notes_feed() -> html.Div | None:
+    """
+    The Coach's Notes feed (issue #75 [G5]): the coach's prose across matched
+    Games, newest first, each linking to its Game.
+
+    Omitted entirely when there is no coach content (a user with no coach
+    Studies, or before the first Sync) — the feed never shows an empty shell,
+    and only matched Games' notes ever appear (the coach's teaching positions
+    never reach this list).
+    """
+    notes = data.get_coach_notes()
+    if not notes:
+        return None
+    count = len(notes)
+    return html.Div(className="coach-notes-feed", children=[
+        content_card(
+            "Coach's Notes",
+            html.Div(
+                f"What your coach has told you — {count} "
+                f"note{'s' if count != 1 else ''}, newest first",
+                className="coach-notes-subtitle",
+            ),
+            *[coach_note_card(n) for n in notes],
+        ),
+    ])
+
 
 def _convention_explainer() -> html.Div:
     """The empty state: how to write Lessons on Lichess (ADR 0002)."""

@@ -845,13 +845,14 @@ class TestRefresh:
         with stub_studies(study1=sample_pgn_text):
             data.initialize(["study1"], player_name="Test Player")
 
-            # Simulate an in-flight Sync holding the lock
-            acquired = data._sync_lock.acquire(blocking=False)
+            # Simulate an in-flight Sync holding the active store's lock
+            lock = data._current().sync_lock
+            acquired = lock.acquire(blocking=False)
             assert acquired
             try:
                 outcome = data.refresh()
             finally:
-                data._sync_lock.release()
+                lock.release()
 
         assert outcome.status == "already_running"
         assert len(data.get_df()) == 7  # nothing changed
@@ -964,7 +965,7 @@ class TestReconciliationDuringSync:
 
         # Simulate the mid-Sync window: the df is raw parser output again
         raw_df, _ = load_games_from_text(MATCHED_PGN, player_name="Test Player")
-        data._df = raw_df
+        data._current().df = raw_df
 
         assert data.get_reconciliation() == []
 
@@ -1017,3 +1018,262 @@ class TestAnalysisSummaries:
             data.initialize(["study1"], player_name="Test Player")
         assert data.get_game_summary("https://lichess.org/study/x/never") == ""
         assert data.get_game_summary("") == ""
+
+
+# ---------------------------------------------------------------------------
+# Per-user store registry (issue #72 [G2], ADR 0005)
+# ---------------------------------------------------------------------------
+
+# One Game for a different player, so a user's data is unmistakably their own.
+BOB_PGN = """\
+[Event "Bob's Open"]
+[Site "Capital City"]
+[Date "2024.02.02"]
+[Round "1"]
+[White "Bob Smith"]
+[Black "Rival R"]
+[Result "1-0"]
+[StudyName "Bob Study"]
+[ChapterName "Bob Smith - Rival R"]
+[ChapterURL "https://lichess.org/study/bobstudy/chapBOB1"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 1-0
+"""
+
+
+def _record(username, **overrides):
+    from user_config import UserRecord, hash_password
+
+    base = dict(username=username, password_hash=hash_password("pw"),
+                study_ids=("s-" + username,), coach_study_ids=(),
+                uscf_member_id=None, lichess_token=None)
+    base.update(overrides)
+    return UserRecord(**base)
+
+
+class TestPerUserRegistry:
+    def test_each_user_sees_only_their_own_games(self, sample_pgn_text, tmp_path):
+        """Two users, two Studies, full isolation: one user's accessor never
+        returns another user's Games (ADR 0005)."""
+        users = {
+            "alice": _record("alice", study_ids=("s-alice",)),
+            "bob": _record("bob", study_ids=("s-bob",)),
+        }
+        with stub_studies(**{"s-alice": sample_pgn_text, "s-bob": BOB_PGN}):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("alice")
+            data.sync_user("bob")
+
+        data.activate("alice")
+        assert len(data.get_df()) == 7
+        assert data.get_player() == "Test Player"
+        assert "Bob Smith" not in set(data.get_df()["White"])
+
+        data.activate("bob")
+        assert len(data.get_df()) == 1
+        assert data.get_player() == "Bob Smith"
+        assert set(data.get_df()["Opponent"]) == {"Rival R"}
+
+    def test_sync_runs_against_each_users_own_config(self, sample_pgn_text, tmp_path):
+        """A user is Synced against *their* Study IDs / token / USCF member ID."""
+        captured: dict[str, dict] = {}
+
+        def fake_fetch(study_id, **kwargs):
+            captured[study_id] = kwargs
+            return sample_pgn_text if study_id == "s-alice" else BOB_PGN
+
+        users = {"alice": _record("alice", lichess_token="tok-alice"),
+                 "bob": _record("bob")}
+        with mock.patch.object(sync, "fetch_study_pgn", side_effect=fake_fetch):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("alice")
+            data.sync_user("bob")
+
+        # Alice's private token was used to fetch her Study, not bob's
+        assert captured["s-alice"]["token"] == "tok-alice"
+        assert captured["s-bob"]["token"] is None
+
+    def test_activate_unknown_user_is_empty_not_an_error(self, tmp_path):
+        data.register_users({"alice": _record("alice")}, data_dir=str(tmp_path))
+        data.activate("nobody")
+        assert data.get_df().empty
+        assert data.is_loaded() is False
+
+    def test_activate_none_resolves_the_default_store(self, sample_pgn_text):
+        """No active user → the single-user default store (CLI / ungated mode)."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+        data.activate("someone")
+        assert data.get_df().empty       # someone has no store
+        data.activate(None)
+        assert len(data.get_df()) == 7   # back to the default store
+
+    def test_unreachable_main_study_degrades_to_empty_not_a_crash(self, tmp_path):
+        """A user whose Study is unreachable (and has no cache) ends up with an
+        empty store rather than crashing the multi-user app (ADR 0003 spirit)."""
+        users = {"alice": _record("alice")}
+        with stub_studies(**{"s-alice": StudyNotFoundError("gone")}):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("alice")  # must not raise
+        data.activate("alice")
+        assert data.get_df().empty
+
+    def test_ensure_synced_loads_once_then_is_a_noop(self, sample_pgn_text, tmp_path):
+        users = {"alice": _record("alice")}
+        with stub_studies(**{"s-alice": sample_pgn_text}) as fetch:
+            data.register_users(users, data_dir=str(tmp_path))
+            data.ensure_synced("alice")
+            data.ensure_synced("alice")  # second call must not re-Sync
+            calls_after = fetch.call_count
+        assert calls_after == 1
+        data.activate("alice")
+        assert len(data.get_df()) == 7
+
+    def test_reset_clears_every_user_store(self, sample_pgn_text, tmp_path):
+        with stub_studies(**{"s-alice": sample_pgn_text}):
+            data.register_users({"alice": _record("alice")}, data_dir=str(tmp_path))
+            data.sync_user("alice")
+        data.reset()
+        data.activate("alice")
+        assert data.get_df().empty
+
+
+# ---------------------------------------------------------------------------
+# Coach content ingestion in the store (issue #74 [G4])
+# ---------------------------------------------------------------------------
+
+SNAPSHOT_PGN = (
+    Path(__file__).parent / "fixtures" / "uscf" / "lichess-study-snapshot.pgn"
+).read_text()
+COACH_PGN = (Path(__file__).parent / "fixtures" / "coach-study.pgn").read_text()
+
+
+class TestCoachContent:
+    def _daniel(self):
+        return {"daniel": _record("daniel", study_ids=("s-main",),
+                                  coach_study_ids=("s-coach",))}
+
+    def test_matched_coach_content_is_exposed_by_the_store(self, tmp_path):
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
+            data.register_users(self._daniel(), data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+
+        assert data.has_coach_review(GEORGINA_URL) is True
+        chapter = data.get_coach_chapter(GEORGINA_URL)
+        assert chapter is not None
+        assert len(data.get_coach_comments(GEORGINA_URL)) == 7
+
+    def test_a_game_with_no_coach_review_has_none(self, tmp_path):
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
+            data.register_users(self._daniel(), data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+        # A real Game the coach never reviewed → graceful absence, not an error
+        some_unreviewed = (
+            "https://lichess.org/study/6jYtXHGp/RP1Age0G"  # Torrin Cummings
+        )
+        assert data.has_coach_review(some_unreviewed) is False
+        assert data.get_coach_chapter(some_unreviewed) is None
+        assert data.get_coach_comments(some_unreviewed) == ()
+
+    def test_coach_study_unreachable_never_fails_the_sync(self, tmp_path):
+        with stub_studies(**{"s-main": SNAPSHOT_PGN,
+                             "s-coach": StudyNotFoundError("private")}):
+            data.register_users(self._daniel(), data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+        # The Lichess Sync still succeeded — all 63 Games are there
+        assert len(data.get_df()) == 63
+        # …just without coach content
+        assert data.has_coach_review(GEORGINA_URL) is False
+
+    def test_coach_content_survives_a_brief_outage_from_cache(self, tmp_path):
+        users = self._daniel()
+        data.register_users(users, data_dir=str(tmp_path))
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
+            data.sync_user("daniel")
+        # Next Sync, coach Study is down → served from cache
+        with stub_studies(**{"s-main": SNAPSHOT_PGN,
+                             "s-coach": StudyNotFoundError("private")}):
+            data.sync_user("daniel")
+        data.activate("daniel")
+        assert data.has_coach_review(GEORGINA_URL) is True
+        assert data.coach_from_cache() is True
+
+    def test_coach_content_is_isolated_per_user(self, sample_pgn_text, tmp_path):
+        """A user with no coach Studies sees no coach content, even alongside a
+        user who has it."""
+        users = {
+            "daniel": _record("daniel", study_ids=("s-main",),
+                              coach_study_ids=("s-coach",)),
+            "alice": _record("alice", study_ids=("s-alice",)),
+        }
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN,
+                             "s-alice": sample_pgn_text}):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("daniel")
+            data.sync_user("alice")
+
+        data.activate("alice")
+        assert data.has_coach_review(GEORGINA_URL) is False
+        data.activate("daniel")
+        assert data.has_coach_review(GEORGINA_URL) is True
+
+
+ALAN_URL = "https://lichess.org/study/6jYtXHGp/usttMW1p"
+JIN_URL = "https://lichess.org/study/6jYtXHGp/ivGdIkuD"
+
+
+class TestCoachNotesFeed:
+    """The Coach's Notes feed accessor (issue #75 [G5])."""
+
+    def _setup(self, tmp_path):
+        users = {"daniel": _record("daniel", study_ids=("s-main",),
+                                   coach_study_ids=("s-coach",))}
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
+            data.register_users(users, data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+
+    def test_feed_collects_every_matched_games_prose(self, tmp_path):
+        self._setup(tmp_path)
+        notes = data.get_coach_notes()
+        # 7 (Georgina) + 2 (Alan) + 1 (Jin) prose comments across matched Games
+        assert len(notes) == 10
+
+    def test_each_note_links_to_its_matched_game(self, tmp_path):
+        self._setup(tmp_path)
+        notes = data.get_coach_notes()
+        matched = {GEORGINA_URL, ALAN_URL, JIN_URL}
+        assert all(n["chapter_url"] in matched for n in notes)
+        # the chapter_id used for the /game/<id> link is carried
+        assert all(n["chapter_id"] for n in notes)
+
+    def test_feed_is_newest_first(self, tmp_path):
+        self._setup(tmp_path)
+        dates = [n["date_dt"] for n in data.get_coach_notes()
+                 if n["date_dt"] is not None]
+        assert dates == sorted(dates, reverse=True)
+
+    def test_unmatched_teaching_positions_never_appear(self, tmp_path):
+        self._setup(tmp_path)
+        texts = " ".join(n["text"] for n in data.get_coach_notes())
+        # the extras' comments (blitz/endgame/master) must not leak in
+        assert "teaching joke" not in texts
+        assert "Build the bridge" not in texts
+        assert "attacking ideas" not in texts
+
+    def test_note_carries_opponent_and_text(self, tmp_path):
+        self._setup(tmp_path)
+        notes = data.get_coach_notes()
+        georgina = [n for n in notes if n["chapter_url"] == GEORGINA_URL]
+        assert any("Caro-Kann again" in n["text"] for n in georgina)
+        assert all(n["opponent"] for n in georgina)
+
+    def test_no_coach_content_is_an_empty_feed(self, sample_pgn_text, tmp_path):
+        with stub_studies(**{"s-alice": sample_pgn_text}):
+            data.register_users({"alice": _record("alice")}, data_dir=str(tmp_path))
+            data.sync_user("alice")
+        data.activate("alice")
+        assert data.get_coach_notes() == []

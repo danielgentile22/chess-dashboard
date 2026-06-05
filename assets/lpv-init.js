@@ -29,6 +29,11 @@
     if (view === "analysis") {
       return mount.getAttribute("data-pgn-analysis") || "";
     }
+    // The Coach view (issue #74 [G4]) replays the coach's annotated line — his
+    // variations and notes — in the same board, like My Analysis.
+    if (view === "coach") {
+      return mount.getAttribute("data-pgn-coach") || "";
+    }
     return mount.getAttribute("data-pgn-game") || "";
   }
 

@@ -272,6 +272,42 @@ def lesson_card(row, *, show_opponent: bool = True) -> html.Div:
     ])
 
 
+def coach_note_card(note: dict) -> html.Div:
+    """
+    One coach's note as a card (issue #75 [G5]) — the coach's prose, where in
+    the Game it was written, and a link to the Game.
+
+    Deliberately distinct from ``lesson_card`` (the king glyph and the
+    ``coach-note-*`` styling), so a coach's advice never reads as one of the
+    user's own takeaways.  *note* is a ``data.get_coach_notes()`` row.
+    """
+    where = (f"move {note['move_number']}" if note.get("move_number")
+             else "before the game")
+    outcome = str(note.get("outcome") or "")
+    meta_bits = [
+        f"vs {note['opponent']}" if note.get("opponent") else "",
+        outcome,
+        str(note.get("date") or ""),
+        where,
+    ]
+    href = f"/game/{note['chapter_id']}" if note.get("chapter_id") else ""
+
+    return html.Div(className="coach-note-card", children=[
+        html.Div(className="coach-note-quote", children=[
+            html.Span("♚", className="coach-note-mark"),
+            html.Span(note["text"], className="coach-note-text"),
+        ]),
+        html.Div(className="coach-note-footer", children=[
+            html.Span(
+                "  ·  ".join(b for b in meta_bits if b),
+                className=f"coach-note-meta outcome-{outcome.lower()}",
+            ),
+            dcc.Link("View game →", href=href, className="coach-note-link")
+            if href else None,
+        ]),
+    ])
+
+
 def lichess_link(chapter_url: str) -> str:
     """Markdown 'Open on Lichess' link for a Game's ChapterURL ('' if none)."""
     return f"[Open ↗]({chapter_url})" if chapter_url else ""
