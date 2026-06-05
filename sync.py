@@ -38,6 +38,7 @@ from typing import Any
 
 import pandas as pd
 
+from coach_match_core import CoachMatchResult, match_coach_study
 from lichess_client import LichessError, fetch_study_pgn
 from pgn_stats_core import load_games_from_text
 from uscf_client import (
@@ -71,12 +72,14 @@ from uscf_core import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "CoachSyncResult",
     "SyncError",
     "SyncResult",
     "UscfCache",
     "UscfSyncResult",
     "detect_new_games",
     "load_from_cache",
+    "sync_coach",
     "sync_studies",
     "sync_uscf",
 ]
@@ -524,6 +527,104 @@ def _uscf_from_cache(cache: UscfCache, failure: str) -> UscfSyncResult:
         failure=failure,
         from_cache=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# The coach half of a Sync (issue #74 [G4]) — enrichment, never a dependency
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CoachSyncResult:
+    """The outcome of the coach-ingestion pass — never required for success."""
+
+    result: CoachMatchResult = field(default_factory=CoachMatchResult)
+    # When the coach Studies were last successfully fetched (cached age when
+    # degraded; None if never reached)
+    synced_at: datetime | None = None
+    # Why coach content is unavailable ('' when it isn't / none configured)
+    failure: str = ""
+    # True when the coach content shown is the previous Sync's cache
+    from_cache: bool = False
+
+    @property
+    def available(self) -> bool:
+        """True when any coach Chapter matched a Game (there is content to show)."""
+        return bool(self.result.matches)
+
+
+def sync_coach(
+    coach_study_ids: list[str],
+    games_df: pd.DataFrame,
+    *,
+    token: str | None = None,
+    cache_path: str | None = None,
+) -> CoachSyncResult:
+    """
+    Fetch the designated coach Studies and match their Chapters to *games_df*
+    (issue #74), the same disposable-cache lifecycle as USCF (ADR 0003).
+
+    Private coach Studies are read with the user's *token*.  A successful fetch
+    refreshes the local PGN cache at *cache_path*; if every coach Study is
+    unreachable, the cached coach PGN is used instead — coach content survives a
+    brief outage.  Never raises: a coach Study being down never fails the Sync.
+    The user's main Study stays the source of truth (ADR 0001) — an unmatched
+    coach Chapter never creates a Game.
+    """
+    if not coach_study_ids:
+        return CoachSyncResult()
+
+    pgn_texts: list[str] = []
+    failures: list[tuple[str, str]] = []
+    for study_id in coach_study_ids:
+        try:
+            pgn_texts.append(fetch_study_pgn(study_id, token=token))
+        except LichessError as exc:
+            logger.warning("Could not fetch coach Study %r: %s", study_id, exc)
+            failures.append((study_id, str(exc)))
+
+    if pgn_texts:
+        merged = "\n\n".join(pgn_texts)
+        if cache_path:
+            _write_cache(cache_path, merged)
+        return CoachSyncResult(
+            result=match_coach_study(games_df, merged),
+            synced_at=datetime.now(timezone.utc),
+            failure="; ".join(f"{sid}: {why}" for sid, why in failures),
+        )
+
+    # Every coach Study was unreachable — fall back to the cached coach PGN.
+    reason = "; ".join(f"{sid}: {why}" for sid, why in failures) or "unreachable"
+    cached = _read_text_cache(cache_path)
+    if not cached:
+        logger.warning("Coach content unavailable and no cache (ADR 0003): %s", reason)
+        return CoachSyncResult(failure=reason)
+
+    logger.info("Showing cached coach content (coach Studies unreachable)")
+    return CoachSyncResult(
+        result=match_coach_study(games_df, cached),
+        synced_at=_cache_mtime(cache_path),
+        failure=reason,
+        from_cache=True,
+    )
+
+
+def _read_text_cache(cache_path: str | None) -> str:
+    """Read a disposable text cache; '' when missing or unreadable."""
+    if not cache_path or not os.path.exists(cache_path):
+        return ""
+    try:
+        with open(cache_path, encoding="utf-8", errors="ignore") as f:
+            return f.read()
+    except OSError as exc:
+        logger.warning("Could not read cache %r: %s", cache_path, exc)
+        return ""
+
+
+def _cache_mtime(cache_path: str | None) -> datetime | None:
+    """When a cache file was last written (UTC), or None."""
+    if not cache_path or not os.path.exists(cache_path):
+        return None
+    return datetime.fromtimestamp(os.path.getmtime(cache_path), tz=timezone.utc)
 
 
 def load_from_cache(

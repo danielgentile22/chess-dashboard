@@ -632,6 +632,33 @@ def stub_ui_sources(pgn_text: str, uscf_profile: dict | Exception = None,
         yield
 
 
+@contextmanager
+def preserve_dash_callbacks():
+    """
+    Build a throwaway Dash app inside this block without stealing the page
+    callbacks from the session-scoped ``ui_app``.
+
+    Dash registers page/shell callbacks into a *global* list at import; the
+    first app to handle a request drains that list into its own callback_map.
+    The suite relies on ``ui_app`` being that app, so any other app a test
+    builds-and-requests would empty the global list first and leave ``ui_app``
+    missing callbacks.  Snapshot the global registry here and restore it after,
+    so ``ui_app`` still drains the full set whenever it is built.
+    """
+    from dash import _callback as cb
+
+    saved_list = list(cb.GLOBAL_CALLBACK_LIST)
+    saved_map = dict(cb.GLOBAL_CALLBACK_MAP)
+    saved_scripts = list(cb.GLOBAL_INLINE_SCRIPTS)
+    try:
+        yield
+    finally:
+        cb.GLOBAL_CALLBACK_LIST[:] = saved_list
+        cb.GLOBAL_CALLBACK_MAP.clear()
+        cb.GLOBAL_CALLBACK_MAP.update(saved_map)
+        cb.GLOBAL_INLINE_SCRIPTS[:] = saved_scripts
+
+
 @pytest.fixture(scope="session")
 def ui_app():
     """The real Dash app built once with fixture data (Lichess + USCF stubbed)."""

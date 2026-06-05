@@ -56,6 +56,14 @@ Disagreements go to the **Reconciliation page** — conflicts get a ⚠ badge on
 
 USCF data is enrichment, never a dependency (`docs/adr/0003`): a Sync that reaches Lichess but not USCF still succeeds, and USCF surfaces degrade to the last successful Sync's cached data with a clear "unavailable since" warning.
 
+### Multi-user access & coach review
+
+Set `USCF_DASHBOARD_USERS` and the whole dashboard goes behind a **login** — so it's no longer a public URL, and a coach's private study material can render safely behind the gate. The config is a JSON array, one record per allowed user: a username, a **hashed** password (`python -m user_config hash '<pw>'`), the Study IDs that hold their Games, the Study IDs that hold their coach's reviews, their USCF member ID, and their Lichess token. Adding a user is adding a record — there's no signup and no settings UI. Each user logs in and sees their **own** dashboard — their Games, USCF data, and analysis — fully isolated from everyone else's (`docs/adr/0005`: the data store is a registry of per-user stores). Leave `USCF_DASHBOARD_USERS` empty and the dashboard runs single-user and ungated, exactly as before.
+
+With login in place, **coach reviews come in as enrichment**, the same way USCF data does. On Sync the dashboard fetches each user's designated coach Studies (with their token for the private ones) and matches each coach Chapter to one of their Games **by the moves played** — robustly, even when names and dates are typed differently — automatically ignoring the coach's online games and teaching positions. The user's own main Study stays the source of truth (`docs/adr/0001`): a coach Chapter only ever *enriches* a Game that already exists, never creates one.
+
+Each matched Game's detail page gains a **Coach** view — the coach's chapter with all his variations and notes — completing the four-view switcher (Game / My Analysis / Engine / Coach), each tab appearing only when it has content. The Lessons page gains a **Coach's Notes** feed: the prose your coach wrote, newest first, each linking to its Game, kept visually distinct from your own Lessons. A coach Study being unreachable degrades to cached/empty and never fails a Sync (`docs/adr/0003`); coach material is private, so it only ever renders behind the auth gate.
+
 ### Header
 
 The sticky header celebrates current form: a 🔥 that grows with your win streak (extra glow at 5+), a 🧊 on cold streaks, and your last 5 games as colored dots. Plus the **Official/Live rating lens**, the Sync button, and a per-source freshness label ("Lichess synced X ago · USCF synced Y ago"). When a Sync sets a personal best — a new peak rating, a new longest win streak, or a win over the highest-rated opponent yet — or USCF recognizes something new (a norm, an award), a gold celebration banner appears until you dismiss it.
@@ -147,6 +155,9 @@ python app.py --study abcdWXYZ --player "Last, First"
 | `USCF_CACHE_PATH` | USCF response cache, used as fallback when USCF is unreachable (default: `uscf_cache.json`) |
 | `ANTHROPIC_API_KEY` | Optional Anthropic key for the plain-English AI game summaries; unset → the summary step is a no-op and the dashboard runs unchanged |
 | `ANALYSIS_CACHE_PATH` | AI-summary cache so unchanged Games aren't re-billed (default: `analysis_cache.json`) |
+| `USCF_DASHBOARD_USERS` | JSON array of user records to enable multi-user login + coach review (PRD #55); empty → single-user, ungated. See *Multi-user access & coach review* above |
+| `SECRET_KEY` | Signs the login session cookie; **must** be a stable secret in any multi-user deployment |
+| `DATA_DIR` | Where each user's disposable caches live, one subdir per user (default: `.user-data`) |
 | `HOST` / `PORT` / `DEBUG` | Server binding and debug mode |
 
 ### Offline resilience
