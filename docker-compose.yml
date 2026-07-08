@@ -5,6 +5,7 @@ services:
       - "8050:8050"
     environment:
       - LICHESS_STUDY_IDS=abcdWXYZ
+      - DEMO_MODE=${DEMO_MODE:-}
       - PLAYER_NAME=
       - USCF_MEMBER_ID=12345678
       - WEB_CONCURRENCY=1

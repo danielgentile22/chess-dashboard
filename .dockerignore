@@ -10,6 +10,5 @@ htmlcov
 tests
 docs
 scratchpad
-games.pgn
 uscf_cache.json
 analysis_cache.json
