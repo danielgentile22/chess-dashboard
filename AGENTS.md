@@ -9,14 +9,14 @@ stats, trends, and lessons with **Plotly Dash** (multi-page). USCF ratings data
 1. `CONTEXT.md` — the domain glossary (Game, Study, Sync, Series vs Rated Event,
    Official vs Live Rating, Forfeit, Reconciliation, Lesson, Tag…). Use these
    exact words; they have precise, non-interchangeable meanings.
-2. `docs/adr/000{1,2,3,4}-*.md` — the four load-bearing decisions (below).
+2. `docs/adr/000{1..5}-*.md` — the five load-bearing decisions (below).
 3. `README.md` — exhaustive feature tour, CLI flags, env vars, deployment.
 
 ## Intent Layer
 
 **Before modifying code in a subdirectory, read its `AGENTS.md` first.**
 
-- **Pages (UI)**: `pages/AGENTS.md` — the 9 Dash page modules and the
+- **Pages (UI)**: `pages/AGENTS.md` — the 10 Dash page modules and the
   filter/callback conventions every page follows.
 
 Root-level modules (this directory) are mapped under *Module map* below.
@@ -56,8 +56,10 @@ tests pass:
   in the disposable `analysis_cache.json` so an unchanged Game is never re-billed.
   OTB time-trouble can't be auto-detected (no clock data) — the manual
   `#time-trouble` Tag stays the only signal.
-- **No database; one module-level store.** `data.py` holds the Synced DataFrame at
-  module scope. All callbacks read via `data.get_df()` and **never mutate** the
+- **No database; one module-level store.** `data.py` holds the Synced data at
+  module scope — since ADR 0005 a registry of per-user stores, resolving to a
+  single default store in single-user/ungated mode, so accessors keep their
+  no-argument signatures. All callbacks read via `data.get_df()` and **never mutate** the
   result (`apply_filters` copies before filtering). `refresh()` swaps the store
   atomically — readers see the old or new dataset, never a mix.
 - **`pgn_stats_core.py` is framework-agnostic.** Every stats function takes a
@@ -85,6 +87,9 @@ tests pass:
 | `analysis_trends.py` | Pure Analysis-page aggregates over the error profile (ADR 0004), mirroring the Phase-4 analytics: accuracy trend, mistake-type trend (both rating-overlaid), phase × type matrix, mistake move-number histogram. DataFrame-in → data-out; awaiting-analysis Games excluded. |
 | `ai_summary.py` | The AI-summary boundary (ADR 0004) — the *only* Anthropic HTTP. `build_prompt` (facts only) + `summarize` (no-op without a key, degrades silently, cache-aware). |
 | `analysis_cache.py` | Disposable `analysis_cache.json`: AI Summaries keyed by Game identity + facts fingerprint, so an unchanged Game isn't re-billed. USCF-cache lifecycle (never a source of truth). |
+| `auth.py` | Login gate for multi-user mode (ADR 0005): session cookie, per-request store activation. Ungated when `USCF_DASHBOARD_USERS` is empty. |
+| `user_config.py` | Parses `USCF_DASHBOARD_USERS` records; `python -m user_config hash '<pw>'` hashes passwords. |
+| `coach_match_core.py` | Pure coach-review matching: coach Chapters → the user's Games, by the moves played. Coach content is enrichment, never a dependency. |
 | `shell.py` | Persistent chrome: header, nav tabs, lens toggle, Sync machinery (`sync-store`, toast, freshness). Never unmounts → filter state survives navigation. |
 | `filters.py` | Global filter drawer + the shared `FILTER_INPUTS` list and `get_filtered()` helper. |
 | `components.py` | Shared UI building blocks (cards, KPI tiles, form dots, profile card…). |
@@ -94,7 +99,7 @@ tests pass:
 
 ```bash
 make install-dev   # venv + runtime + dev deps (pytest, ruff, mypy)
-make test          # pytest with coverage  (719+ tests; keep them green)
+make test          # pytest with coverage  (1000+ tests; keep them green)
 make lint          # ruff (auto-fix)
 make typecheck     # mypy on pgn_stats_core.py
 make run-debug     # hot-reload dev server

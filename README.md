@@ -1,6 +1,6 @@
 # Chess Dashboard
 
-[![CI](https://github.com/danielgentile22/uscf-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/danielgentile22/uscf-dashboard/actions/workflows/ci.yml)
+[![CI](https://github.com/danielgentile22/chess-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/danielgentile22/chess-dashboard/actions/workflows/ci.yml)
 
 An interactive analytics dashboard for your over-the-board chess games, built with Python and Plotly Dash. Point it at the Lichess Study (or Studies) where you archive your games and explore your entire game history through a dark-themed, fully filterable interface — all in the browser, no database required.
 
@@ -26,7 +26,7 @@ The dashboard is a multi-page app — each page loads only its own charts, so it
 | **Analysis** | Your **error profile** from the engine analysis Lichess embeds: the **tactical-vs-positional split** of your own mistakes across every analyzed game (the single biggest weakness at a glance) · a list of the Chapters still **awaiting analysis** (the one click at the board) |
 | **Reconciliation** | Every disagreement between your Studies and USCF, grouped and actionable: color conflicts (both versions side by side) · USCF-rated games missing from your Studies · games USCF hasn't rated · chapters missing opponent IDs · typed ratings that don't match the Official Rating — each with fix-on-Lichess links and Dismiss |
 
-Clicking a Game anywhere opens its **detail view**: an interactive board rendered by Lichess's open-source **pgn-viewer** (bundled as a local asset, not an iframe), behind a **Game / My Analysis** switcher — Game is a clean replay, My Analysis (shown only when you annotated the Chapter yourself) plays your variations and comments in place. Alongside it sit the critical-moment headline, the Game's Lessons, Tags, metadata, and — when the Game is matched — its **USCF record** (Rated Event, Section, rating system, and the opponent as USCF registers them, linking to their page on ratings.uschess.org).
+Clicking a Game anywhere opens its **detail view**: an interactive board rendered by Lichess's open-source **pgn-viewer** (bundled as a local asset, not an iframe), behind a view switcher of up to four tabs — **Game / My Analysis / Engine / Coach** — each appearing only when it has content. Game is a clean replay; My Analysis plays your own variations and comments in place; Engine shows the AI summary, eval chart, and your judged moves with corrections; Coach shows your coach's review chapter. Alongside it sit the critical-moment headline, the Game's Lessons, Tags, metadata, and — when the Game is matched — its **USCF record** (Rated Event, Section, rating system, and the opponent as USCF registers them, linking to their page on ratings.uschess.org).
 
 ### Pre-game review mode
 
@@ -96,8 +96,8 @@ All charts are dark-themed (GitHub-inspired palette) and update instantly when a
 ### Install with Make (recommended)
 
 ```bash
-git clone https://github.com/danielgentile22/uscf-dashboard.git
-cd uscf-dashboard
+git clone https://github.com/danielgentile22/chess-dashboard.git
+cd chess-dashboard
 make install        # creates .venv and installs runtime deps
 make run STUDY=abcdWXYZ
 ```
@@ -107,8 +107,8 @@ Then open [http://localhost:8050](http://localhost:8050).
 ### Install manually
 
 ```bash
-git clone https://github.com/danielgentile22/uscf-dashboard.git
-cd uscf-dashboard
+git clone https://github.com/danielgentile22/chess-dashboard.git
+cd chess-dashboard
 python3 -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -122,6 +122,7 @@ python app.py --study abcdWXYZ
 | `--study` | `$LICHESS_STUDY_IDS` | Lichess study ID to Sync games from (repeat for multiple Studies) |
 | `--player` | auto-detected | Your name as it appears in Game headers |
 | `--token` | `$LICHESS_API_TOKEN` | Lichess API token (only for private studies) |
+| `--cache` | `games.pgn` | PGN cache of the last successful Sync, used as offline fallback |
 | `--uscf-member` | `$USCF_MEMBER_ID` | USCF member ID whose record enriches the Games (omit to run Lichess-only) |
 | `--uscf-cache` | `uscf_cache.json` | USCF response cache for offline fallback |
 | `--analysis-cache` | `analysis_cache.json` | AI-summary cache so unchanged Games aren't re-billed |
@@ -199,28 +200,22 @@ docker run -p 8050:8050 -e LICHESS_STUDY_IDS="abcdWXYZ" chess-dashboard
 
 ---
 
-## Deployment on Render
+## Deployment on Fly.io
 
-This repo includes `render.yaml` for one-click deployment on [Render](https://render.com).
+The included `fly.toml` deploys the dashboard to [Fly.io](https://fly.io) as a single small machine (shared CPU, 512 MB) with a persistent volume for the caches:
 
-1. **Fork** this repository.
-2. Set `LICHESS_STUDY_IDS` in `render.yaml` (or in the Render dashboard) to your study ID.
-3. Create a **New Web Service** on Render, connect your fork — Render auto-detects `render.yaml`.
-4. Optionally set `PLAYER_NAME` in the Render dashboard if auto-detection is wrong.
-
-The start command uses `gunicorn.conf.py` for configuration:
-
-```
-gunicorn app:server --config gunicorn.conf.py
+```bash
+fly launch --copy-config   # first time — creates the app and the volume
+fly deploy                 # every time after
 ```
 
-### Railway / Heroku
+Points worth knowing:
 
-A `Procfile` is included for platforms that use it:
+- Set your own values in `[env]` (`LICHESS_STUDY_IDS`, `USCF_MEMBER_ID`, …); put secrets (`LICHESS_API_TOKEN`, `ANTHROPIC_API_KEY`, `SECRET_KEY`, `USCF_DASHBOARD_USERS`) in `fly secrets set` instead of the file.
+- The cache paths (`CACHE_PATH`, `USCF_CACHE_PATH`, `ANALYSIS_CACHE_PATH`, `DATA_DIR`) point at the mounted volume so caches survive deploys. They're disposable either way — losing them just means the next Sync re-fetches.
+- Fly health-checks `GET /health`, which the app serves.
 
-```
-web: gunicorn app:server --config gunicorn.conf.py
-```
+The container runs `gunicorn app:server --config gunicorn.conf.py`, so any platform that can run the Dockerfile works the same way.
 
 ---
 
@@ -253,6 +248,9 @@ chess-dashboard/
 ├── lichess_client.py        # Lichess API client (the only module that talks HTTP to Lichess)
 ├── uscf_client.py           # USCF ratings API client (the only module that talks HTTP to USCF)
 ├── uscf_core.py             # Pure USCF interpretation: profile, rating series, matching engine, reconciliation
+├── auth.py                  # Login gate (multi-user mode): session cookie, per-request user activation
+├── user_config.py           # USCF_DASHBOARD_USERS parsing + the `python -m user_config hash` helper
+├── coach_match_core.py      # Pure coach-review matching: coach Chapters → Games, by the moves played
 ├── shell.py                 # Persistent app chrome: header, nav tabs, sync machinery
 ├── filters.py               # Global filter drawer + shared FILTER_INPUTS
 ├── components.py            # Shared UI building blocks (cards, KPI tiles, form dots, …)
@@ -272,13 +270,16 @@ chess-dashboard/
 │   ├── lessons.py           #   /lessons   Lessons + Tag filtering
 │   ├── analysis.py          #   /analysis  error-profile distribution + trends (accuracy, type, phase×type, histogram)
 │   ├── reconciliation.py    #   /reconciliation  Studies ↔ USCF disagreements
-│   └── game_detail.py       #   /game/<id> pgn-viewer board (Game / My Analysis / Engine) + metadata + USCF record
+│   └── game_detail.py       #   /game/<id> pgn-viewer board (Game / My Analysis / Engine / Coach) + metadata + USCF record
 ├── assets/
 │   ├── custom.css           # Dark theme, typography, component styles
 │   ├── lichess-pgn-viewer.min.js  # Vendored Lichess pgn-viewer (ES module, served on demand)
 │   ├── lichess-pgn-viewer.css     # Vendored pgn-viewer styles (self-contained: board, pieces, fonts)
-│   └── lpv-init.js          # Mounts the pgn-viewer + wires the Game / My Analysis / Engine switcher
-├── docs/adr/                # Architecture decision records
+│   └── lpv-init.js          # Mounts the pgn-viewer + wires the view switcher
+├── docs/
+│   ├── adr/                 # Architecture decision records (the five load-bearing decisions)
+│   ├── design-review/       # Before/after screenshots from the design overhaul
+│   └── prd-design-overhaul.md  # The design-overhaul PRD those screenshots baseline
 ├── tests/
 │   ├── conftest.py          # Shared fixtures (sample Studies, USCF responses, UI app)
 │   ├── data/uscf/       # Real captured USCF API response shapes
@@ -293,6 +294,13 @@ chess-dashboard/
 │   ├── test_sync.py         # Sync orchestrator tests (stubbed clients)
 │   ├── test_config.py       # Config parsing tests
 │   ├── test_data.py         # Data store tests (stubbed clients)
+│   ├── test_auth.py         # Login gate + per-user isolation tests
+│   ├── test_user_config.py  # USCF_DASHBOARD_USERS parsing + password-hash helper tests
+│   ├── test_coach_match_core.py  # Coach Chapter → Game matching tests
+│   ├── test_coach_sync.py   # Coach-study Sync integration tests
+│   ├── test_game_detail_coach.py  # Coach view on the game-detail page
+│   ├── test_lessons_coach.py  # Coach's Notes feed on the Lessons page
+│   ├── test_theme.py        # styles.THEME ↔ CSS token consistency
 │   ├── test_shell.py        # Shell + filter callback tests
 │   └── test_ui_smoke.py     # UI smoke harness: every page boots, renders, wires up
 ├── requirements.txt         # Runtime dependencies
@@ -302,8 +310,7 @@ chess-dashboard/
 ├── Dockerfile               # Production container (Python 3.11-slim + gunicorn)
 ├── docker-compose.yml       # Local Docker orchestration
 ├── gunicorn.conf.py         # Gunicorn worker/timeout/logging config
-├── Procfile                 # Railway / Heroku start command
-├── render.yaml              # Render deployment configuration
+├── fly.toml                 # Fly.io deployment configuration (machine, volume, health check)
 └── .github/
     └── workflows/
         └── ci.yml           # GitHub Actions: lint → test → typecheck
