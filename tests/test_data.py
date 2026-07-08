@@ -21,10 +21,10 @@ import sync
 from lichess_client import LichessUnreachableError, StudyNotFoundError
 from uscf_client import UscfUnreachableError
 
-GEORGINA_PGN = (
-    Path(__file__).parent / "fixtures" / "analyzed-alice-anderson.pgn"
+ALICE_PGN = (
+    Path(__file__).parent / "data" / "analyzed-alice-anderson.pgn"
 ).read_text()
-GEORGINA_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
+ALICE_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
 
 
 @pytest.fixture(autouse=True)
@@ -257,7 +257,7 @@ MATCHED_PGN = """\
 [Date "2024.01.06"]
 [Round "1"]
 [White "Test Player"]
-[Black "John Baker"]
+[Black "Bob Baker"]
 [Result "1-0"]
 [WhiteElo "1500"]
 [BlackElo "1465"]
@@ -265,7 +265,7 @@ MATCHED_PGN = """\
 [BlackFideId "20000056"]
 [Termination "win by resignation"]
 [StudyName "Test Study"]
-[ChapterName "Test Player - John Baker"]
+[ChapterName "Test Player - Bob Baker"]
 [ChapterURL "https://lichess.org/study/teststudy/matched01"]
 
 1. e4 e5 2. Nf3 Nc6 1-0
@@ -277,7 +277,7 @@ MATCHED_USCF_GAME = {
               "startDate": "2024-01-06", "endDate": "2024-01-06", "stateCode": "VA"},
     "ratingSystem": "R",
     "player": {"color": "White", "outcome": "Win"},
-    "opponent": {"id": "20000056", "firstName": "JOHN", "lastName": "BAKER",
+    "opponent": {"id": "20000056", "firstName": "BOB", "lastName": "BAKER",
                  "stateRep": "VA", "color": "Black", "outcome": "Loss"},
 }
 
@@ -297,7 +297,7 @@ class TestUscfMatchingInStore:
         assert game["UscfMatchedBy"] == "id"
         assert game["UscfEventName"] == "TEST OPEN JANUARY"
         assert game["UscfSection"] == "LADDER"
-        assert game["UscfOpponentName"] == "JOHN BAKER"
+        assert game["UscfOpponentName"] == "BOB BAKER"
         assert game["UscfOpponentId"] == "20000056"
 
     def test_match_result_is_exposed_for_later_slices(self, uscf_profile_json):
@@ -388,7 +388,7 @@ class TestReconciliationInStore:
         entries = data.get_reconciliation()
         assert len(entries) == 1
         assert entries[0].kind == "conflict"
-        assert entries[0].opponent == "John Baker"
+        assert entries[0].opponent == "Bob Baker"
 
     def test_dismissing_an_entry_removes_it_immediately(self, uscf_profile_json):
         with stub_studies(study1=MATCHED_PGN), \
@@ -544,7 +544,7 @@ class TestStandingsInStore:
                           uscf_sections_json, uscf_standings_json):
         """The store loaded with the real fixture pair + the 5 crosstables."""
         pgn_text = (
-            __import__("pathlib").Path("tests/fixtures/uscf/lichess-study-snapshot.pgn")
+            __import__("pathlib").Path("tests/data/uscf/lichess-study-snapshot.pgn")
             .read_text()
         )
         raw_standings = {key: raw["items"]
@@ -592,7 +592,7 @@ class TestOpponentProfilesInStore:
         import json
         from pathlib import Path
         baker = json.loads(
-            Path("tests/fixtures/uscf/opponent-baker.json").read_text())
+            Path("tests/data/uscf/opponent-bob-baker.json").read_text())
 
         with stub_studies(study1=sample_pgn_text), stub_uscf(
             uscf_profile_json, games=uscf_games_json["items"],
@@ -602,7 +602,7 @@ class TestOpponentProfilesInStore:
                             uscf_member_id="12345678")
 
         profiles = data.get_opponent_profiles()
-        assert profiles["20000056"].name == "JOHN BAKER"
+        assert profiles["20000056"].name == "BOB BAKER"
         assert profiles["20000056"].rating("R").rating == 1400
 
     def test_opponent_profiles_are_empty_without_uscf(self, sample_pgn_text):
@@ -976,7 +976,7 @@ class TestAnalysisSummaries:
     like the USCF client; the summary is enrichment, never a dependency."""
 
     def test_analyzed_game_gets_a_summary_exposed_by_the_store(self, tmp_path):
-        with stub_studies(study1=GEORGINA_PGN), \
+        with stub_studies(study1=ALICE_PGN), \
              mock.patch.object(ai_summary, "_call_anthropic",
                                return_value="You won after your opponent blundered."):
             data.initialize(
@@ -984,25 +984,25 @@ class TestAnalysisSummaries:
                 anthropic_api_key="sk-test",
                 analysis_cache_path=str(tmp_path / "analysis_cache.json"),
             )
-        assert data.get_game_summary(GEORGINA_URL) == (
+        assert data.get_game_summary(ALICE_URL) == (
             "You won after your opponent blundered."
         )
 
     def test_no_key_still_syncs_with_empty_summaries_and_no_call(self):
         """No API key → the dashboard runs unchanged; the boundary is untouched
         (and the no_network guard would trip if it weren't)."""
-        with stub_studies(study1=GEORGINA_PGN), \
+        with stub_studies(study1=ALICE_PGN), \
              mock.patch.object(ai_summary, "_call_anthropic") as seam:
             df, _ = data.initialize(["study1"], player_name="Daniel Gentile")
 
         assert len(df) == 1  # the Sync succeeded
-        assert data.get_game_summary(GEORGINA_URL) == ""
+        assert data.get_game_summary(ALICE_URL) == ""
         seam.assert_not_called()
 
     def test_boundary_failure_does_not_fail_the_sync(self):
         """Any client failure degrades silently — the Sync still serves the
         Game, just without a summary (issue #59, ADR 0004)."""
-        with stub_studies(study1=GEORGINA_PGN), \
+        with stub_studies(study1=ALICE_PGN), \
              mock.patch.object(ai_summary, "_call_anthropic",
                                side_effect=RuntimeError("Anthropic is down")):
             df, _ = data.initialize(
@@ -1011,7 +1011,7 @@ class TestAnalysisSummaries:
             )
 
         assert len(df) == 1
-        assert data.get_game_summary(GEORGINA_URL) == ""
+        assert data.get_game_summary(ALICE_URL) == ""
 
     def test_unknown_game_summary_is_empty(self, sample_pgn_text):
         with stub_studies(study1=sample_pgn_text):
@@ -1143,9 +1143,9 @@ class TestPerUserRegistry:
 # ---------------------------------------------------------------------------
 
 SNAPSHOT_PGN = (
-    Path(__file__).parent / "fixtures" / "uscf" / "lichess-study-snapshot.pgn"
+    Path(__file__).parent / "data" / "uscf" / "lichess-study-snapshot.pgn"
 ).read_text()
-COACH_PGN = (Path(__file__).parent / "fixtures" / "coach-study.pgn").read_text()
+COACH_PGN = (Path(__file__).parent / "data" / "coach-study.pgn").read_text()
 
 
 class TestCoachContent:
@@ -1159,10 +1159,10 @@ class TestCoachContent:
             data.sync_user("daniel")
         data.activate("daniel")
 
-        assert data.has_coach_review(GEORGINA_URL) is True
-        chapter = data.get_coach_chapter(GEORGINA_URL)
+        assert data.has_coach_review(ALICE_URL) is True
+        chapter = data.get_coach_chapter(ALICE_URL)
         assert chapter is not None
-        assert len(data.get_coach_comments(GEORGINA_URL)) == 7
+        assert len(data.get_coach_comments(ALICE_URL)) == 7
 
     def test_a_game_with_no_coach_review_has_none(self, tmp_path):
         with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
@@ -1171,7 +1171,7 @@ class TestCoachContent:
         data.activate("daniel")
         # A real Game the coach never reviewed → graceful absence, not an error
         some_unreviewed = (
-            "https://lichess.org/study/abcdWXYZ/fion0001"  # Torrin Foster
+            "https://lichess.org/study/abcdWXYZ/fion0001"  # Fiona Foster
         )
         assert data.has_coach_review(some_unreviewed) is False
         assert data.get_coach_chapter(some_unreviewed) is None
@@ -1186,7 +1186,7 @@ class TestCoachContent:
         # The Lichess Sync still succeeded — all 63 Games are there
         assert len(data.get_df()) == 63
         # …just without coach content
-        assert data.has_coach_review(GEORGINA_URL) is False
+        assert data.has_coach_review(ALICE_URL) is False
 
     def test_coach_content_survives_a_brief_outage_from_cache(self, tmp_path):
         users = self._daniel()
@@ -1198,7 +1198,7 @@ class TestCoachContent:
                              "s-coach": StudyNotFoundError("private")}):
             data.sync_user("daniel")
         data.activate("daniel")
-        assert data.has_coach_review(GEORGINA_URL) is True
+        assert data.has_coach_review(ALICE_URL) is True
         assert data.coach_from_cache() is True
 
     def test_coach_content_is_isolated_per_user(self, sample_pgn_text, tmp_path):
@@ -1216,13 +1216,13 @@ class TestCoachContent:
             data.sync_user("alice")
 
         data.activate("alice")
-        assert data.has_coach_review(GEORGINA_URL) is False
+        assert data.has_coach_review(ALICE_URL) is False
         data.activate("daniel")
-        assert data.has_coach_review(GEORGINA_URL) is True
+        assert data.has_coach_review(ALICE_URL) is True
 
 
-ALAN_URL = "https://lichess.org/study/abcdWXYZ/dian0001"
-JIN_URL = "https://lichess.org/study/abcdWXYZ/ethn0001"
+DIANA_URL = "https://lichess.org/study/abcdWXYZ/dian0001"
+ETHAN_URL = "https://lichess.org/study/abcdWXYZ/ethn0001"
 
 
 class TestCoachNotesFeed:
@@ -1239,13 +1239,13 @@ class TestCoachNotesFeed:
     def test_feed_collects_every_matched_games_prose(self, tmp_path):
         self._setup(tmp_path)
         notes = data.get_coach_notes()
-        # 7 (Alice) + 2 (Diana) + 1 (Jin) prose comments across matched Games
+        # 7 (Alice) + 2 (Diana) + 1 (Ethan) prose comments across matched Games
         assert len(notes) == 10
 
     def test_each_note_links_to_its_matched_game(self, tmp_path):
         self._setup(tmp_path)
         notes = data.get_coach_notes()
-        matched = {GEORGINA_URL, ALAN_URL, JIN_URL}
+        matched = {ALICE_URL, DIANA_URL, ETHAN_URL}
         assert all(n["chapter_url"] in matched for n in notes)
         # the chapter_id used for the /game/<id> link is carried
         assert all(n["chapter_id"] for n in notes)
@@ -1267,7 +1267,7 @@ class TestCoachNotesFeed:
     def test_note_carries_opponent_and_text(self, tmp_path):
         self._setup(tmp_path)
         notes = data.get_coach_notes()
-        alice = [n for n in notes if n["chapter_url"] == GEORGINA_URL]
+        alice = [n for n in notes if n["chapter_url"] == ALICE_URL]
         assert any("Caro-Kann again" in n["text"] for n in alice)
         assert all(n["opponent"] for n in alice)
 

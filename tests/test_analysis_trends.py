@@ -27,7 +27,7 @@ from analysis_trends import (
 from engine_analysis_core import GameAnalysis, Mistake, enrich_games_with_analysis
 from pgn_stats_core import load_games_from_text
 
-GEORGINA_PGN = (Path(__file__).parent / "fixtures" / "analyzed-alice-anderson.pgn").read_text()
+ALICE_PGN = (Path(__file__).parent / "data" / "analyzed-alice-anderson.pgn").read_text()
 
 
 def _mistake(phase: str, mistake_type: str, *, move_number: int = 20,
@@ -222,10 +222,10 @@ class TestAgainstTheRealPipeline:
     ones ``enrich_games_with_analysis`` actually produces."""
 
     def _enriched(self) -> pd.DataFrame:
-        df, _ = load_games_from_text(GEORGINA_PGN, player_name="Daniel Gentile")
+        df, _ = load_games_from_text(ALICE_PGN, player_name="Daniel Gentile")
         return enrich_games_with_analysis(df)
 
-    def test_the_analyzed_georgina_game_flows_through_every_aggregate(self):
+    def test_the_analyzed_alice_game_flows_through_every_aggregate(self):
         enriched = self._enriched()
         acc = accuracy_trend(enriched)
         assert len(acc) == 1

@@ -4,7 +4,7 @@ tests/test_coach_match_core.py
 The coach-chapter matching engine (issue #73 [G3]).
 
 Mirrors ``tests/test_uscf_core.py``: a pure module verified against captured
-fixtures.  The coach study PGN (``tests/fixtures/coach-study.pgn``) carries
+fixtures.  The coach study PGN (``tests/data/coach-study.pgn``) carries
 three Chapters that mirror real Games in the captured Study snapshot — the
 Alice Anderson win with the documented 7 prose comments + 10 variations — plus
 three extras (an online blitz, a teaching endgame, a master game) that match no
@@ -27,16 +27,16 @@ from coach_match_core import (
     parse_coach_study,
 )
 
-COACH_PGN = (Path(__file__).parent / "fixtures" / "coach-study.pgn").read_text()
+COACH_PGN = (Path(__file__).parent / "data" / "coach-study.pgn").read_text()
 
 # The three Chapters that mirror real Games in the snapshot, and the snapshot
 # ChapterURL each should pair with (the user's Game identity — ADR 0001).
-GEORGINA_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
-ALAN_URL = "https://lichess.org/study/abcdWXYZ/dian0001"
-JIN_URL = "https://lichess.org/study/abcdWXYZ/ethn0001"
+ALICE_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
+DIANA_URL = "https://lichess.org/study/abcdWXYZ/dian0001"
+ETHAN_URL = "https://lichess.org/study/abcdWXYZ/ethn0001"
 
 # The coach Study's own Chapter URLs (provenance — never a Game identity).
-GEORGINA_COACH_URL = "https://lichess.org/study/coachAAAA/gc000001"
+ALICE_COACH_URL = "https://lichess.org/study/coachAAAA/gc000001"
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +70,7 @@ class TestParseCoachStudy:
 # ---------------------------------------------------------------------------
 
 class TestProseExtraction:
-    def test_georgina_has_the_documented_seven_comments(self):
+    def test_alice_has_the_documented_seven_comments(self):
         alice = _by_name(parse_coach_study(COACH_PGN), "Alice")
         assert len(alice.comments) == 7
 
@@ -107,7 +107,7 @@ class TestProseExtraction:
 # ---------------------------------------------------------------------------
 
 class TestVariations:
-    def test_georgina_preserves_its_ten_variations(self):
+    def test_alice_preserves_its_ten_variations(self):
         alice = _by_name(parse_coach_study(COACH_PGN), "Alice")
         assert alice.variation_count == 10
 
@@ -120,9 +120,9 @@ class TestMatching:
     def test_each_mirrored_chapter_pairs_its_game(self, study_snapshot_df):
         result = match_coach_study(study_snapshot_df, COACH_PGN)
         matched = {m.chapter_url for m in result.matches}
-        assert GEORGINA_URL in matched
-        assert ALAN_URL in matched
-        assert JIN_URL in matched
+        assert ALICE_URL in matched
+        assert DIANA_URL in matched
+        assert ETHAN_URL in matched
 
     def test_matching_is_unambiguous_one_game_per_chapter(self, study_snapshot_df):
         result = match_coach_study(study_snapshot_df, COACH_PGN)
@@ -160,9 +160,9 @@ class TestMatching:
 class TestResultLookup:
     def test_chapter_for_returns_the_matched_chapter(self, study_snapshot_df):
         result = match_coach_study(study_snapshot_df, COACH_PGN)
-        chapter = result.chapter_for(GEORGINA_URL)
+        chapter = result.chapter_for(ALICE_URL)
         assert isinstance(chapter, CoachChapter)
-        assert chapter.chapter_url == GEORGINA_COACH_URL
+        assert chapter.chapter_url == ALICE_COACH_URL
 
     def test_chapter_for_unknown_url_is_none(self, study_snapshot_df):
         result = match_coach_study(study_snapshot_df, COACH_PGN)
@@ -170,7 +170,7 @@ class TestResultLookup:
 
     def test_comments_for_returns_the_coachs_prose(self, study_snapshot_df):
         result = match_coach_study(study_snapshot_df, COACH_PGN)
-        comments = result.comments_for(GEORGINA_URL)
+        comments = result.comments_for(ALICE_URL)
         assert len(comments) == 7
         assert all(isinstance(c, CoachComment) for c in comments)
 

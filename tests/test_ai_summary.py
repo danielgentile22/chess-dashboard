@@ -22,13 +22,13 @@ from ai_summary import build_prompt, summarize
 from engine_analysis_core import analyze_game
 from pgn_stats_core import load_games_from_text
 
-FIXTURES = Path(__file__).parent / "fixtures"
-GEORGINA_PGN = (FIXTURES / "analyzed-alice-anderson.pgn").read_text()
+DATA_DIR = Path(__file__).parent / "data"
+ALICE_PGN = (DATA_DIR / "analyzed-alice-anderson.pgn").read_text()
 
 
-def _georgina():
+def _alice():
     """The analysed Alice Anderson Game, parsed the way a Sync produces it."""
-    df, _player = load_games_from_text(GEORGINA_PGN, player_name="Daniel Gentile")
+    df, _player = load_games_from_text(ALICE_PGN, player_name="Daniel Gentile")
     row = df.iloc[0]
     return analyze_game(
         row["Movetext"],
@@ -43,7 +43,7 @@ class TestPromptAssembly:
     never evaluates the position itself (the hard boundary, issue #59)."""
 
     def test_prompt_carries_the_critical_moment_and_worst_error_facts(self):
-        prompt = build_prompt(_georgina())
+        prompt = build_prompt(_alice())
         # The Game's headline fact: the move-16 Bd4 blunder that decided it.
         assert "16" in prompt
         assert "Bd4" in prompt
@@ -53,7 +53,7 @@ class TestPromptAssembly:
 
     def test_prompt_forbids_evaluating_the_position(self):
         # It must summarise the given facts, never analyse the chess itself.
-        prompt = build_prompt(_georgina())
+        prompt = build_prompt(_alice())
         assert "not" in prompt.lower()
         lowered = prompt.lower()
         assert "evaluate" in lowered or "analyse" in lowered or "analyze" in lowered
@@ -64,7 +64,7 @@ class TestSummarize:
     text — the network seam is mocked exactly like the USCF client."""
 
     def test_calls_the_boundary_with_the_assembled_prompt_and_returns_its_text(self):
-        ga = _georgina()
+        ga = _alice()
         with mock.patch.object(
             ai_summary, "_call_anthropic", return_value="You won after a blunder."
         ) as seam:
@@ -83,8 +83,8 @@ class TestNoOpWithoutKey:
 
     def test_no_api_key_returns_empty_and_never_calls_the_boundary(self):
         with mock.patch.object(ai_summary, "_call_anthropic") as seam:
-            assert summarize(_georgina(), api_key=None) == ""
-            assert summarize(_georgina(), api_key="") == ""
+            assert summarize(_alice(), api_key=None) == ""
+            assert summarize(_alice(), api_key="") == ""
         seam.assert_not_called()
 
     def test_unanalysed_game_returns_empty_and_never_calls_the_boundary(self):
@@ -106,7 +106,7 @@ class TestSilentDegradation:
             side_effect=RuntimeError("Anthropic is down"),
         ):
             # Must not propagate — the summary is enrichment, never a dependency.
-            assert summarize(_georgina(), api_key="sk-test") == ""
+            assert summarize(_alice(), api_key="sk-test") == ""
 
 
 class _FakeCache:
@@ -128,7 +128,7 @@ class TestCachingByGameIdentity:
     """An unchanged Game is served from the cache, never re-billed (issue #59)."""
 
     def test_second_summary_of_an_unchanged_game_does_not_call_the_boundary(self):
-        ga = _georgina()
+        ga = _alice()
         cache = _FakeCache()
         with mock.patch.object(
             ai_summary, "_call_anthropic", return_value="You won after a blunder."

@@ -36,14 +36,14 @@ from engine_analysis_core import (
 )
 from pgn_stats_core import load_games_from_text
 
-FIXTURES = Path(__file__).parent / "fixtures"
-GEORGINA_PGN = (FIXTURES / "analyzed-alice-anderson.pgn").read_text()
-GEORGINA_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
+DATA_DIR = Path(__file__).parent / "data"
+ALICE_PGN = (DATA_DIR / "analyzed-alice-anderson.pgn").read_text()
+ALICE_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
 
 
-def _georgina() -> GameAnalysis:
+def _alice() -> GameAnalysis:
     """The analysed Alice Anderson Game, parsed the way a Sync produces it."""
-    df, _player = load_games_from_text(GEORGINA_PGN, player_name="Daniel Gentile")
+    df, _player = load_games_from_text(ALICE_PGN, player_name="Daniel Gentile")
     row = df.iloc[0]
     return analyze_game(
         row["Movetext"],
@@ -124,10 +124,10 @@ class TestSeverityThresholds:
         assert classify_severity(30.0) == "blunder"
         assert classify_severity(95.0) == "blunder"
 
-    def test_thresholds_on_the_three_known_georgina_moves(self):
+    def test_thresholds_on_the_three_known_alice_moves(self):
         # The priority "severity thresholds" check against real data: the three
         # annotated moves span the boundary exactly as their recomputed drops do.
-        ga = _georgina()
+        ga = _alice()
 
         def drop(move_number, side):
             return next(m.win_pct_drop for m in ga.moves
@@ -173,21 +173,21 @@ class TestPhaseDetection:
 
 
 # ---------------------------------------------------------------------------
-# The whole parser against the real analysed Alice Anderson Game
+# The whole parser against the captured analysed Alice Anderson Game
 # ---------------------------------------------------------------------------
 
-class TestGeorginaChin:
+class TestAliceAnderson:
     """The known fixture: d3?! inaccuracy, g5? mistake, Bd4?? blunder, the
     −4.38 swing as the critical moment (issue #57)."""
 
     def test_game_is_analyzed_with_one_eval_per_ply(self):
-        ga = _georgina()
+        ga = _alice()
         assert ga.analyzed is True
-        assert ga.chapter_url == GEORGINA_URL
+        assert ga.chapter_url == ALICE_URL
         assert len(ga.moves) == 48  # 24 full moves played out
 
     def test_critical_moment_is_white_move_16_Bd4(self):
-        cm = _georgina().critical_moment
+        cm = _alice().critical_moment
         assert cm is not None
         assert cm.move_number == 16
         assert cm.side == "White"
@@ -200,7 +200,7 @@ class TestGeorginaChin:
 
     def test_critical_moment_attributed_to_the_opponent(self):
         # Daniel was Black and won; the blunder was the opponent's.
-        cm = _georgina().critical_moment
+        cm = _alice().critical_moment
         assert cm.by_player is False
         assert "opponent" in cm.headline.lower()
         assert "blunder" in cm.headline.lower()
@@ -213,7 +213,7 @@ class TestGeorginaChin:
                     if m.move_number == move_number and m.side == side)
 
     def test_inaccuracy_carries_best_move_and_refutation(self):
-        ga = _georgina()
+        ga = _alice()
         d3 = self._move(ga, 3, "White")  # "Inaccuracy. d4 was best."
         assert d3.san == "d3"
         assert d3.best_move == "d4"
@@ -222,7 +222,7 @@ class TestGeorginaChin:
         assert d3.eval_after == pytest.approx(-0.17)
 
     def test_mistake_is_blacks_and_win_pct_is_mover_relative(self):
-        ga = _georgina()
+        ga = _alice()
         g5 = self._move(ga, 15, "Black")  # "Mistake. h5 was best."
         assert g5.san == "g5"
         assert g5.best_move == "h5"
@@ -233,14 +233,14 @@ class TestGeorginaChin:
         assert g5.win_pct_drop == pytest.approx(14.8, abs=0.3)
 
     def test_blunder_move_has_the_recommended_line(self):
-        ga = _georgina()
+        ga = _alice()
         bd4 = self._move(ga, 16, "White")  # "Blunder. Nh5 was best."
         assert bd4.best_move == "Nh5"
         assert bd4.refutation_line[:2] == ["Nh5", "Bxh2+"]
         assert bd4.eval_after == pytest.approx(-4.38)
 
     def test_a_quiet_move_has_no_judgment_data(self):
-        ga = _georgina()
+        ga = _alice()
         e4 = self._move(ga, 1, "White")
         assert e4.san == "e4"
         assert e4.best_move is None
@@ -262,19 +262,19 @@ class TestErrorProfile:
     """
 
     def test_records_only_the_players_own_mistakes_even_in_a_win(self):
-        ga = _georgina()
+        ga = _alice()
         assert all(isinstance(m, Mistake) for m in ga.error_profile)
         assert [m.san for m in ga.error_profile] == ["g5"]
 
     def test_the_recorded_mistake_carries_its_classification_and_move_number(self):
-        g5 = _georgina().error_profile[0]
+        g5 = _alice().error_profile[0]
         assert g5.move_number == 15
         assert g5.severity == "inaccuracy"   # ~15% drop, recomputed (not "Mistake")
         assert g5.phase == "middlegame"      # 10 majors+minors at move 15
         assert g5.mistake_type in {"tactical", "positional"}
 
     def test_excludes_the_opponents_blunder_and_inaccuracy(self):
-        sans = [m.san for m in _georgina().error_profile]
+        sans = [m.san for m in _alice().error_profile]
         assert "Bd4" not in sans  # the opponent's blunder is not Daniel's mistake
         assert "d3" not in sans   # nor the opponent's inaccuracy
 
@@ -414,7 +414,7 @@ class TestPlayerAccuracy:
     def test_analyze_game_carries_the_accuracy(self):
         # A holder of the GameAnalysis (the trend, a future Engine view) gets the
         # number ready — analysed Games carry it, unanalysed ones carry None.
-        ga = _georgina()
+        ga = _alice()
         assert ga.accuracy is not None
         assert 0.0 < ga.accuracy < 100.0
         plain = analyze_game("1. e4 e5 1-0", player_color="White")
@@ -784,10 +784,10 @@ def store_from_pgn():
 
 class TestSyncIntegration:
     def test_sync_attaches_analysis_and_exposes_it(self, store_from_pgn):
-        data = store_from_pgn(GEORGINA_PGN)
+        data = store_from_pgn(ALICE_PGN)
         assert data.is_loaded() is True
         assert "Analysis" in data.get_df().columns
-        ga = data.get_game_analysis(GEORGINA_URL)
+        ga = data.get_game_analysis(ALICE_URL)
         assert ga.analyzed is True
         assert ga.critical_moment.san == "Bd4"
 
@@ -816,21 +816,21 @@ class TestSyncIntegration:
     def test_accessors_exist_before_any_sync(self):
         import data
         data.reset()
-        assert data.get_game_analysis(GEORGINA_URL).analyzed is False
+        assert data.get_game_analysis(ALICE_URL).analyzed is False
         assert data.get_awaiting_analysis().empty
         assert data.get_mistake_type_distribution() == {
             "tactical": 0, "positional": 0,
         }
 
     def test_mistake_type_distribution_comes_from_the_store(self, store_from_pgn):
-        data = store_from_pgn(GEORGINA_PGN)
+        data = store_from_pgn(ALICE_PGN)
         # Daniel's only mistake in the analysed Alice Game is the positional g5.
         assert data.get_mistake_type_distribution() == {
             "tactical": 0, "positional": 1,
         }
 
     def test_trend_accessors_come_from_the_store(self, store_from_pgn):
-        data = store_from_pgn(GEORGINA_PGN)
+        data = store_from_pgn(ALICE_PGN)
         # One analysed Game → one accuracy point, in range.
         acc = data.get_accuracy_trend()
         assert len(acc) == 1
@@ -852,8 +852,8 @@ class TestSyncIntegration:
 
     def test_refresh_keeps_the_analysis(self, store_from_pgn):
         import sync
-        data = store_from_pgn(GEORGINA_PGN)
-        with mock.patch.object(sync, "fetch_study_pgn", return_value=GEORGINA_PGN):
+        data = store_from_pgn(ALICE_PGN)
+        with mock.patch.object(sync, "fetch_study_pgn", return_value=ALICE_PGN):
             outcome = data.refresh()
         assert outcome.status == "success"
-        assert data.get_game_analysis(GEORGINA_URL).analyzed is True
+        assert data.get_game_analysis(ALICE_URL).analyzed is True

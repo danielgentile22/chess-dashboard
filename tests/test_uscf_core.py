@@ -5,7 +5,7 @@ Tests for the pure USCF interpretation layer (uscf_core.py): raw MUIR API
 responses in → typed records, rating series, and Game matches out.
 
 No HTTP, no Dash — everything runs on real captured response shapes
-(tests/fixtures/uscf/) plus inline variants for edge cases.  Matching tests
+(tests/data/uscf/) plus inline variants for edge cases.  Matching tests
 build the Games side through the real PGN parser (load_games_from_text) so
 the engine always sees exactly what a Sync produces.
 """
@@ -27,7 +27,7 @@ from pgn_stats_core import load_games_from_text
 _CHAPTER_IDS = itertools.count(1)
 
 
-def chapter(opponent="John Baker", opponent_id="20000056", color="White",
+def chapter(opponent="Bob Baker", opponent_id="20000056", color="White",
             result="1-0", date="2026.05.01", event="ACC Friday Ladder",
             moves="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6", player_rating="1470",
             opponent_rating="1465"):
@@ -62,7 +62,7 @@ def games_df(*chapters):
     return df
 
 
-def uscf_game(opponent_id="20000056", opponent_first="JOHN", opponent_last="BAKER",
+def uscf_game(opponent_id="20000056", opponent_first="BOB", opponent_last="BAKER",
               player_color="White", player_outcome="Win",
               event="ACC MAY 2026", event_id="202605290393",
               start="2026-05-01", end="2026-05-29",
@@ -257,10 +257,10 @@ class TestBuildGameRecords:
         records = uscf_core.build_game_records(uscf_games_json["items"])
 
         assert len(records) == 63
-        # The most recent game: a win with White against JOHN BAKER
+        # The most recent game: a win with White against BOB BAKER
         first = records[0]
         assert first.opponent_id == "20000056"
-        assert first.opponent_name == "JOHN BAKER"
+        assert first.opponent_name == "BOB BAKER"
         assert first.player_color == "White"
         assert first.player_outcome == "Win"
         assert first.event_name == "ACC MAY 2026"
@@ -478,7 +478,7 @@ class TestMatchGamesById:
     def test_a_game_record_matches_its_game_by_opponent_id_and_result(self):
         """The tracer bullet: one Game, one USCF Game Record, same opponent
         member ID, same result → matched."""
-        df = games_df(chapter(opponent="John Baker", opponent_id="20000056",
+        df = games_df(chapter(opponent="Bob Baker", opponent_id="20000056",
                               color="White", result="1-0"))
         records = uscf_core.build_game_records([
             uscf_game(opponent_id="20000056", player_color="White",
@@ -518,8 +518,8 @@ class TestMatchGamesById:
         df = games_df(chapter(opponent="Vera Clark", opponent_id="",
                               color="White", result="1-0"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000009", opponent_first="JAMES K",
-                      opponent_last="WILLIAMS", player_outcome="Win"),
+            uscf_game(opponent_id="20000009", opponent_first="VERA",
+                      opponent_last="CLARK", player_outcome="Win"),
         ])
 
         result = uscf_core.match_games(df, records)
@@ -529,7 +529,7 @@ class TestMatchGamesById:
     def test_two_missing_ids_never_match_each_other(self):
         """'' == '' is not an ID match — absence of data is not a key.
         (Different names, so the name fallback can't claim them either.)"""
-        df = games_df(chapter(opponent="John Baker", opponent_id="",
+        df = games_df(chapter(opponent="Bob Baker", opponent_id="",
                               color="White", result="1-0"))
         records = uscf_core.build_game_records([
             uscf_game(opponent_id="", opponent_first="MARY",
@@ -552,13 +552,13 @@ class TestRepeatOpponentDisambiguation:
         monthly Rated Event — once as Black, once as White.  Only color says
         which USCF record belongs to which chapter."""
         df = games_df(
-            chapter(opponent="Foster Baker", opponent_id="20000133",
+            chapter(opponent="Alice Baker", opponent_id="20000133",
                     color="Black", result="0-1", date="2025.12.05"),   # Win as Black
-            chapter(opponent="Foster Baker", opponent_id="20000133",
+            chapter(opponent="Alice Baker", opponent_id="20000133",
                     color="White", result="1-0", date="2025.12.26"),   # Win as White
         )
-        december = dict(opponent_id="20000133", opponent_first="Baker",
-                        opponent_last="Foster", player_outcome="Win",
+        december = dict(opponent_id="20000133", opponent_first="Wyatt",
+                        opponent_last="Baker", player_outcome="Win",
                         event="ACC DECEMBER 2025", event_id="202512260263",
                         start="2025-12-05", end="2025-12-26")
         records = uscf_core.build_game_records([
@@ -625,13 +625,13 @@ class TestRepeatOpponentDisambiguation:
 
 class TestMatchingPolicies:
     def test_color_disagreement_does_not_prevent_a_match(self):
-        """The real Davis case: the chapter says Daniel played Black, USCF
+        """The synthetic Davis case: the chapter says Daniel played Black, USCF
         says White.  Color is itself a fact that can conflict between sources —
         it is never a match requirement (PRD #24)."""
         df = games_df(chapter(opponent="Liam Davis", opponent_id="20000164",
                               color="Black", result="1/2-1/2", date="2026.02.20"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000164", opponent_first="Justin",
+            uscf_game(opponent_id="20000164", opponent_first="Liam",
                       opponent_last="Davis", player_color="White",
                       player_outcome="Draw", event="ACC FEBRUARY 2026",
                       start="2026-02-20", end="2026-02-27"),
@@ -649,10 +649,10 @@ class TestMatchingPolicies:
         """The Study is OTB-only by design (PRD #24): an online-rated (OR)
         record never becomes a Game, even when opponent and result line up.
         It surfaces in Reconciliation as a skippable USCF-only item."""
-        df = games_df(chapter(opponent="Will Harris", opponent_id="20000166",
+        df = games_df(chapter(opponent="Carter Harris", opponent_id="20000166",
                               color="Black", result="0-1"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000166", opponent_first="Will",
+            uscf_game(opponent_id="20000166", opponent_first="Carter",
                       opponent_last="Harris", player_color="Black",
                       player_outcome="Win", rating_system="OR"),
         ])
@@ -666,7 +666,7 @@ class TestMatchingPolicies:
     def test_dual_rated_records_match_like_regular_ones(self):
         """Dual-rated (D) Sections are over-the-board games — they match
         exactly like Regular (R) ones (the real Thanksgiving Open case)."""
-        df = games_df(chapter(opponent="Vignesh Garcia", opponent_id="20000042",
+        df = games_df(chapter(opponent="Wyatt Garcia", opponent_id="20000042",
                               color="Black", result="0-1", date="2025.11.01"))
         records = uscf_core.build_game_records([
             uscf_game(opponent_id="20000042", opponent_first="Vignesh",
@@ -694,7 +694,7 @@ class TestMatchGamesByName:
         df = games_df(chapter(opponent="Jonah Baker", opponent_id="",
                               color="White", result="1-0", date="2026.04.17"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000051", opponent_first="Christian",
+            uscf_game(opponent_id="20000051", opponent_first="Jonah",
                       opponent_last="Baker", player_color="Black",
                       player_outcome="Win", event="ACC Aprril 2026",
                       start="2026-04-03", end="2026-04-24"),
@@ -707,12 +707,12 @@ class TestMatchGamesByName:
         assert result.matches[0].record.opponent_id == "20000051"
 
     def test_name_matching_ignores_case(self):
-        """The real Baker case: USCF registers 'JOHN BAKER', the chapter
-        says 'John Baker'."""
-        df = games_df(chapter(opponent="John Baker", opponent_id="",
+        """The synthetic Baker case: USCF registers 'BOB BAKER', the chapter
+        says 'Bob Baker'."""
+        df = games_df(chapter(opponent="Bob Baker", opponent_id="",
                               color="White", result="1-0", date="2026.05.01"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000056", opponent_first="JOHN",
+            uscf_game(opponent_id="20000056", opponent_first="BOB",
                       opponent_last="BAKER", player_color="White",
                       player_outcome="Win"),
         ])
@@ -723,12 +723,12 @@ class TestMatchGamesByName:
 
     def test_name_matching_ignores_punctuation(self):
         """The real Williams case: 'Vera Clark' (chapter) vs
-        'JAMES K' + 'WILLIAMS' (USCF) — the middle-initial dot must not matter."""
+        'VERA' + 'CLARK' (USCF) — the middle-initial dot must not matter."""
         df = games_df(chapter(opponent="Vera Clark", opponent_id="",
                               color="White", result="1-0", date="2026.04.03"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000009", opponent_first="JAMES K",
-                      opponent_last="WILLIAMS", player_color="White",
+            uscf_game(opponent_id="20000009", opponent_first="VERA",
+                      opponent_last="CLARK", player_color="White",
                       player_outcome="Win", event="ACC Aprril 2026",
                       start="2026-04-03", end="2026-04-24"),
         ])
@@ -738,7 +738,7 @@ class TestMatchGamesByName:
         assert len(result.matches) == 1
 
     def test_first_name_spelling_variant_with_exact_last_name(self):
-        """The real Clark case: Daniel typed 'Carter', USCF has 'Carver'.
+        """The synthetic Clark case: Daniel typed 'Carter', USCF has 'Carver'.
         Last name matches exactly + same first initial → still a match."""
         df = games_df(chapter(opponent="Carter Clark", opponent_id="",
                               color="Black", result="1-0", date="2026.05.22"))
@@ -772,10 +772,10 @@ class TestMatchGamesByName:
         """The same opponent name + result in an event months away is a
         different game — the window is part of the fallback key, so that the
         weaker name key can never reach across events."""
-        df = games_df(chapter(opponent="John Baker", opponent_id="",
+        df = games_df(chapter(opponent="Bob Baker", opponent_id="",
                               color="White", result="1-0", date="2026.05.01"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000056", opponent_first="JOHN",
+            uscf_game(opponent_id="20000056", opponent_first="BOB",
                       opponent_last="BAKER", player_color="White",
                       player_outcome="Win", event="ACC JANUARY 2026",
                       start="2026-01-02", end="2026-01-30"),
@@ -810,10 +810,10 @@ class TestMatchGamesByName:
         """A chapter whose typed FideId matched nothing stays unmatched — the
         wrong ID is a discrepancy to surface (Reconciliation), not to paper
         over with a name guess."""
-        df = games_df(chapter(opponent="John Baker", opponent_id="99999990",
+        df = games_df(chapter(opponent="Bob Baker", opponent_id="99999990",
                               color="White", result="1-0", date="2026.05.01"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000056", opponent_first="JOHN",
+            uscf_game(opponent_id="20000056", opponent_first="BOB",
                       opponent_last="BAKER", player_color="White",
                       player_outcome="Win"),
         ])
@@ -860,7 +860,7 @@ class TestMatchingAgainstRealData:
         self, study_snapshot_df, uscf_games_json
     ):
         """The full engine on the full real career: 62 of 63 chapters match.
-        The only unmatched chapter is the Forfeit (Baker no-show — USCF
+        The only unmatched chapter is the Forfeit (Uma Baker no-show — USCF
         correctly never rated it)."""
         records = uscf_core.build_game_records(uscf_games_json["items"])
         result = uscf_core.match_games(study_snapshot_df, records)
@@ -882,7 +882,7 @@ class TestMatchingAgainstRealData:
 
         assert len(result.unmatched_records) == 1
         assert result.unmatched_records[0].rating_system == "OR"
-        assert result.unmatched_records[0].opponent_name == "Will Harris"
+        assert result.unmatched_records[0].opponent_name == "Carter Harris"
 
     def test_every_match_agrees_on_opponent_and_result(
         self, study_snapshot_df, uscf_games_json
@@ -913,7 +913,7 @@ class TestEnrichGames:
     def _enriched_pair(self):
         """One matched Game + one unmatched Game, enriched."""
         df = games_df(
-            chapter(opponent="John Baker", opponent_id="20000056",
+            chapter(opponent="Bob Baker", opponent_id="20000056",
                     color="White", result="1-0"),
             chapter(opponent="Nobody USCF Knows", opponent_id="11111111",
                     color="Black", result="0-1"),
@@ -933,7 +933,7 @@ class TestEnrichGames:
         assert game["UscfEventName"] == "ACC MAY 2026"
         assert game["UscfSection"] == "LADDER"
         assert game["UscfRatingSystem"] == "R"
-        assert game["UscfOpponentName"] == "JOHN BAKER"
+        assert game["UscfOpponentName"] == "BOB BAKER"
         assert game["UscfOpponentId"] == "20000056"
 
     def test_unmatched_games_carry_empty_enrichment(self):
@@ -981,17 +981,17 @@ class TestEnrichGames:
         assert enriched.empty
 
     def test_color_conflicts_are_flagged_on_the_matched_game(self):
-        """The real Davis case (issue #30): chapter says Black, USCF says
+        """The synthetic Davis case (issue #30): chapter says Black, USCF says
         White.  The Game stays matched and displays the Lichess version — the
         disagreement is flagged, never hidden."""
         df = games_df(
             chapter(opponent="Liam Davis", opponent_id="20000164",
                     color="Black", result="1/2-1/2"),       # conflicted
-            chapter(opponent="John Baker", opponent_id="20000056",
+            chapter(opponent="Bob Baker", opponent_id="20000056",
                     color="White", result="1-0"),           # clean
         )
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000164", opponent_first="Justin",
+            uscf_game(opponent_id="20000164", opponent_first="Liam",
                       opponent_last="Davis", player_color="White",
                       player_outcome="Draw"),
             uscf_game(opponent_id="20000056", player_color="White",
@@ -1016,7 +1016,7 @@ class TestEnrichGames:
 
 class TestForfeitDetection:
     def test_unmatched_one_move_game_is_a_forfeit(self):
-        """The real Baker case: the chapter is literally '1. e4 1-0'."""
+        """The real Uma Baker case: the chapter is literally '1. e4 1-0'."""
         df = games_df(chapter(opponent="Uma Baker", opponent_id="20000071",
                               color="White", result="1-0", moves="1. e4"))
         enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, []))
@@ -1073,12 +1073,12 @@ def _reconcile(df, records, official_series=None, dismissed=frozenset()):
 
 class TestReconcileConflicts:
     def test_a_color_conflict_becomes_an_entry_showing_both_versions(self):
-        """The real Davis case: matched, but the chapter says Black and
+        """The synthetic Davis case: matched, but the chapter says Black and
         USCF says White.  Both versions appear side by side."""
         df = games_df(chapter(opponent="Liam Davis", opponent_id="20000164",
                               color="Black", result="1/2-1/2", date="2026.02.20"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000164", opponent_first="Justin",
+            uscf_game(opponent_id="20000164", opponent_first="Liam",
                       opponent_last="Davis", player_color="White",
                       player_outcome="Draw", event="ACC FEBRUARY 2026",
                       start="2026-02-20", end="2026-02-27"),
@@ -1097,7 +1097,7 @@ class TestReconcileConflicts:
 
     def test_a_clean_match_produces_no_entry(self):
         """Agreement is silence — Reconciliation only lists disagreements."""
-        df = games_df(chapter(opponent="John Baker", opponent_id="20000056",
+        df = games_df(chapter(opponent="Bob Baker", opponent_id="20000056",
                               color="White", result="1-0"))
         records = uscf_core.build_game_records([
             uscf_game(opponent_id="20000056", player_color="White",
@@ -1111,12 +1111,12 @@ class TestReconcileUnmatched:
     def test_a_uscf_only_record_becomes_an_entry(self):
         """The real online-game case: USCF rated it, but Daniel deliberately
         never added a Chapter.  The entry offers Skip (dismiss)."""
-        df = games_df(chapter(opponent="John Baker", opponent_id="20000056",
+        df = games_df(chapter(opponent="Bob Baker", opponent_id="20000056",
                               color="White", result="1-0"))
         records = uscf_core.build_game_records([
             uscf_game(opponent_id="20000056", player_color="White",
                       player_outcome="Win"),
-            uscf_game(opponent_id="20000166", opponent_first="Will",
+            uscf_game(opponent_id="20000166", opponent_first="Carter",
                       opponent_last="Harris", player_color="Black",
                       player_outcome="Win", rating_system="OR",
                       event="DMVCHESS.COM JANUARY CLIMB", event_id="202601300323",
@@ -1128,7 +1128,7 @@ class TestReconcileUnmatched:
         assert len(entries) == 1
         entry = entries[0]
         assert entry.kind == "uscf_only"
-        assert entry.opponent == "Will Harris"
+        assert entry.opponent == "Carter Harris"
         assert entry.lichess_says == ""             # there is no chapter
         assert "DMVCHESS.COM" in entry.uscf_says
         assert entry.chapter_url == ""              # nothing to link to
@@ -1164,10 +1164,10 @@ class TestReconcileMissingFideIds:
     def test_a_chapter_without_an_opponent_id_becomes_an_entry(self):
         """Even when the name fallback matched it, the chapter is listed so
         Daniel can type the FideId in and make the match robust."""
-        df = games_df(chapter(opponent="John Baker", opponent_id="",
+        df = games_df(chapter(opponent="Bob Baker", opponent_id="",
                               color="White", result="1-0", date="2026.05.01"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000056", opponent_first="JOHN",
+            uscf_game(opponent_id="20000056", opponent_first="BOB",
                       opponent_last="BAKER", player_color="White",
                       player_outcome="Win"),
         ])
@@ -1176,7 +1176,7 @@ class TestReconcileMissingFideIds:
 
         missing = [e for e in entries if e.kind == "missing_fide_id"]
         assert len(missing) == 1
-        assert missing[0].opponent == "John Baker"
+        assert missing[0].opponent == "Bob Baker"
         assert missing[0].chapter_url == df.iloc[0]["ChapterURL"]
         # The matched record tells Daniel exactly which ID to type in
         assert "20000056" in missing[0].uscf_says
@@ -1278,10 +1278,10 @@ class TestReconcileDismissals:
                     color="Black", result="1/2-1/2"),
         )
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000164", opponent_first="Justin",
+            uscf_game(opponent_id="20000164", opponent_first="Liam",
                       opponent_last="Davis", player_color="White",
                       player_outcome="Draw"),
-            uscf_game(opponent_id="20000166", opponent_first="Will",
+            uscf_game(opponent_id="20000166", opponent_first="Carter",
                       opponent_last="Harris", player_color="Black",
                       player_outcome="Win", rating_system="OR",
                       event="ONLINE LADDER", event_id="999"),
@@ -1300,7 +1300,7 @@ class TestReconcileDismissals:
         df = games_df(chapter(opponent="Liam Davis", opponent_id="20000164",
                               color="Black", result="1/2-1/2"))
         records = uscf_core.build_game_records([
-            uscf_game(opponent_id="20000164", opponent_first="Justin",
+            uscf_game(opponent_id="20000164", opponent_first="Liam",
                       opponent_last="Davis", player_color="White",
                       player_outcome="Draw"),
         ])
@@ -1337,7 +1337,7 @@ class TestReconcileAgainstRealData:
         assert {e.opponent for e in conflicts} == {
             "Liam Davis",     # Feb 2026 — known at planning time
             "Jonah Baker",     # Apr 2026 — found by this engine
-            "Wade Harris",      # May 2026 — known at planning time
+            "Bob Harris",      # May 2026 — known at planning time
         }
 
     def test_one_uscf_only_entry_the_online_game(
@@ -1348,7 +1348,7 @@ class TestReconcileAgainstRealData:
         uscf_only = [e for e in entries if e.kind == "uscf_only"]
 
         assert len(uscf_only) == 1
-        assert uscf_only[0].opponent == "Will Harris"
+        assert uscf_only[0].opponent == "Carter Harris"
 
     def test_no_lichess_only_entries(
         self, study_snapshot_df, uscf_games_json, uscf_supplements_json
@@ -1381,7 +1381,7 @@ class TestReconcileAgainstRealData:
         assert len(mismatches) == 1
         assert "1440" in mismatches[0].lichess_says
         assert "1470" in mismatches[0].uscf_says
-        assert mismatches[0].opponent == "John Baker"
+        assert mismatches[0].opponent == "Bob Baker"
 
 
 # ---------------------------------------------------------------------------
@@ -1395,7 +1395,7 @@ class TestMatchingEdgeCases:
         there is nothing to link a Reconciliation entry to."""
         no_url_chapter = (
             '[Event "Test"]\n[Date "2026.05.01"]\n'
-            '[White "Test Player"]\n[Black "John Baker"]\n[Result "1-0"]\n'
+            '[White "Test Player"]\n[Black "Bob Baker"]\n[Result "1-0"]\n'
             '[WhiteFideId "99999999"]\n[BlackFideId "20000056"]\n'
             "\n1. e4 e5 2. Nf3 1-0\n"
         )
@@ -1603,7 +1603,7 @@ class TestSeriesSummary:
         assert event["post"] == 1470.23     # after the Extra-games Section
 
     def test_forfeits_stay_under_their_series_and_count_in_the_score(self, summary):
-        """The Baker no-show: not matched to any Rated Event, but it stays
+        """The Uma Baker no-show: not matched to any Rated Event, but it stays
         under its Series and its point counts toward the tournament score."""
         thanksgiving = _series_named(summary, "2nd Annual Thanksgiving Open (U1600)")
 
@@ -1663,7 +1663,7 @@ class TestSeriesSummary:
             uscf_game(opponent_id="20000056"),
             uscf_game(opponent_id="20000061", opponent_first="WADE",
                       opponent_last="HARRIS"),
-            uscf_game(opponent_id="20000082", opponent_first="JIN",
+            uscf_game(opponent_id="20000082", opponent_first="ETHAN",
                       opponent_last="EDWARDS"),
         ])
         enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, records))
@@ -1812,14 +1812,14 @@ class TestBuildStandings:
         assert daniel.pre_rating != 1013.59     # ...never the Q one
 
     def test_forfeit_and_bye_outcomes_parse(self, uscf_standings_json):
-        """The crosstable encodes no-shows: Daniel's WinForfeit vs Baker
+        """The crosstable encodes no-shows: Daniel's WinForfeit vs Uma Baker
         (Thanksgiving) and his own Forfeit at Rockville."""
         thanksgiving = uscf_core.build_standings(
             uscf_standings_json[("202511020583", 3)]["items"])
         daniel = next(s for s in thanksgiving if s.member_id == "12345678")
         forfeit_round = next(r for r in daniel.rounds if r.outcome == "WinForfeit")
         assert forfeit_round.round_number == 4
-        assert forfeit_round.opponent_member_id == "20000071"   # Baker
+        assert forfeit_round.opponent_member_id == "20000071"   # Uma Baker
 
         rockville = uscf_core.build_standings(
             uscf_standings_json[("202508311982", 2)]["items"])
@@ -1892,7 +1892,7 @@ class TestAttachRoundNumbers:
     def test_the_forfeit_gets_its_round_from_the_crosstable(
         self, real_enriched, real_standings
     ):
-        """The Baker no-show has no USCF Game Record, but the crosstable's
+        """The Uma Baker no-show has no USCF Game Record, but the crosstable's
         WinForfeit round carries his member ID — so even the Forfeit gets its
         real round number."""
         attached = uscf_core.attach_round_numbers(
@@ -1914,7 +1914,7 @@ class TestAttachRoundNumbers:
         assert by_opponent["Olivia Clark"] == 1       # Under 1800, round 1
         assert by_opponent["Vera Edwards"] == 2            # Under 1800, round 2
         assert by_opponent["Alice Anderson"] == 3            # Extra games, round 3
-        assert by_opponent["John Baker"] == 4            # Under 1800, round 4
+        assert by_opponent["Bob Baker"] == 4            # Under 1800, round 4
 
     def test_games_without_a_crosstable_have_no_real_round(
         self, real_enriched, real_standings
@@ -2292,7 +2292,7 @@ class TestOpponentRatingsUnderTheLens:
 
         may = _games_of_event(real_career, lensed, "ACC MAY 2026")
         by_opponent = dict(zip(may["Opponent"], may["OpponentRatingNum"], strict=True))
-        assert by_opponent["John Baker"] == 1433        # typed 1465
+        assert by_opponent["Bob Baker"] == 1433        # typed 1465
         assert by_opponent["Carter Clark"] == 1366    # typed 1446
         assert by_opponent["Ethan Edwards"] == 1467     # typed 1436
 
@@ -2305,7 +2305,7 @@ class TestOpponentRatingsUnderTheLens:
 
         thanksgiving = _games_of_event(
             real_career, lensed, "2nd Annual Thankgiving Day Open")
-        garcia = thanksgiving[thanksgiving["Opponent"] == "Vivekanand Garcia"].iloc[0]
+        garcia = thanksgiving[thanksgiving["Opponent"] == "Xena Garcia"].iloc[0]
         assert garcia["OpponentRatingNum"] == 245
         assert garcia["OpponentRating"] == "245"
 
@@ -2318,7 +2318,7 @@ class TestOpponentRatingsUnderTheLens:
 
         may = _games_of_event(real_career, lensed, "ACC MAY 2026")
         by_opponent = dict(zip(may["Opponent"], may["OpponentRatingNum"], strict=True))
-        assert by_opponent["John Baker"] == 1465        # as typed
+        assert by_opponent["Bob Baker"] == 1465        # as typed
 
     def test_opponents_without_a_cached_crosstable_keep_typed_values(
         self, real_career, real_standings

@@ -16,7 +16,7 @@ import pytest
 
 # Real USCF MUIR API responses captured live on 2026-06-02 (issue #25 / PRD #24).
 # These are the canonical "real response shapes" the USCF tests run against.
-USCF_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "uscf"
+USCF_DATA_DIR = Path(__file__).parent / "data" / "uscf"
 
 
 @pytest.fixture(autouse=True)
@@ -279,34 +279,34 @@ def sample_pgn_text() -> str:
 @pytest.fixture(scope="session")
 def uscf_profile_json() -> dict:
     """A real /members/{id} response: 6 rating systems, ranks, floor, membership."""
-    return json.loads((USCF_FIXTURES_DIR / "member-profile.json").read_text())
+    return json.loads((USCF_DATA_DIR / "member-profile.json").read_text())
 
 
 @pytest.fixture(scope="session")
 def uscf_supplements_json() -> dict:
     """A real /members/{id}/rating-supplements response (10 monthly supplements)."""
-    return json.loads((USCF_FIXTURES_DIR / "rating-supplements.json").read_text())
+    return json.loads((USCF_DATA_DIR / "rating-supplements.json").read_text())
 
 
 @pytest.fixture(scope="session")
 def uscf_sections_json() -> dict:
     """A real /members/{id}/sections response: 24 Sections across 12 months,
     including dual-rated, Online-Regular, zero-change, and same-day Sections."""
-    return json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())
+    return json.loads((USCF_DATA_DIR / "sections.json").read_text())
 
 
 @pytest.fixture(scope="session")
 def uscf_games_json() -> dict:
     """A real /members/{id}/games response: 63 USCF Game Records — every rated
     game with opponent member ID, color, outcome, Rated Event, and Section."""
-    return json.loads((USCF_FIXTURES_DIR / "games.json").read_text())
+    return json.loads((USCF_DATA_DIR / "games.json").read_text())
 
 
 @pytest.fixture(scope="session")
 def uscf_events_json() -> dict:
     """A real /members/{id}/events response: all 23 Rated Events Daniel has
     entered (issue #33), with official dates, section counts, and player counts."""
-    return json.loads((USCF_FIXTURES_DIR / "events.json").read_text())
+    return json.loads((USCF_DATA_DIR / "events.json").read_text())
 
 
 # The real crosstables captured for issue #34, keyed by (event_id, section
@@ -315,8 +315,8 @@ def uscf_events_json() -> dict:
 #   DMV Under 1800 .......... a full-point bye (ByeFull) + the two-Section event
 #   DMV Extra games ......... the second Section of the same Rated Event
 #   Rockville U1500 ......... Daniel entered, never played (Forfeit + Unpaired)
-#   Thanksgiving U1600 ...... the Baker forfeit win (WinForfeit)
-USCF_STANDINGS_FIXTURES = {
+#   Thanksgiving U1600 ...... the Uma Baker forfeit win (WinForfeit)
+USCF_STANDINGS_DATA = {
     ("202605290393", 1): "standings-acc-may-2026.json",
     ("202603290543", 2): "standings-dmv-under-1800.json",
     ("202603290543", 7): "standings-dmv-extra-games.json",
@@ -329,8 +329,8 @@ USCF_STANDINGS_FIXTURES = {
 def uscf_standings_json() -> dict:
     """The real captured crosstables, keyed by (event_id, section_number)."""
     return {
-        key: json.loads((USCF_FIXTURES_DIR / filename).read_text())
-        for key, filename in USCF_STANDINGS_FIXTURES.items()
+        key: json.loads((USCF_DATA_DIR / filename).read_text())
+        for key, filename in USCF_STANDINGS_DATA.items()
     }
 
 
@@ -339,14 +339,14 @@ def uscf_norms_json() -> dict:
     """A real /members/{id}/norms response: the FourthCategory norm from the
     First Annual Oak Grove Open (issue #36).  Note: no pagination fields —
     the norms endpoint returns bare items."""
-    return json.loads((USCF_FIXTURES_DIR / "norms.json").read_text())
+    return json.loads((USCF_DATA_DIR / "norms.json").read_text())
 
 
 @pytest.fixture(scope="session")
 def uscf_awards_json() -> dict:
     """A real /members/{id}/awards response: the 25th-career-win WinMilestone
     award (issue #36)."""
-    return json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())
+    return json.loads((USCF_DATA_DIR / "awards.json").read_text())
 
 
 @pytest.fixture(scope="session")
@@ -360,7 +360,7 @@ def study_snapshot_df():
     """
     from pgn_stats_core import load_games_from_text
 
-    pgn_text = (USCF_FIXTURES_DIR / "lichess-study-snapshot.pgn").read_text()
+    pgn_text = (USCF_DATA_DIR / "lichess-study-snapshot.pgn").read_text()
     df, _player = load_games_from_text(pgn_text, player_name="Daniel Gentile")
     return df
 
@@ -509,25 +509,25 @@ def sample_pgn_path(tmp_path_factory) -> Path:
 
 # The same real response shapes, available without requesting the session
 # fixtures (ui_app builds the app at session scope).
-_UI_USCF_PROFILE = json.loads((USCF_FIXTURES_DIR / "member-profile.json").read_text())
+_UI_USCF_PROFILE = json.loads((USCF_DATA_DIR / "member-profile.json").read_text())
 REAL_USCF_SUPPLEMENTS = json.loads(
-    (USCF_FIXTURES_DIR / "rating-supplements.json").read_text()
+    (USCF_DATA_DIR / "rating-supplements.json").read_text()
 )["items"]
-REAL_USCF_SECTIONS = json.loads((USCF_FIXTURES_DIR / "sections.json").read_text())["items"]
-REAL_USCF_EVENTS = json.loads((USCF_FIXTURES_DIR / "events.json").read_text())["items"]
-REAL_USCF_NORMS = json.loads((USCF_FIXTURES_DIR / "norms.json").read_text())["items"]
-REAL_USCF_AWARDS = json.loads((USCF_FIXTURES_DIR / "awards.json").read_text())["items"]
+REAL_USCF_SECTIONS = json.loads((USCF_DATA_DIR / "sections.json").read_text())["items"]
+REAL_USCF_EVENTS = json.loads((USCF_DATA_DIR / "events.json").read_text())["items"]
+REAL_USCF_NORMS = json.loads((USCF_DATA_DIR / "norms.json").read_text())["items"]
+REAL_USCF_AWARDS = json.loads((USCF_DATA_DIR / "awards.json").read_text())["items"]
 # The 5 captured crosstables (issue #34), as raw item lists keyed by
 # (event_id, section_number) — what the fetch_event_standings stub serves.
 REAL_USCF_STANDINGS = {
-    key: json.loads((USCF_FIXTURES_DIR / filename).read_text())["items"]
-    for key, filename in USCF_STANDINGS_FIXTURES.items()
+    key: json.loads((USCF_DATA_DIR / filename).read_text())["items"]
+    for key, filename in USCF_STANDINGS_DATA.items()
 }
 # Two real opponent profiles (issue #35): Baker (beaten in ACC MAY 2026,
 # rated 1400 now) and Clark (lost to in ACC MAY 2026, rated 1366 now).
 REAL_OPPONENT_PROFILES = {
-    "20000056": json.loads((USCF_FIXTURES_DIR / "opponent-baker.json").read_text()),
-    "20000144": json.loads((USCF_FIXTURES_DIR / "opponent-clark.json").read_text()),
+    "20000056": json.loads((USCF_DATA_DIR / "opponent-bob-baker.json").read_text()),
+    "20000144": json.loads((USCF_DATA_DIR / "opponent-carver-clark.json").read_text()),
 }
 
 # What UI fixtures feed by default: the real 2025–26 career (so the profile
@@ -698,8 +698,8 @@ def real_career_ui(ui_app):
     """
     import data
 
-    pgn_text = (USCF_FIXTURES_DIR / "lichess-study-snapshot.pgn").read_text()
-    games = json.loads((USCF_FIXTURES_DIR / "games.json").read_text())["items"]
+    pgn_text = (USCF_DATA_DIR / "lichess-study-snapshot.pgn").read_text()
+    games = json.loads((USCF_DATA_DIR / "games.json").read_text())["items"]
     data.reset()
     with stub_ui_sources(pgn_text, uscf_games=games,
                          uscf_supplements=REAL_USCF_SUPPLEMENTS,

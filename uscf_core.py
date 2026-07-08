@@ -357,7 +357,7 @@ class UscfGameRecord:
     player_color: str         # the member's color: "White" | "Black"
     player_outcome: str       # the member's result: "Win" | "Loss" | "Draw"
     opponent_id: str          # the opponent's USCF member ID
-    opponent_name: str        # as USCF registers it ("JOHN BAKER", "Wade Harris")
+    opponent_name: str        # as USCF registers it ("BOB BAKER", "Bob Harris")
 
 
 def build_game_records(game_items: list[dict]) -> list[UscfGameRecord]:

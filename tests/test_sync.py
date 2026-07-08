@@ -658,7 +658,7 @@ class TestSyncUscfGames:
             result = sync.sync_uscf("12345678")
 
         assert len(result.game_records) == 63
-        assert result.game_records[0].opponent_name == "JOHN BAKER"
+        assert result.game_records[0].opponent_name == "BOB BAKER"
         assert result.game_records[0].event_name == "ACC MAY 2026"
 
     def test_game_records_survive_uscf_being_down(
@@ -866,10 +866,10 @@ class TestSyncOpponentProfiles:
         """Two real opponent profiles + the games that reference them."""
         import json
         from pathlib import Path
-        fixtures = Path("tests/fixtures/uscf")
+        fixtures = Path("tests/data/uscf")
         return {
-            "20000056": json.loads((fixtures / "opponent-baker.json").read_text()),
-            "20000144": json.loads((fixtures / "opponent-clark.json").read_text()),
+            "20000056": json.loads((fixtures / "opponent-bob-baker.json").read_text()),
+            "20000144": json.loads((fixtures / "opponent-carver-clark.json").read_text()),
         }
 
     def test_one_call_per_unique_opponent(

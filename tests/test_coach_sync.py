@@ -19,8 +19,8 @@ from unittest import mock
 import sync
 from lichess_client import StudyNotFoundError
 
-COACH_PGN = (Path(__file__).parent / "fixtures" / "coach-study.pgn").read_text()
-GEORGINA_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
+COACH_PGN = (Path(__file__).parent / "data" / "coach-study.pgn").read_text()
+ALICE_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
 
 
 def _stub_fetch(**study_pgns):
@@ -50,7 +50,7 @@ class TestSyncCoach:
         assert result.available is True
         assert result.from_cache is False
         # the Alice win is matched, with the coach's 7 comments
-        assert len(result.result.comments_for(GEORGINA_URL)) == 7
+        assert len(result.result.comments_for(ALICE_URL)) == 7
 
     def test_private_coach_study_is_fetched_with_the_users_token(
         self, study_snapshot_df, tmp_path
@@ -90,7 +90,7 @@ class TestSyncCoach:
             result = sync.sync_coach(["coach1"], study_snapshot_df, cache_path=cache)
         assert result.available is True
         assert result.from_cache is True
-        assert len(result.result.comments_for(GEORGINA_URL)) == 7
+        assert len(result.result.comments_for(ALICE_URL)) == 7
 
     def test_one_unreachable_study_never_loses_the_reachable_ones(
         self, study_snapshot_df, tmp_path
@@ -102,7 +102,7 @@ class TestSyncCoach:
                 cache_path=str(tmp_path / "coach.pgn"),
             )
         assert result.available is True
-        assert len(result.result.comments_for(GEORGINA_URL)) == 7
+        assert len(result.result.comments_for(ALICE_URL)) == 7
 
     def test_sync_coach_never_raises(self, study_snapshot_df, tmp_path):
         with _stub_fetch(coach1=StudyNotFoundError("boom")):

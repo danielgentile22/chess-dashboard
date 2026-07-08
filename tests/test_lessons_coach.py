@@ -15,9 +15,9 @@ from unittest import mock
 import sync
 
 SNAPSHOT_PGN = (
-    Path(__file__).parent / "fixtures" / "uscf" / "lichess-study-snapshot.pgn"
+    Path(__file__).parent / "data" / "uscf" / "lichess-study-snapshot.pgn"
 ).read_text()
-COACH_PGN = (Path(__file__).parent / "fixtures" / "coach-study.pgn").read_text()
+COACH_PGN = (Path(__file__).parent / "data" / "coach-study.pgn").read_text()
 
 
 def _stub(**study_pgns):

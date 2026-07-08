@@ -16,11 +16,11 @@ from unittest import mock
 import sync
 
 SNAPSHOT_PGN = (
-    Path(__file__).parent / "fixtures" / "uscf" / "lichess-study-snapshot.pgn"
+    Path(__file__).parent / "data" / "uscf" / "lichess-study-snapshot.pgn"
 ).read_text()
-COACH_PGN = (Path(__file__).parent / "fixtures" / "coach-study.pgn").read_text()
+COACH_PGN = (Path(__file__).parent / "data" / "coach-study.pgn").read_text()
 
-GEORGINA_ID = "alic0001"          # the coach reviewed this Game
+ALICE_ID = "alic0001"          # the coach reviewed this Game
 UNREVIEWED_ID = "fion0001"        # a real Game the coach never reviewed
 
 
@@ -81,7 +81,7 @@ class TestCoachTab:
         _setup_daniel(("s-coach",), tmp_path,
                       **{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN})
         try:
-            layout = game_detail.layout(chapter_id=GEORGINA_ID)
+            layout = game_detail.layout(chapter_id=ALICE_ID)
             labels = _button_labels(layout)
             assert "Coach" in labels
             # the full four-view switcher
@@ -109,7 +109,7 @@ class TestCoachTab:
 
         _setup_daniel((), tmp_path, **{"s-main": SNAPSHOT_PGN})
         try:
-            layout = game_detail.layout(chapter_id=GEORGINA_ID)
+            layout = game_detail.layout(chapter_id=ALICE_ID)
             assert "Coach" not in _button_labels(layout)
         finally:
             data.reset()

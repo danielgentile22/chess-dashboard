@@ -1021,12 +1021,12 @@ class TestEventsSeriesGroups:
         assert "1544" in rendered and "1571" in rendered
 
     def test_the_forfeit_renders_under_its_series(self, ui_app, real_career_ui):
-        """The Baker no-show appears under the Thanksgiving Series,
+        """The Uma Baker no-show appears under the Thanksgiving Series,
         labeled as a Forfeit, not inside any Rated Event."""
         from pages.events import update_series_groups
         rendered = str(update_series_groups(*_filter_args()))
 
-        assert "Baker" in rendered
+        assert "Uma Baker" in rendered
         assert "Forfeit" in rendered
 
 
@@ -1049,7 +1049,7 @@ class TestEventsCrosstables:
         from pages.events import update_series_groups
         rendered = str(update_series_groups(*_filter_args()))
 
-        assert "JOHN DAVIS" in rendered          # the ACC MAY winner
+        assert "ETHAN DAVIS" in rendered          # the ACC MAY winner
         assert "crosstable-row-me" in rendered      # Daniel's row highlight
 
     def test_crosstable_ratings_display_as_whole_numbers(
@@ -1448,7 +1448,7 @@ class TestGameDetail:
 
     def test_analyzed_game_shows_critical_moment_headline(self, ui_app):
         """An analysed Game shows its critical-moment headline alongside the
-        board (issue #57) — the real Alice Anderson Game's −4.38 swing."""
+        board (issue #57) — the captured Alice Anderson Game's −4.38 swing."""
         from pathlib import Path
         from unittest import mock
 
@@ -1456,7 +1456,7 @@ class TestGameDetail:
         import sync
         from pages.game_detail import layout
 
-        pgn = (Path(__file__).parent / "fixtures"
+        pgn = (Path(__file__).parent / "data"
                / "analyzed-alice-anderson.pgn").read_text()
         data.reset()
         try:
@@ -1977,7 +1977,7 @@ class TestRatingLensAcrossStats:
     def test_the_upset_tracker_follows_the_lens(self, ui_app, real_career_ui):
         """'Upset' means the same thing as the rating basis you're looking at
         (PRD #24): the two lenses see different giant kills.  Phase D changes
-        both world views: Forfeit wins are never upsets (the Baker
+        both world views: Forfeit wins are never upsets (the Uma Baker
         '+170 kill' is gone), and the Live lens rates opponents by their
         crosstable pre-ratings where cached (issue #35)."""
         from pages.trends import update_upsets
@@ -1994,7 +1994,7 @@ class TestRatingLensAcrossStats:
         # they always agree with the ratings shown beside them
         assert official_wins[0]["Opponent"] == "Zane Anderson"
         assert official_wins[0]["Margin"] == "+303"
-        assert live_wins[0]["Opponent"] == "Kyle Davis"
+        assert live_wins[0]["Opponent"] == "Wyatt Davis"
         assert live_wins[0]["Margin"] == "+352"
         # Clark beat Daniel as the crosstable underdog: 1366 vs 1544
         clark = next(loss for loss in live_losses
@@ -2084,7 +2084,7 @@ class TestScoutingReportUscf:
         """Every opponent with a known member ID gets a deep link to their
         page on ratings.uschess.org."""
         from pages.opponents import update_scouting_report
-        rendered = str(update_scouting_report("John Baker", *_filter_args()))
+        rendered = str(update_scouting_report("Bob Baker", *_filter_args()))
 
         assert "ratings.uschess.org/members/20000056" in rendered
 
@@ -2093,7 +2093,7 @@ class TestScoutingReportUscf:
         (his crosstable rating that day, under the Live lens) — he's 1400 now
         (his current profile)."""
         from pages.opponents import update_scouting_report
-        rendered = str(update_scouting_report("John Baker",
+        rendered = str(update_scouting_report("Bob Baker",
                                               *_filter_args(lens="live")))
 
         assert "1433" in rendered       # then: crosstable pre-rating in May
@@ -2105,8 +2105,8 @@ class TestScoutingReportUscf:
         """An opponent whose current profile isn't cached still gets their
         USCF link — just no 'now' rating (ADR 0003)."""
         from pages.opponents import update_scouting_report
-        # Wade Harris is matched (ID 20000061) but his profile isn't fetched
-        rendered = str(update_scouting_report("Wade Harris", *_filter_args()))
+        # Bob Harris is matched (ID 20000061) but his profile isn't fetched
+        rendered = str(update_scouting_report("Bob Harris", *_filter_args()))
 
         assert "ratings.uschess.org/members/20000061" in rendered
         assert "now" not in rendered.lower() or "20000061" in rendered

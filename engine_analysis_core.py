@@ -29,7 +29,7 @@ Verified facts (issue #57)
 * Win% from centipawns uses Lichess's canonical
   ``50 + 50 * (2/(1+exp(-0.00368208*cp)) - 1)``; checked against published
   values in the tests.
-* The critical moment on the real analysed Alice Anderson Game is White's
+* The critical moment on the captured analysed Alice Anderson Game is White's
   ``16. Bd4??`` — the −4.38 / ~38-point swing — attributed to the opponent.
 * OTB time-trouble cannot be auto-detected: the Study export carries no clock
   data, so the manual ``#time-trouble`` Tag stays the only signal for it

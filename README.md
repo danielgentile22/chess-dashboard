@@ -281,7 +281,7 @@ chess-dashboard/
 ├── docs/adr/                # Architecture decision records
 ├── tests/
 │   ├── conftest.py          # Shared fixtures (sample Studies, USCF responses, UI app)
-│   ├── fixtures/uscf/       # Real captured USCF API response shapes
+│   ├── data/uscf/       # Real captured USCF API response shapes
 │   ├── test_pgn_stats_core.py  # Parser + stats + insights function tests
 │   ├── test_lichess_client.py  # Lichess client tests (mocked HTTP)
 │   ├── test_uscf_client.py  # USCF client tests (mocked HTTP, real response shapes)
