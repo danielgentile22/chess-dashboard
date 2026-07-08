@@ -22,9 +22,9 @@ against the real Study (`abcdWXYZ`, member `12345678`), at both widths:
 ## Naming convention
 
 `<phase>-<surface>-<width>.png`, where `<phase>` is `before` or `after`.
-When the overhaul lands, the matching after-shots go in an `after/` directory
-using the same surface and width names, so each before/after pair lines up
-one-to-one (e.g. `before-events-1440.png` ↔ `after-events-1440.png`).
+The `after/` directory holds the post-overhaul captures of every page, using
+the same surface and width names so each before/after pair lines up one-to-one
+(e.g. `before-events-1440.png` ↔ `after-events-1440.png`).
 
 Desktop = 1440×900, phone = 390×844. The Events and Scouting shots are
 full-page captures; the Milestones shots are framed on the timeline.

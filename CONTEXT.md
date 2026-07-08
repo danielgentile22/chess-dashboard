@@ -54,6 +54,12 @@ A hashtag (e.g. `#endgame`, `#time-trouble`) appearing in any of a Game's chapte
 **Engine-emitted Tag**:
 A canonical Tag an analysed Game earns itself from its Error Profile, with no comment written (issue #62 [F4]) — a tactical mistake → `#tactics`, a positional one → `#strategy`, any blunder → `#blunder`, an opening/endgame-phase mistake → `#opening`/`#endgame`. Derived enrichment, never written back to Lichess (ADR 0002): each carries a source of `engine` (vs `mine`) in the parallel `TagSources` map and renders with a muted ⚙ chip so Daniel can always tell the computer's Tags from his own. `#calculation` and `#time-trouble` are deliberately never auto-emitted — the engine has no signal that separates a miscalculation from a missed tactic, and the export carries no clock data — so those stay hand-written only.
 
+**Coach Study**:
+A Lichess Study a user designates as holding their coach's game reviews. Fetched on Sync (with the user's token when private) and matched to the user's Games **by the moves played**, so the coach's own online games and teaching positions are ignored automatically. Coach content is enrichment (a coach Chapter never creates a Game) and renders only behind the login gate.
+
+**Coach view**:
+The fourth tab of a Game's board switcher (Game / My Analysis / Engine / **Coach**) — the coach's review chapter for that Game, with all his variations and notes. Offered only on Games a coach Chapter matched. The Lessons page collects the prose from these chapters as the **Coach's Notes** feed, kept visually distinct from the user's own Lessons.
+
 **Streak**:
 A run of consecutive Games with the same outcome, ordered by date. The current win streak drives the fire indicator; the longest win streak is a tracked personal best.
 

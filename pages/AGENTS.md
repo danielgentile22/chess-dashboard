@@ -20,7 +20,7 @@ inline (that lives in `pgn_stats_core.py` / `uscf_core.py`). The persistent chro
 | `lessons.py` | `/lessons` | Lessons + Tag filtering, review mode (`?review=1`); engine-emitted Tags (issue #62) render distinguishably on Lesson + review cards |
 | `analysis.py` | `/analysis` | error-profile mistake-type distribution + trends (accuracy & type over time w/ rating, phase×type matrix, move histogram) + awaiting-analysis list |
 | `reconciliation.py` | `/reconciliation` | Studies ↔ USCF disagreements |
-| `game_detail.py` | `/game/<id>` | pgn-viewer board (Game / My Analysis / Engine switcher) + critical moment + metadata + USCF record (`nav=False`). The Engine view (F7) shows the AI summary, an eval chart, and his judged moves with corrections. |
+| `game_detail.py` | `/game/<id>` | pgn-viewer board (Game / My Analysis / Engine / Coach switcher — each tab only when it has content) + critical moment + metadata + USCF record (`nav=False`). The Engine view (F7) shows the AI summary, an eval chart, and his judged moves with corrections; the Coach view (PRD #55) shows the coach's review chapter. |
 
 ## How a page is wired
 
