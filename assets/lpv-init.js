@@ -15,6 +15,17 @@
 
   var lpvPromise = null;
 
+  // The viewer REPLACES its mount element on every render, destroying the
+  // data-pgn-* payload and any "already mounted" marker put on it — which made
+  // the MutationObserver below re-init the board forever (a hard browser
+  // hang).  So mounted-ness and the PGNs live here, keyed by the card wrapper
+  // (which the viewer never touches), and `.lpv` is re-queried at use time.
+  var mounted = new WeakSet();
+
+  function mountFor(card) {
+    return card.querySelector(".lpv");
+  }
+
   // Import the vendored ES module once; reuse the resolved default export.
   function loadLpv() {
     if (!lpvPromise) {
@@ -25,26 +36,23 @@
     return lpvPromise;
   }
 
-  function pgnFor(mount, view) {
-    if (view === "analysis") {
-      return mount.getAttribute("data-pgn-analysis") || "";
-    }
-    // The Coach view (issue #74 [G4]) replays the coach's annotated line — his
-    // variations and notes — in the same board, like My Analysis.
-    if (view === "coach") {
-      return mount.getAttribute("data-pgn-coach") || "";
-    }
-    return mount.getAttribute("data-pgn-game") || "";
-  }
-
   // Render (or re-render) the board for the chosen view.  Re-calling the viewer
   // rebuilds the mount in place, so switching views is just a fresh mount.
-  function renderBoard(mount, view) {
-    var orientation = mount.getAttribute("data-orientation") || undefined;
+  // *data* is the attribute payload captured before the first render wiped it.
+  function renderBoard(card, data, view) {
+    var pgn = view === "analysis" ? data.analysis
+      // The Coach view (issue #74 [G4]) replays the coach's annotated line —
+      // his variations and notes — in the same board, like My Analysis.
+      : view === "coach" ? data.coach
+      : data.game;
     loadLpv().then(function (LichessPgnViewer) {
+      var mount = mountFor(card);
+      if (!mount) {
+        return;
+      }
       LichessPgnViewer(mount, {
-        pgn: pgnFor(mount, view),
-        orientation: orientation,
+        pgn: pgn,
+        orientation: data.orientation,
         showPlayers: "auto",
         showClocks: true,
         showMoves: "auto",
@@ -58,12 +66,18 @@
   }
 
   function initCard(card) {
-    var mount = card.querySelector(".lpv");
-    if (!mount || mount.dataset.lpvReady) {
+    var mount = mountFor(card);
+    if (!mount || mounted.has(card)) {
       return;
     }
-    mount.dataset.lpvReady = "1";
-    renderBoard(mount, "game");
+    mounted.add(card);
+    var data = {
+      game: mount.getAttribute("data-pgn-game") || "",
+      analysis: mount.getAttribute("data-pgn-analysis") || "",
+      coach: mount.getAttribute("data-pgn-coach") || "",
+      orientation: mount.getAttribute("data-orientation") || undefined,
+    };
+    renderBoard(card, data, "game");
 
     // The Engine view (issue #63 [F7]) is server-rendered Dash content, not a
     // board — so the switcher toggles between the board mount and this panel
@@ -79,8 +93,11 @@
         btn.classList.add("active");
 
         var view = btn.getAttribute("data-view");
+        var liveMount = mountFor(card);
         if (view === "engine") {
-          mount.style.display = "none";
+          if (liveMount) {
+            liveMount.style.display = "none";
+          }
           if (engine) {
             engine.style.display = "";
             // A Plotly graph laid out while its container was hidden renders at
@@ -91,8 +108,10 @@
           if (engine) {
             engine.style.display = "none";
           }
-          mount.style.display = "";
-          renderBoard(mount, view);
+          if (liveMount) {
+            liveMount.style.display = "";
+          }
+          renderBoard(card, data, view);
         }
       });
     });

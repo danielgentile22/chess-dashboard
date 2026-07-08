@@ -122,6 +122,7 @@ class Store:
     coach_cache_path: str | None = None
     anthropic_api_key: str | None = None
     analysis_cache_path: str | None = None
+    demo_mode: bool = False
 
     # True once this store has had a Sync attempted (so a multi-user deploy
     # never re-Syncs a user's store on every request — issue #72).
@@ -192,6 +193,7 @@ def initialize(
     uscf_cache_path: str | None = None,
     anthropic_api_key: str | None = None,
     analysis_cache_path: str | None = None,
+    demo_mode: bool = False,
 ) -> tuple[pd.DataFrame, str]:
     """
     Sync all designated Studies into the default store and serve them.
@@ -210,12 +212,24 @@ def initialize(
     store = _registry[_DEFAULT_USER]
     _configure(
         store, study_ids, player_name=player_name, token=token,
-        cache_path=cache_path, uscf_member_id=uscf_member_id,
-        uscf_cache_path=uscf_cache_path, anthropic_api_key=anthropic_api_key,
-        analysis_cache_path=analysis_cache_path,
+        cache_path=cache_path,
+        uscf_member_id=None if demo_mode else uscf_member_id,
+        uscf_cache_path=None if demo_mode else uscf_cache_path,
+        anthropic_api_key=None if demo_mode else anthropic_api_key,
+        analysis_cache_path=None if demo_mode else analysis_cache_path,
+        demo_mode=demo_mode,
     )
-    logger.info("Syncing %d designated Studies from Lichess", len(study_ids))
-    _sync_store(store)
+    if demo_mode:
+        logger.info("Demo mode: booting from PGN cache %s", cache_path)
+        _boot_from_cache(
+            store, SyncError(f"Demo mode requires a readable PGN cache at {cache_path!r}"),
+            reason="Demo mode",
+        )
+        _sync_uscf_into_store(store)
+        _run_analysis_into_store(store)
+    else:
+        logger.info("Syncing %d designated Studies from Lichess", len(study_ids))
+        _sync_store(store)
     if not store.df.empty:
         logger.info("Synced %d games for player %r", len(store.df), store.player)
     return store.df, store.player
@@ -233,6 +247,7 @@ def _configure(store: Store, study_ids: list[str], **cfg) -> None:
     store.coach_cache_path = cfg.get("coach_cache_path")
     store.anthropic_api_key = cfg.get("anthropic_api_key")
     store.analysis_cache_path = cfg.get("analysis_cache_path")
+    store.demo_mode = bool(cfg.get("demo_mode"))
 
 
 def _sync_store(store: Store) -> None:
@@ -368,14 +383,16 @@ def _detect_new_achievements(store: Store) -> None:
     cache.record_achievements(sorted(store.seen_achievement_ids))
 
 
-def _boot_from_cache(store: Store, sync_error: SyncError) -> None:
+def _boot_from_cache(
+    store: Store, sync_error: SyncError, *, reason: str = "Lichess unreachable"
+) -> None:
     """Fall back to the PGN cache of the last successful Sync, if there is one."""
     if not store.cache_path or not os.path.exists(store.cache_path):
         # No cache → the original Sync failure is the clearest error to show
         raise sync_error
 
-    logger.warning("Lichess unreachable (%s) — booting from cache %s",
-                   sync_error, store.cache_path)
+    logger.warning("%s (%s) — booting from cache %s",
+                   reason, sync_error, store.cache_path)
     df, player, cached_at = load_from_cache(store.cache_path,
                                             player_name=store.player_name)
     if df.empty:
@@ -395,6 +412,11 @@ def refresh() -> RefreshOutcome:
     already running for this store, reports ``already_running``.
     """
     store = _current()
+    if store.demo_mode:
+        return RefreshOutcome(
+            status="demo",
+            error="Demo mode is read-only; Sync is disabled.",
+        )
     if not store.study_ids:
         return RefreshOutcome(status="error",
                               error="The data store was never initialized.")
@@ -750,6 +772,11 @@ def synced_at() -> datetime | None:
 def source() -> str:
     """Where the current data came from: 'lichess' (live Sync) or 'cache'."""
     return _current().source
+
+
+def demo_mode() -> bool:
+    """True when the active store was booted in read-only demo mode."""
+    return _current().demo_mode
 
 
 def cached_at() -> datetime | None:

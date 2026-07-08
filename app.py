@@ -72,7 +72,7 @@ def _index_template(root_block: str) -> str:
 def build_app(study_ids: list[str], player_name=None, token=None, cache_path=None,
               uscf_member_id=None, uscf_cache_path=None,
               anthropic_api_key=None, analysis_cache_path=None,
-              users=None, secret_key=None):
+              users=None, secret_key=None, demo_mode=False):
     """Sync the designated Studies, build the Dash app, and return (dash_app, server).
 
     When *users* is a non-empty multi-user config (PRD #55), the whole server is
@@ -83,7 +83,7 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
     """
     from dash import Dash
 
-    if users:
+    if users and not demo_mode:
         # Multi-user (issue #72): a store per user, Synced eagerly against each
         # user's own config; the per-request hook below activates the right one.
         data.register_users(
@@ -98,6 +98,7 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
             uscf_member_id=uscf_member_id, uscf_cache_path=uscf_cache_path,
             anthropic_api_key=anthropic_api_key,
             analysis_cache_path=analysis_cache_path,
+            demo_mode=demo_mode,
         )
 
     # Creating the app imports every module in pages/ (each registers its own
@@ -133,7 +134,7 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
     # The login gate (issue #71 [G1]) + per-request user activation (issue #72
     # [G2]).  Installed only when users are configured; coach material is
     # private, so a gated server is the only place it may render.
-    if users:
+    if users and not demo_mode:
         import auth
         auth.install_auth(
             dash_app.server, users, secret_key=secret_key or config.SECRET_KEY,
@@ -172,19 +173,20 @@ server = None
 # Boot when either a single global Study list (single-user) or a multi-user
 # config (PRD #55) is present.  Multi-user needs no global STUDY_IDS — each
 # user's Studies live in their own config record.
-if config.STUDY_IDS or config.USERS:
+if config.STUDY_IDS or config.USERS or config.DEMO_MODE:
     try:
         _app, server = build_app(
             config.STUDY_IDS,
             player_name=config.PLAYER_NAME,
             token=config.LICHESS_API_TOKEN,
             cache_path=config.CACHE_PATH,
-            uscf_member_id=config.USCF_MEMBER_ID,
-            uscf_cache_path=config.USCF_CACHE_PATH,
-            anthropic_api_key=config.ANTHROPIC_API_KEY,
-            analysis_cache_path=config.ANALYSIS_CACHE_PATH,
+            uscf_member_id=None if config.DEMO_MODE else config.USCF_MEMBER_ID,
+            uscf_cache_path=None if config.DEMO_MODE else config.USCF_CACHE_PATH,
+            anthropic_api_key=None if config.DEMO_MODE else config.ANTHROPIC_API_KEY,
+            analysis_cache_path=None if config.DEMO_MODE else config.ANALYSIS_CACHE_PATH,
             users=config.USERS,
             secret_key=config.SECRET_KEY,
+            demo_mode=config.DEMO_MODE,
         )
     except (SyncError, RuntimeError) as _exc:
         _exit_with_sync_error(_exc, f"LICHESS_STUDY_IDS={config.STUDY_IDS!r}")
@@ -222,18 +224,22 @@ def main():
     ap.add_argument("--host",   default=config.HOST)
     ap.add_argument("--port",   default=config.PORT, type=int)
     ap.add_argument("--debug",  action="store_true", default=config.DEBUG)
+    ap.add_argument("--demo", action="store_true", default=config.DEMO_MODE,
+                    help="Boot entirely from the PGN cache; no network calls or auth")
     args = ap.parse_args()
 
     study_ids = args.studies or config.STUDY_IDS
-    if not study_ids:
+    if not args.demo and not study_ids:
         ap.error("at least one --study (or LICHESS_STUDY_IDS) is required")
 
     try:
         dash_app, _ = build_app(
             study_ids, player_name=args.player, token=args.token, cache_path=args.cache,
-            uscf_member_id=args.uscf_member_id, uscf_cache_path=args.uscf_cache_path,
-            anthropic_api_key=config.ANTHROPIC_API_KEY,
-            analysis_cache_path=args.analysis_cache_path,
+            uscf_member_id=None if args.demo else args.uscf_member_id,
+            uscf_cache_path=None if args.demo else args.uscf_cache_path,
+            anthropic_api_key=None if args.demo else config.ANTHROPIC_API_KEY,
+            analysis_cache_path=None if args.demo else args.analysis_cache_path,
+            demo_mode=args.demo,
         )
     except (SyncError, RuntimeError) as exc:
         _exit_with_sync_error(exc, f"--study {study_ids!r}")

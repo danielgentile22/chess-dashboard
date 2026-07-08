@@ -10,7 +10,7 @@ PYTEST    := $(VENV)/bin/pytest
 RUFF      := $(VENV)/bin/ruff
 STUDY     ?= abcdWXYZ
 
-.PHONY: help venv install install-dev run test lint typecheck clean docker docker-up
+.PHONY: help venv install install-dev run demo test lint typecheck clean docker docker-up
 
 help:          ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*##' Makefile | awk 'BEGIN{FS=":.*##"}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -27,6 +27,9 @@ install-dev: venv  ## Install runtime + dev dependencies
 
 run: install   ## Start the dashboard locally
 	$(PYTHON) app.py --study $(STUDY)
+
+demo: install  ## Start the dashboard from the committed PGN cache
+	$(PYTHON) app.py --demo
 
 run-debug: install  ## Start with hot-reload debug mode
 	$(PYTHON) app.py --study $(STUDY) --debug

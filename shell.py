@@ -236,6 +236,10 @@ def run_sync(n_clicks, store):
         return (no_update, True, "Sync already running", "warning",
                 "A Sync is already in progress — hang tight.", no_update)
 
+    if outcome.status == "demo":
+        return (no_update, True, "Demo mode", "info",
+                outcome.error, no_update)
+
     if outcome.status == "error":
         return (no_update, True, "Sync failed", "danger",
                 f"{outcome.error} — still showing your current games.", no_update)
@@ -315,6 +319,15 @@ def update_freshness(_n, _sync):
     if data.source() == "cache":
         cached = data.cached_at()
         when = f"{cached:%Y-%m-%d %H:%M} UTC" if cached else "an earlier run"
+        if data.demo_mode():
+            notice = dbc.Alert(
+                [
+                    html.Strong("Demo mode "),
+                    f"showing committed cache data from {when}. Sync is disabled.",
+                ],
+                color="info", className="cache-notice-alert mb-0",
+            )
+            return _per_source_freshness("demo data"), notice
         notice = dbc.Alert(
             [
                 html.Strong("Showing cached data "),
