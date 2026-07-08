@@ -8,7 +8,7 @@ from __future__ import annotations
 import importlib
 
 import config
-from config import parse_member_id, parse_study_ids
+from config import parse_bool, parse_member_id, parse_study_ids
 
 
 class TestParseStudyIds:
@@ -41,6 +41,25 @@ class TestParseMemberId:
         """No member ID configured → the dashboard runs without USCF enrichment."""
         assert parse_member_id("") is None
         assert parse_member_id("   ") is None
+
+
+class TestParseBool:
+    def test_truthy_values(self):
+        assert parse_bool("1")
+        assert parse_bool("true")
+        assert parse_bool("yes")
+
+    def test_unset_is_false(self):
+        assert not parse_bool("")
+
+
+class TestDemoModeSettings:
+    def test_demo_mode_env_is_read(self, monkeypatch):
+        monkeypatch.setenv("DEMO_MODE", "1")
+        reloaded = importlib.reload(config)
+        assert reloaded.config.DEMO_MODE is True
+        monkeypatch.delenv("DEMO_MODE", raising=False)
+        importlib.reload(config)
 
 
 class TestAnalysisSettings:

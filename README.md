@@ -1,10 +1,47 @@
 # Chess Dashboard
 
 [![CI](https://github.com/danielgentile22/chess-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/danielgentile22/chess-dashboard/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An interactive analytics dashboard for your over-the-board chess games, built with Python and Plotly Dash. Point it at the Lichess Study (or Studies) where you archive your games and explore your entire game history through a dark-themed, fully filterable interface — all in the browser, no database required.
+**Your over-the-board chess career as a live analytics product.** Games archived in Lichess Studies sync in via the Lichess API, get enriched with official USCF ratings, crosstables, engine analysis, AI game summaries, and your coach's reviews — and come out as a dark-themed, fully filterable Plotly Dash app. No database, no manual exports.
 
-Your designated Lichess Studies are the source of truth (see `docs/adr/0001`): the dashboard Syncs every Game directly from the Lichess API at startup — no manual PGN exports.
+![Dashboard tour](docs/screenshots/tour.gif)
+
+**Try it in one command** — no account, no config, seeded with a real (anonymized) tournament history:
+
+```bash
+git clone https://github.com/danielgentile22/chess-dashboard.git && cd chess-dashboard
+make demo        # → http://localhost:8050
+```
+
+Why it's technically interesting:
+
+- **Two unreliable sources, one honest view** — Lichess Studies are the source of truth; the undocumented USCF ratings API is enrichment that can never fail a sync. A matching engine pairs every game with its official USCF record (by member ID, then fuzzy name+date), and every disagreement between the sources lands on a Reconciliation page instead of being silently "corrected".
+- **Enrichment pipeline** — engine evals, error profiles, auto-derived weakness tags, Anthropic-generated plain-English game summaries, and coach-review chapters (matched to games *by the moves played*) all attach to games as optional layers; any layer being unavailable degrades gracefully.
+- **Multi-user with per-user isolation** — an opt-in login gate turns the same codebase into a coach/student deployment, each user seeing only their own store (`docs/adr/0005`).
+- **Deliberate architecture** — pure, framework-agnostic core modules with mirrored HTTP-client boundaries, ~20 test modules covering them, five [ADRs](docs/adr/) recording the load-bearing decisions, CI on every push, deployed on Fly.io.
+
+| | |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) | ![Trends](docs/screenshots/trends.png) |
+| ![Openings](docs/screenshots/openings.png) | ![Game detail](docs/screenshots/game-detail.png) |
+
+---
+
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    LS[Lichess Studies<br/>source of truth] --> SY[sync.py]
+    US[USCF ratings API] -. enrichment .-> SY
+    CS[Coach Studies] -. enrichment .-> SY
+    AI[Anthropic API<br/>game summaries] -. enrichment .-> SY
+    SY --> DS[data.py<br/>per-user in-memory store]
+    DS --> CORE[pure cores<br/>pgn_stats · uscf · engine_analysis · coach_match]
+    CORE --> PAGES[Dash Pages<br/>Overview · Trends · Openings · … · Game detail]
+```
+
+Every external service has exactly one client module that talks HTTP to it; everything computed is a pure function from DataFrames to data, testable without Dash. The five decisions that shape all of this are written down as [ADRs](docs/adr/) — start with [0001: Lichess Studies are the source of truth](docs/adr/0001-lichess-studies-are-the-source-of-truth.md).
 
 ---
 
@@ -87,6 +124,14 @@ All charts are dark-themed (GitHub-inspired palette) and update instantly when a
 ---
 
 ## Quick Start
+
+### Demo mode (no setup)
+
+```bash
+make demo            # or: python app.py --demo
+```
+
+Boots entirely from the committed `games.pgn` — no Lichess account, no API calls, no configuration — so you can explore every page with a real tournament history. `DEMO_MODE=1 docker compose up --build` does the same in Docker.
 
 ### Prerequisites
 
@@ -216,6 +261,18 @@ Points worth knowing:
 - Fly health-checks `GET /health`, which the app serves.
 
 The container runs `gunicorn app:server --config gunicorn.conf.py`, so any platform that can run the Dockerfile works the same way.
+
+### Hosting a public demo
+
+A read-only public demo is just a second Fly app running demo mode — no secrets, no volume needed:
+
+```bash
+fly launch --copy-config --name chess-dashboard-demo --no-deploy
+fly secrets set -a chess-dashboard-demo DEMO_MODE=1
+fly deploy -a chess-dashboard-demo
+```
+
+Demo mode makes no network calls and never writes, so the smallest machine works.
 
 ---
 

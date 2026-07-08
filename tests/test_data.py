@@ -897,6 +897,32 @@ class TestCacheFallback:
         assert data.source() == "cache"
         assert data.cached_at() is not None
 
+    def test_demo_mode_boots_from_cache_without_network_or_writes(
+        self, sample_pgn_text, tmp_path
+    ):
+        cache = tmp_path / "games.pgn"
+        cache.write_text(sample_pgn_text, encoding="utf-8")
+        before = cache.read_text(encoding="utf-8")
+
+        with mock.patch.object(sync, "fetch_study_pgn",
+                               side_effect=AssertionError("no Lichess in demo")), \
+             mock.patch.object(sync, "fetch_member_profile",
+                               side_effect=AssertionError("no USCF in demo")):
+            df, player = data.initialize(
+                [], player_name="Test Player", cache_path=str(cache),
+                uscf_member_id="12345678", anthropic_api_key="sk-ant-test",
+                demo_mode=True,
+            )
+            outcome = data.refresh()
+
+        assert len(df) == 7
+        assert player == "Test Player"
+        assert data.source() == "cache"
+        assert data.demo_mode()
+        assert not data.uscf_enabled()
+        assert outcome.status == "demo"
+        assert cache.read_text(encoding="utf-8") == before
+
     def test_lichess_down_without_cache_raises_clear_error(self, tmp_path):
         with stub_studies(study1=LichessUnreachableError("lichess is down")):
             with pytest.raises(sync.SyncError) as exc_info:

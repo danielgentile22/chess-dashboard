@@ -21,6 +21,11 @@ def parse_member_id(raw: str) -> str | None:
     return raw.strip() or None
 
 
+def parse_bool(raw: str) -> bool:
+    """Parse a boolean env setting."""
+    return raw.strip().lower() in ("1", "true", "yes")
+
+
 class Config:
     # Lichess Study IDs forming the game archive (ADR 0001), comma-separated.
     # Required for gunicorn deployment; supplied via --study CLI flag(s) locally.
@@ -56,6 +61,10 @@ class Config:
 
     # Player name override. Empty string → auto-detect from the Games.
     PLAYER_NAME: str | None = os.environ.get("PLAYER_NAME", "").strip() or None
+
+    # Demo mode: boot from the committed PGN cache only.  No external calls,
+    # no cache writes, no auth gate.
+    DEMO_MODE: bool = parse_bool(os.environ.get("DEMO_MODE", ""))
 
     # Multi-user access (issue #71 [G1]).  A JSON array of user records (see
     # user_config); empty means the dashboard runs single-user and ungated,
