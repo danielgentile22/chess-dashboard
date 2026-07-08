@@ -50,7 +50,7 @@ from styles import (
 )
 
 dash.register_page(
-    __name__, path="/opponents", name="Opponents", title="Opponents — Chess Stats", order=3,
+    __name__, path="/opponents", name="Opponents", title="Opponents — Chess Dashboard", order=3,
 )
 
 

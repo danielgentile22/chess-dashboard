@@ -1,4 +1,4 @@
-# Chess Stats Dashboard
+# Chess Dashboard
 
 Analytics dashboard for Daniel's over-the-board USCF chess games. The games live in Lichess studies; the app turns them into stats, trends, and lessons. USCF's rating system (via ratings.uschess.org) enriches the Games with official data.
 

@@ -37,7 +37,7 @@ dash.register_page(
     __name__,
     path_template="/game/<chapter_id>",
     name="Game",
-    title="Game — Chess Stats",
+    title="Game — Chess Dashboard",
     nav=False,  # reached by clicking a Game, not from the nav tabs
 )
 

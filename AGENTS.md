@@ -1,4 +1,4 @@
-# Chess Stats Dashboard — Agent Guide
+# Chess Dashboard — Agent Guide
 
 Analytics dashboard for Daniel's over-the-board USCF games. Games live in Lichess
 Studies (source of truth); the app Syncs them into a Pandas DataFrame and renders

@@ -1,4 +1,4 @@
-# Chess Stats Dashboard
+# Chess Dashboard
 
 [![CI](https://github.com/danielgentile22/uscf-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/danielgentile22/uscf-dashboard/actions/workflows/ci.yml)
 
@@ -193,8 +193,8 @@ make docker-up      # build & run in Docker
 docker compose up --build
 
 # Or just build the image
-docker build -t chess-stats .
-docker run -p 8050:8050 -e LICHESS_STUDY_IDS="6jYtXHGp" chess-stats
+docker build -t chess-dashboard .
+docker run -p 8050:8050 -e LICHESS_STUDY_IDS="6jYtXHGp" chess-dashboard
 ```
 
 ---
@@ -245,7 +245,7 @@ Games are read from Lichess Study chapters (which Lichess serves as standard PGN
 ## Project Structure
 
 ```
-chess-stats-dashboard/
+chess-dashboard/
 ├── app.py                   # Entry point — Dash factory (use_pages), CLI, gunicorn server
 ├── config.py                # Environment variable config (LICHESS_STUDY_IDS, USCF_MEMBER_ID, …)
 ├── data.py                  # Module-level data store (Synced from Lichess + USCF)

@@ -35,7 +35,7 @@ from styles import COLORS, apply_dark_theme, empty_fig
 
 dash.register_page(
     __name__, path="/analysis", name="Analysis",
-    title="Analysis — Chess Stats", order=7,
+    title="Analysis — Chess Dashboard", order=7,
 )
 
 # Tactical reads as the sharp, interactive blue; positional as a calm grey — two

@@ -1,7 +1,7 @@
 """
 shell.py
 ========
-The persistent app shell of the multi-page Chess Stats Dashboard.
+The persistent app shell of the multi-page Chess Dashboard.
 
 Everything here exists on every page and never unmounts during navigation:
 
@@ -90,7 +90,7 @@ def _header(player_name: str) -> html.Header:
             html.Div(className="app-header-brand", children=[
                 html.Span("♞", className="app-header-icon"),
                 html.Span([
-                    html.Span("Chess Stats", className="app-header-title"),
+                    html.Span("Chess Dashboard", className="app-header-title"),
                     html.Span(player_name, className="app-header-player"),
                 ], className="app-header-titles"),
                 # Streak fire + form dots (issue #10) — filled by callback

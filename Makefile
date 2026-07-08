@@ -1,4 +1,4 @@
-# Chess Stats Dashboard — Developer Makefile
+# Chess Dashboard — Developer Makefile
 # Usage: make <target>
 #
 # Requires: python3, pip, make
@@ -44,7 +44,7 @@ clean:         ## Remove virtual environment and caches
 	rm -rf $(VENV) __pycache__ .pytest_cache .mypy_cache .ruff_cache
 
 docker:        ## Build the Docker image
-	docker build -t chess-stats .
+	docker build -t chess-dashboard .
 
 docker-up:     ## Run the dashboard in Docker
 	docker compose up --build

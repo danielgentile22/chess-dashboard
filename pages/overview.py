@@ -40,7 +40,7 @@ from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
 from uscf_core import achievement_milestones, membership_alert
 
 dash.register_page(
-    __name__, path="/", name="Overview", title="Overview — Chess Stats", order=0,
+    __name__, path="/", name="Overview", title="Overview — Chess Dashboard", order=0,
 )
 
 
