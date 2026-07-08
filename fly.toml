@@ -1,0 +1,40 @@
+app = "chess-dashboard"
+primary_region = "iad"
+
+[build]
+
+[env]
+  LICHESS_STUDY_IDS = "abcdWXYZ"
+  PLAYER_NAME       = ""
+  USCF_MEMBER_ID    = "12345678"
+  WEB_CONCURRENCY   = "1"
+  LOG_LEVEL         = "info"
+  # Explicit — Fly doesn't set PORT; keeps internal_port aligned by contract.
+  PORT              = "8050"
+  # Single-user caches are cwd-relative by default (config.py) — point ALL of
+  # them at the volume or nothing persists across deploys:
+  CACHE_PATH          = "/data/games.pgn"
+  USCF_CACHE_PATH     = "/data/uscf_cache.json"
+  ANALYSIS_CACHE_PATH = "/data/analysis_cache.json"
+  # Multi-user per-user caches, if ever enabled.
+  DATA_DIR            = "/data"
+
+[http_service]
+  internal_port        = 8050
+  force_https          = true
+  auto_stop_machines   = false
+  auto_start_machines  = false
+  min_machines_running = 1
+  [[http_service.checks]]
+    interval = "30s"
+    timeout  = "5s"
+    method   = "GET"
+    path     = "/health"
+
+[[mounts]]
+  source      = "chess_dashboard_data"
+  destination = "/data"
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "512mb"

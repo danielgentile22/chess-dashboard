@@ -7,10 +7,13 @@ services:
       - LICHESS_STUDY_IDS=abcdWXYZ
       - PLAYER_NAME=
       - USCF_MEMBER_ID=12345678
+      - WEB_CONCURRENCY=1
+      - LOG_LEVEL=info
       - DEBUG=false
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8050/health"]
+      # curl isn't in python:slim
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8050/health')"]
       interval: 30s
       timeout: 5s
       retries: 3

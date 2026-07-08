@@ -25,7 +25,7 @@ from uscf_core import ReconciliationEntry
 
 dash.register_page(
     __name__, path="/reconciliation", name="Reconciliation",
-    title="Reconciliation — Chess Stats", order=8,
+    title="Reconciliation — Chess Dashboard", order=8,
 )
 
 # The five entry kinds, in display order: what they are and what to do about them.

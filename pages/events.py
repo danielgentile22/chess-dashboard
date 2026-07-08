@@ -41,7 +41,7 @@ from uscf_core import (
 )
 
 dash.register_page(
-    __name__, path="/events", name="Events", title="Events — Chess Stats", order=4,
+    __name__, path="/events", name="Events", title="Events — Chess Dashboard", order=4,
 )
 
 

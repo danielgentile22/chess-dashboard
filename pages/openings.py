@@ -39,7 +39,7 @@ from styles import (
 )
 
 dash.register_page(
-    __name__, path="/openings", name="Openings", title="Openings — Chess Stats", order=2,
+    __name__, path="/openings", name="Openings", title="Openings — Chess Dashboard", order=2,
 )
 
 

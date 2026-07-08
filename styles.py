@@ -2,7 +2,7 @@
 styles.py
 =========
 The theme-tokens module — the single source of truth for every color, font,
-and radius in the Chess Stats Dashboard.
+and radius in the Chess Dashboard.
 
 Both the Plotly chart code and the CSS ``:root`` variable block consume the
 *same* token definitions, so they can never silently drift apart:

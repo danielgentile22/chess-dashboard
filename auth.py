@@ -158,7 +158,7 @@ def _login_page(*, error: str = "", next_path: str = "/") -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign in — Chess Stats</title>
+  <title>Sign in — Chess Dashboard</title>
   <style>
     :root {{ color-scheme: dark; }}
     body {{ margin: 0; min-height: 100vh; display: grid; place-items: center;
@@ -182,7 +182,7 @@ def _login_page(*, error: str = "", next_path: str = "/") -> str:
 </head>
 <body>
   <form class="login-card" method="post" action="/login">
-    <h1 class="login-title">Chess Stats</h1>
+    <h1 class="login-title">Chess Dashboard</h1>
     <p class="login-sub">Sign in to see your dashboard.</p>
     {error_html}
     <input type="hidden" name="next" value="{escape(next_path)}">

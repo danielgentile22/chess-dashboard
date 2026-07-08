@@ -57,7 +57,7 @@ from styles import (
 from uscf_core import LIVE_LENS, OFFICIAL_LENS, rating_trend_series
 
 dash.register_page(
-    __name__, path="/trends", name="Trends", title="Trends — Chess Stats", order=1,
+    __name__, path="/trends", name="Trends", title="Trends — Chess Dashboard", order=1,
 )
 
 

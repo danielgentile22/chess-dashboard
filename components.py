@@ -1,7 +1,7 @@
 """
 components.py
 =============
-Shared UI building blocks for the multi-page Chess Stats Dashboard.
+Shared UI building blocks for the multi-page Chess Dashboard.
 
 Every page composes its layout from these helpers so the whole app keeps a
 single visual language: page headers, chart cards, KPI cards, empty states,

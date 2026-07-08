@@ -26,7 +26,7 @@ from components import (
 from filters import FILTER_INPUTS, get_filtered
 
 dash.register_page(
-    __name__, path="/games", name="Games", title="Games — Chess Stats", order=5,
+    __name__, path="/games", name="Games", title="Games — Chess Dashboard", order=5,
 )
 
 # Columns shown in the games table, in display order.  The table is built

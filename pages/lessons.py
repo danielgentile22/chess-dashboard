@@ -43,7 +43,7 @@ from pgn_stats_core import (
 )
 
 dash.register_page(
-    __name__, path="/lessons", name="Lessons", title="Lessons — Chess Stats", order=6,
+    __name__, path="/lessons", name="Lessons", title="Lessons — Chess Dashboard", order=6,
 )
 
 

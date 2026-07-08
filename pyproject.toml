@@ -1,5 +1,5 @@
 [project]
-name = "chess-stats-dashboard"
+name = "chess-dashboard"
 version = "2.0.0"
 description = "Interactive OTB chess analytics dashboard powered by Plotly Dash"
 readme = "README.md"
@@ -26,7 +26,7 @@ dev = [
 ]
 
 [project.scripts]
-chess-stats = "app:main"
+chess-dashboard = "app:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,7 +1,7 @@
 """
 pgn_stats_core.py
 =================
-Core PGN parsing and statistics computation for the Chess Stats Dashboard.
+Core PGN parsing and statistics computation for the Chess Dashboard.
 
 All public functions are pure (DataFrame in → DataFrame / dict / list out) with
 no dependency on Dash or Plotly, so they can be used from notebooks or scripts.
