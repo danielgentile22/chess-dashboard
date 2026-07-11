@@ -44,7 +44,7 @@ from analysis_trends import (
     mistake_type_trend,
     phase_type_matrix,
 )
-from coach_match_core import CoachChapter, CoachComment
+from coach_match_core import CoachChapter
 from engine_analysis_core import (
     GameAnalysis,
     enrich_games_with_analysis,
@@ -804,25 +804,6 @@ def get_coach_chapter(chapter_url: str) -> CoachChapter | None:
     return _current().coach.result.chapter_for(chapter_url)
 
 
-def get_coach_comments(chapter_url: str) -> tuple[CoachComment, ...]:
-    """The coach's prose comments for the Game at *chapter_url* ((), never None)."""
-    if not chapter_url:
-        return ()
-    return _current().coach.result.comments_for(chapter_url)
-
-
-def has_coach_review(chapter_url: str) -> bool:
-    """True when the coach reviewed the Game at *chapter_url* — drives whether
-    the Coach view/tab appears at all (issue #74)."""
-    return get_coach_chapter(chapter_url) is not None
-
-
-def get_coach_matches() -> tuple:
-    """Every coach Chapter ↔ Game pairing (issue #74) — the Coach's Notes feed
-    (issue #75) reads this.  Empty when no coach Studies are configured."""
-    return _current().coach.result.matches
-
-
 def get_coach_notes() -> list[dict]:
     """
     The Coach's Notes feed (issue #75 [G5]): every prose comment the coach wrote
@@ -871,13 +852,3 @@ def get_coach_notes() -> list[dict]:
 def _sortable_date(value) -> pd.Timestamp:
     """A Game's date as a sortable Timestamp — undated Games sort oldest."""
     return pd.Timestamp.min if value is None or pd.isna(value) else value
-
-
-def coach_synced_at() -> datetime | None:
-    """When coach content was last successfully fetched (None if never)."""
-    return _current().coach.synced_at
-
-
-def coach_from_cache() -> bool:
-    """True when the coach content shown is the previous Sync's cache."""
-    return _current().coach.from_cache
