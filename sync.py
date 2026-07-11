@@ -167,7 +167,7 @@ class UscfCache:
     (ADR 0003).  Every filesystem misfortune — missing file, corrupt file,
     unwritable disk — degrades to "no cache", never to an error.
 
-    Three kinds of entries:
+    Five kinds of entries:
 
     * **current** — the member's current state (profile, …).  Overwritten as
       a whole on every successful Sync; ``fetched_at()`` says when.
