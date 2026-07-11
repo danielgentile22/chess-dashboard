@@ -300,9 +300,7 @@ def update_scouting_report(opponent, colors, outcomes, terminations, start, end,
     return _render_dossier(report, df_f[df_f["Opponent"] == opponent])
 
 
-navigate_to_game_from_scout = register_game_navigation(
-    "scout-games-table",
-    "Clicking a Game in the Scouting Report timeline opens its detail view.")
+navigate_to_game_from_scout = register_game_navigation("scout-games-table")
 
 
 @callback(Output("opponent-bar", "figure"), FILTER_INPUTS)

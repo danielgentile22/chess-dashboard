@@ -276,13 +276,14 @@ chess-dashboard/
 │   └── game_detail.py       #   /game/<id> pgn-viewer board (Game / My Analysis / Engine / Coach) + metadata + USCF record
 ├── assets/
 │   ├── custom.css           # Dark theme, typography, component styles
-│   ├── lichess-pgn-viewer.min.js  # Vendored Lichess pgn-viewer (ES module, served on demand)
+│   ├── lichess-pgn-viewer.min.js  # Vendored Lichess pgn-viewer (GPL-3.0; see assets/VENDOR.md)
 │   ├── lichess-pgn-viewer.css     # Vendored pgn-viewer styles (self-contained: board, pieces, fonts)
-│   └── lpv-init.js          # Mounts the pgn-viewer + wires the view switcher
+│   ├── lpv-init.js          # Mounts the pgn-viewer + wires the view switcher
+│   └── VENDOR.md            # Provenance + license for the vendored pgn-viewer
 ├── docs/
 │   ├── adr/                 # Architecture decision records (the seven load-bearing decisions)
-│   ├── design-review/       # Before/after screenshots from the design overhaul
-│   └── prd-design-overhaul.md  # The design-overhaul PRD those screenshots baseline
+│   ├── features.md          # The full feature tour
+│   └── screenshots/         # README screenshots + the demo tour GIF
 ├── tests/
 │   ├── conftest.py          # Shared fixtures (sample Studies, USCF responses, UI app)
 │   ├── data/uscf/       # Real captured USCF API response shapes

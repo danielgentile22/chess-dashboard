@@ -15,7 +15,12 @@ never re-billed; a re-analysed Game whose facts moved misses and is summarised
 afresh.  Parsing the analyses themselves is pure, deterministic, and cheap, so
 those are recomputed each Sync (ADR 0004) rather than cached here.
 
-Mirrors ``sync.UscfCache``'s atomic-write / degrade-never-raise I/O.
+The ``_read`` / ``_write`` pair intentionally mirrors ``sync.UscfCache``'s
+atomic-write / degrade-never-raise I/O rather than sharing it. Both are ~10
+trivial lines with no other callers, so a shared cache-I/O module would add an
+import and an indirection for less code than it removes; the duplication is the
+cheaper of the two. If a third disposable cache ever needs the same pattern,
+that's the point to extract it.
 """
 from __future__ import annotations
 

@@ -132,7 +132,7 @@ def safe_int(x) -> int | None:
             return None
         m = re.match(r"^(\d+)", s)
         return int(m.group(1)) if m else None
-    except Exception:
+    except (ValueError, TypeError):
         return None
 
 
