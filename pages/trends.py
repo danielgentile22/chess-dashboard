@@ -614,10 +614,8 @@ def update_upsets(colors, outcomes, terminations, start, end, events, moves, _sy
     )
 
 
-navigate_to_game_from_upset_win = register_game_navigation(
-    "upset-wins-table", "Clicking a giant kill opens that Game's detail view.")
-navigate_to_game_from_upset_loss = register_game_navigation(
-    "upset-losses-table", "Clicking an upset loss opens that Game's detail view.")
+navigate_to_game_from_upset_win = register_game_navigation("upset-wins-table")
+navigate_to_game_from_upset_loss = register_game_navigation("upset-losses-table")
 
 
 @callback(Output("length-stats", "children"), FILTER_INPUTS)

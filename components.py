@@ -408,17 +408,17 @@ def game_cards(rows: list[dict]) -> html.Div:
     )
 
 
-def row_click_to_game(active_cell, viewport_rows, ignore_columns=("Lichess",)):
+def row_click_to_game(active_cell, viewport_rows):
     """
     Map a DataTable cell click to a Game detail path (issue #11).
 
     Returns the ``/game/<chapter-id>`` path to navigate to, or ``no_update``
-    when the click shouldn't navigate: no cell, a click on an external-link
-    column, or a row without a ChapterURL.
+    when the click shouldn't navigate: no cell, a click on the Lichess
+    external-link column, or a row without a ChapterURL.
     """
     if not active_cell or not viewport_rows:
         return no_update
-    if active_cell.get("column_id") in ignore_columns:
+    if active_cell.get("column_id") == "Lichess":
         return no_update  # let the Open-on-Lichess link do its own thing
     row = active_cell.get("row")
     if row is None or row >= len(viewport_rows):
@@ -427,10 +427,10 @@ def row_click_to_game(active_cell, viewport_rows, ignore_columns=("Lichess",)):
     return path or no_update
 
 
-def register_game_navigation(table_id: str, doc: str = ""):
+def register_game_navigation(table_id: str):
     """
     Register the click-a-row-to-open-the-game callback for one DataTable
-    (issue #11) and return the callback function.
+    (issue #11) and return the callback (tests drive it directly).
 
     Every table whose rows carry a ChapterURL gets the exact same behavior —
     navigate to the Game's detail view and clear the selection so the same
@@ -446,7 +446,6 @@ def register_game_navigation(table_id: str, doc: str = ""):
     def navigate(active_cell, viewport_rows):
         return row_click_to_game(active_cell, viewport_rows), None
 
-    navigate.__doc__ = doc or f"Clicking a row in {table_id} opens that Game's detail view."
     return navigate
 
 

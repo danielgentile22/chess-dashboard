@@ -85,15 +85,6 @@ WDL_COLOR_MAP: dict[str, str] = {
     "Loss": COLORS["loss"],
 }
 
-# ECO family labels
-ECO_FAMILY: dict[str, str] = {
-    "A": "A — Flank / Indian",
-    "B": "B — Semi-Open",
-    "C": "C — Open",
-    "D": "D — Closed / Semi-Closed",
-    "E": "E — Indian Defences",
-}
-
 # ---------------------------------------------------------------------------
 # Typography — Apple system stack; mono only for inline code
 # ---------------------------------------------------------------------------

@@ -149,5 +149,4 @@ def update_games(*filter_args):
     return rows, game_cards(rows)
 
 
-navigate_to_game = register_game_navigation(
-    "games-table", "Clicking a Game row opens its detail view.")
+navigate_to_game = register_game_navigation("games-table")

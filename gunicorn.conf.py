@@ -9,11 +9,12 @@ import os
 # Bind
 bind = f"0.0.0.0:{os.environ.get('PORT', '8050')}"
 
-# Workers: must be 1. The dashboard keeps Synced games in worker memory and
-# the Sync button atomically swaps that in-memory data; with multiple workers
-# only the worker that handled the Sync request would see the new games.
-# (For a single-user dashboard one worker is also plenty.)
-workers = int(os.environ.get("WEB_CONCURRENCY", 1))
+# Workers: hardcoded to 1, not configurable (ADR 0006). The dashboard keeps
+# Synced games in worker memory and the Sync button atomically swaps that
+# in-memory data; with multiple workers only the worker that handled the Sync
+# would see the new games, and the per-request thread-local user activation
+# would break. This is a correctness constraint, not a tuning knob.
+workers = 1
 worker_class = "sync"
 timeout = 120
 
