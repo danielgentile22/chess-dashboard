@@ -9,7 +9,7 @@ stats, trends, and lessons with **Plotly Dash** (multi-page). USCF ratings data
 1. `CONTEXT.md` — the domain glossary (Game, Study, Sync, Series vs Rated Event,
    Official vs Live Rating, Forfeit, Reconciliation, Lesson, Tag…). Use these
    exact words; they have precise, non-interchangeable meanings.
-2. `docs/adr/000{1..5}-*.md` — the five load-bearing decisions (below).
+2. `docs/adr/000{1..7}-*.md` — the seven load-bearing decisions (below).
 3. `README.md` — exhaustive feature tour, CLI flags, env vars, deployment.
 
 ## Intent Layer
@@ -56,12 +56,21 @@ tests pass:
   in the disposable `analysis_cache.json` so an unchanged Game is never re-billed.
   OTB time-trouble can't be auto-detected (no clock data) — the manual
   `#time-trouble` Tag stays the only signal.
-- **No database; one module-level store.** `data.py` holds the Synced data at
-  module scope — since ADR 0005 a registry of per-user stores, resolving to a
-  single default store in single-user/ungated mode, so accessors keep their
-  no-argument signatures. All callbacks read via `data.get_df()` and **never mutate** the
-  result (`apply_filters` copies before filtering). `refresh()` swaps the store
-  atomically — readers see the old or new dataset, never a mix.
+- **No database; one module-level store, one worker** (ADR 0006). `data.py` holds
+  the Synced data at module scope — since ADR 0005 a registry of per-user stores,
+  resolving to a single default store in single-user/ungated mode, so accessors
+  keep their no-argument signatures. All callbacks read via `data.get_df()` and
+  **never mutate** the result (`apply_filters` copies before filtering).
+  `refresh()` swaps the store atomically — readers see the old or new dataset,
+  never a mix. The store is worker memory, so the app runs exactly one Gunicorn
+  worker on one machine; never raise `workers` above 1 or the Sync swap and the
+  per-request `threading.local` user activation break.
+- **Match, never guess** (ADR 0007). USCF Game Records attach to Games by member
+  ID + result first, then a strictly-unambiguous name + date-window fallback for
+  chapters without a typed FideId. Color/date are tiebreakers, never match
+  requirements; any ambiguity leaves a Game unmatched rather than mis-attached.
+  Unmatched Games/records surface in Reconciliation — the app never invents a
+  pairing.
 - **`pgn_stats_core.py` is framework-agnostic.** Every stats function takes a
   DataFrame and returns a DataFrame/dict — zero Dash imports. Keep it importable
   from a notebook. The same separation mirrors into USCF: `uscf_client` (HTTP) vs

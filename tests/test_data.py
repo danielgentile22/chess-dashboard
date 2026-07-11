@@ -1214,10 +1214,9 @@ class TestCoachContent:
             data.sync_user("daniel")
         data.activate("daniel")
 
-        assert data.has_coach_review(ALICE_URL) is True
         chapter = data.get_coach_chapter(ALICE_URL)
         assert chapter is not None
-        assert len(data.get_coach_comments(ALICE_URL)) == 7
+        assert len(chapter.comments) == 7
 
     def test_a_game_with_no_coach_review_has_none(self, tmp_path):
         with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": COACH_PGN}):
@@ -1228,9 +1227,7 @@ class TestCoachContent:
         some_unreviewed = (
             "https://lichess.org/study/abcdWXYZ/fion0001"  # Fiona Foster
         )
-        assert data.has_coach_review(some_unreviewed) is False
         assert data.get_coach_chapter(some_unreviewed) is None
-        assert data.get_coach_comments(some_unreviewed) == ()
 
     def test_coach_study_unreachable_never_fails_the_sync(self, tmp_path):
         with stub_studies(**{"s-main": SNAPSHOT_PGN,
@@ -1241,7 +1238,7 @@ class TestCoachContent:
         # The Lichess Sync still succeeded — all 63 Games are there
         assert len(data.get_df()) == 63
         # …just without coach content
-        assert data.has_coach_review(ALICE_URL) is False
+        assert data.get_coach_chapter(ALICE_URL) is None
 
     def test_coach_content_survives_a_brief_outage_from_cache(self, tmp_path):
         users = self._daniel()
@@ -1253,8 +1250,9 @@ class TestCoachContent:
                              "s-coach": StudyNotFoundError("private")}):
             data.sync_user("daniel")
         data.activate("daniel")
-        assert data.has_coach_review(ALICE_URL) is True
-        assert data.coach_from_cache() is True
+        # Coach content is still served — from the previous Sync's cache — even
+        # though the coach Study was unreachable this Sync (ADR 0003).
+        assert data.get_coach_chapter(ALICE_URL) is not None
 
     def test_coach_content_is_isolated_per_user(self, sample_pgn_text, tmp_path):
         """A user with no coach Studies sees no coach content, even alongside a
@@ -1271,9 +1269,9 @@ class TestCoachContent:
             data.sync_user("alice")
 
         data.activate("alice")
-        assert data.has_coach_review(ALICE_URL) is False
+        assert data.get_coach_chapter(ALICE_URL) is None
         data.activate("daniel")
-        assert data.has_coach_review(ALICE_URL) is True
+        assert data.get_coach_chapter(ALICE_URL) is not None
 
 
 DIANA_URL = "https://lichess.org/study/abcdWXYZ/dian0001"
