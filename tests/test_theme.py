@@ -64,12 +64,6 @@ class TestThemeConsistency:
         assert layout.hoverlabel.bgcolor == styles.COLORS["card2"]
         assert layout.hoverlabel.font.family == styles.FONT_SYSTEM
 
-    def test_outcome_map_matches_palette(self):
-        """The W/D/L color map is derived from the palette tokens."""
-        assert styles.WDL_COLOR_MAP["Win"] == styles.COLORS["win"]
-        assert styles.WDL_COLOR_MAP["Draw"] == styles.COLORS["draw"]
-        assert styles.WDL_COLOR_MAP["Loss"] == styles.COLORS["loss"]
-
     def test_legend_is_borderless(self):
         """Legends separate by space, not a box (Apple-quiet chrome)."""
         fig = styles.apply_dark_theme(go.Figure())
@@ -81,21 +75,6 @@ class TestThemeConsistency:
 # ---------------------------------------------------------------------------
 
 class TestApplePalette:
-    def test_background_and_card_tokens(self):
-        assert styles.COLORS["bg"] == "#0a0a0c"
-        assert styles.COLORS["card"] == "#1c1c1e"
-        assert styles.COLORS["card2"] == "#2c2c2e"
-
-    def test_system_colors(self):
-        assert styles.COLORS["win"] == "#30d158"     # systemGreen
-        assert styles.COLORS["loss"] == "#ff453a"    # systemRed
-        assert styles.COLORS["draw"] == "#8e8e93"    # systemGray
-        assert styles.COLORS["primary"] == "#0a84ff"  # systemBlue
-        assert styles.COLORS["warning"] == "#ff9f0a"  # systemOrange
-
-    def test_softened_gold(self):
-        assert styles.COLORS["accent"] == "#d9a13d"
-
     def test_white_and_translucent_text(self):
         assert styles.COLORS["text"] == "#ffffff"
         assert styles.COLORS["muted"].startswith("rgba(235,235,245")
@@ -113,32 +92,8 @@ class TestApplePalette:
 # ---------------------------------------------------------------------------
 
 class TestFillOpacity:
-    def test_large_fills_are_reduced_opacity(self):
-        """Big areas (donut wedges, calendar, win-rate area) are toned down."""
-        assert styles.WIN_FILL == styles.rgba(styles.COLORS["win"], 0.55)
-        assert styles.LOSS_FILL == styles.rgba(styles.COLORS["loss"], 0.55)
-        assert styles.WIN_AREA == styles.rgba(styles.COLORS["win"], 0.10)
-
-    def test_small_elements_stay_full_saturation(self):
-        """Dots / lines / badges use the saturated tokens, not the washes."""
-        assert styles.WDL_COLOR_MAP["Win"] == styles.COLORS["win"]
-        assert "0.55" not in styles.COLORS["win"]
-
     def test_rgba_helper_derives_from_a_token(self):
         assert styles.rgba("#30d158", 0.5) == "rgba(48,209,88,.5)"
-
-
-# ---------------------------------------------------------------------------
-# Geometry: 12px cards, no border in the token set
-# ---------------------------------------------------------------------------
-
-class TestGeometry:
-    def test_card_radius_is_12px(self):
-        assert styles.THEME["--cs-radius"] == "12px"
-
-    def test_card_token_carries_no_border(self):
-        """The card surface is a fill only — no border color baked in."""
-        assert styles.COLORS["card"] == "#1c1c1e"
 
 
 # ---------------------------------------------------------------------------

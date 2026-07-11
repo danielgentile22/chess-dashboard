@@ -130,6 +130,8 @@ class TestPageLayoutsRender:
         assert tree is not None
         # Every page wraps its content in a .page div for consistent styling
         assert "page" in getattr(tree, "className", "")
+        # …and actually renders content into it, not just an empty shell
+        assert sum(1 for _ in _walk_components(tree)) > 2
 
 
 # ---------------------------------------------------------------------------
@@ -314,9 +316,14 @@ class TestOverviewCallbacks:
         impossible = _filter_args(colors=["White"], outcomes=["Draw"],
                                   start="2030-01-01", end="2030-12-31")
         assert update_kpis(*impossible)[0] == "0"
+        # The charts fall back to the empty "No data" figure (no traces),
+        # never stale or garbage data.
+        for chart in (update_wdl, update_terminations):
+            fig = chart(*impossible)
+            assert fig.data == ()
+            assert any(a.text == "No data" for a in fig.layout.annotations)
+        # These render without raising on an empty result.
         update_streak(*impossible)
-        update_wdl(*impossible)
-        update_terminations(*impossible)
         update_milestones(*impossible)
 
 
@@ -616,9 +623,13 @@ class TestTrendsCallbacks:
             update_winrate,
         )
         impossible = _filter_args(start="2030-01-01", end="2030-12-31")
-        for cb in (update_rating, update_winrate, update_monthly,
-                   update_dow, update_length_hist, update_length_stats):
-            cb(*impossible)
+        # Each chart callback falls back to an empty figure (no data traces),
+        # never a populated or stale chart.
+        for chart in (update_rating, update_winrate, update_monthly,
+                      update_dow, update_length_hist):
+            assert chart(*impossible).data == ()
+        # The length-stats card renders its own empty state, not a figure.
+        assert "No data" in str(update_length_stats(*impossible))
 
     # -- Activity heatmap calendar (issue #14) ------------------------------
 
@@ -730,8 +741,9 @@ class TestTimeControlFatigueUpsets:
     def test_charts_survive_an_empty_filter(self, ui_app, ui_data):
         from pages.trends import update_round_performance, update_time_control
         impossible = _filter_args(start="2030-01-01", end="2030-12-31")
-        update_time_control(*impossible)
-        update_round_performance(*impossible)
+        # Both degrade to an empty figure rather than raising or drawing stale bars.
+        assert update_time_control(*impossible).data == ()
+        assert update_round_performance(*impossible).data == ()
 
     # -- Upset tracker -------------------------------------------------------
 
