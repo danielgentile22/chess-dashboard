@@ -223,7 +223,7 @@ def initialize(
         logger.info("Demo mode: booting from PGN cache %s", cache_path)
         _boot_from_cache(
             store, SyncError(f"Demo mode requires a readable PGN cache at {cache_path!r}"),
-            reason="Demo mode",
+            reason="Demo mode", fallback=False,
         )
         _sync_uscf_into_store(store)
         _run_analysis_into_store(store)
@@ -384,15 +384,22 @@ def _detect_new_achievements(store: Store) -> None:
 
 
 def _boot_from_cache(
-    store: Store, sync_error: SyncError, *, reason: str = "Lichess unreachable"
+    store: Store, sync_error: SyncError, *, reason: str = "Lichess unreachable",
+    fallback: bool = True,
 ) -> None:
-    """Fall back to the PGN cache of the last successful Sync, if there is one."""
+    """Load the PGN cache of the last successful Sync, if there is one.
+
+    ``fallback`` distinguishes an unplanned degrade (Lichess unreachable — worth
+    a WARNING) from demo mode, where booting from the cache is the whole point
+    and the caller has already logged its INFO intent.
+    """
     if not store.cache_path or not os.path.exists(store.cache_path):
         # No cache → the original Sync failure is the clearest error to show
         raise sync_error
 
-    logger.warning("%s (%s) — booting from cache %s",
-                   reason, sync_error, store.cache_path)
+    if fallback:
+        logger.warning("%s (%s) — booting from cache %s",
+                       reason, sync_error, store.cache_path)
     df, player, cached_at = load_from_cache(store.cache_path,
                                             player_name=store.player_name)
     if df.empty:

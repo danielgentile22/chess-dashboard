@@ -18,6 +18,7 @@ import pytest
 import ai_summary
 import data
 import sync
+from config import config
 from lichess_client import LichessUnreachableError, StudyNotFoundError
 from uscf_client import UscfUnreachableError
 
@@ -922,6 +923,34 @@ class TestCacheFallback:
         assert not data.uscf_enabled()
         assert outcome.status == "demo"
         assert cache.read_text(encoding="utf-8") == before
+
+    def test_committed_demo_seed_boots_and_is_anonymized(self):
+        """`make demo` on a fresh clone must work: the seed config.DEMO_CACHE_PATH
+        points at is committed, loads without network, and carries no real data.
+
+        The older demo test uses a temp fixture, so it stayed green even while the
+        real seed was missing from git — this one exercises the actual committed
+        file the way a cold clone does.
+        """
+        seed = Path(config.DEMO_CACHE_PATH)
+        assert seed.is_file(), f"demo seed missing from the repo: {seed}"
+
+        text = seed.read_text(encoding="utf-8")
+        # Anonymized: the real player's own USCF member ID and study ID must be
+        # gone (see scripts/anonymize_pgn.py). These were the identifiers the
+        # anonymization pass replaced.
+        assert "32487228" not in text  # real member ID → 12345678
+        assert "6jYtXHGp" not in text  # real study ID → abcdWXYZ
+
+        with mock.patch.object(sync, "fetch_study_pgn",
+                               side_effect=AssertionError("no Lichess in demo")):
+            df, _ = data.initialize(
+                [], cache_path=config.DEMO_CACHE_PATH, demo_mode=True,
+            )
+
+        assert len(df) > 20  # a real, non-trivial history renders on every page
+        assert data.source() == "cache"
+        assert data.demo_mode()
 
     def test_lichess_down_without_cache_raises_clear_error(self, tmp_path):
         with stub_studies(study1=LichessUnreachableError("lichess is down")):

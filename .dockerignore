@@ -8,6 +8,8 @@ __pycache__
 .mypy_cache
 htmlcov
 tests
+# but keep the anonymized demo seed — DEMO_MODE=1 boots from it in the image
+!tests/data/demo-games.pgn
 docs
 scratchpad
 uscf_cache.json
