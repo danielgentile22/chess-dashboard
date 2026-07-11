@@ -42,6 +42,14 @@ class Config:
     # Disposable, gitignored, never a source of truth (ADR 0001).
     CACHE_PATH: str = os.environ.get("CACHE_PATH", "games.pgn").strip()
 
+    # The committed, anonymized game history demo mode boots from.  Unlike
+    # CACHE_PATH this file is tracked, so it must never hold real opponent data
+    # (regenerate it with scripts/anonymize_pgn.py).  Kept separate from
+    # CACHE_PATH so a real Sync can never overwrite a tracked file.
+    DEMO_CACHE_PATH: str = os.environ.get(
+        "DEMO_CACHE_PATH", "tests/data/demo-games.pgn"
+    ).strip()
+
     # Where USCF responses are cached so USCF surfaces survive the API being
     # down (ADR 0003). Disposable, gitignored, never a source of truth.
     USCF_CACHE_PATH: str = os.environ.get("USCF_CACHE_PATH", "uscf_cache.json").strip()

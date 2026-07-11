@@ -131,7 +131,7 @@ All charts are dark-themed (GitHub-inspired palette) and update instantly when a
 make demo            # or: python app.py --demo
 ```
 
-Boots entirely from the committed `games.pgn` — no Lichess account, no API calls, no configuration — so you can explore every page with a real tournament history. `DEMO_MODE=1 docker compose up --build` does the same in Docker.
+Boots entirely from a committed, anonymized game history (`tests/data/demo-games.pgn`) — no Lichess account, no API calls, no configuration — so you can explore every page with a real (anonymized) tournament history. `DEMO_MODE=1 docker compose up --build` does the same in Docker.
 
 ### Prerequisites
 

@@ -179,7 +179,7 @@ if config.STUDY_IDS or config.USERS or config.DEMO_MODE:
             config.STUDY_IDS,
             player_name=config.PLAYER_NAME,
             token=config.LICHESS_API_TOKEN,
-            cache_path=config.CACHE_PATH,
+            cache_path=config.DEMO_CACHE_PATH if config.DEMO_MODE else config.CACHE_PATH,
             uscf_member_id=None if config.DEMO_MODE else config.USCF_MEMBER_ID,
             uscf_cache_path=None if config.DEMO_MODE else config.USCF_CACHE_PATH,
             anthropic_api_key=None if config.DEMO_MODE else config.ANTHROPIC_API_KEY,
@@ -232,9 +232,15 @@ def main():
     if not args.demo and not study_ids:
         ap.error("at least one --study (or LICHESS_STUDY_IDS) is required")
 
+    # Bare `--demo` boots from the committed anonymized seed; an explicit
+    # `--cache` still wins so you can demo any PGN.
+    cache_path = args.cache
+    if args.demo and args.cache == config.CACHE_PATH:
+        cache_path = config.DEMO_CACHE_PATH
+
     try:
         dash_app, _ = build_app(
-            study_ids, player_name=args.player, token=args.token, cache_path=args.cache,
+            study_ids, player_name=args.player, token=args.token, cache_path=cache_path,
             uscf_member_id=None if args.demo else args.uscf_member_id,
             uscf_cache_path=None if args.demo else args.uscf_cache_path,
             anthropic_api_key=None if args.demo else config.ANTHROPIC_API_KEY,
