@@ -68,7 +68,7 @@ The pre-game dossier on one opponent: head-to-head score, the openings they've p
 _Avoid_: head-to-head (that's just the score; the Scouting Report includes Lessons and openings)
 
 **Error Profile**:
-A Game's classified mistakes by Daniel — the engine-judged non-best moves *he* played, recorded for every Game regardless of result so the improvement signal isn't biased by wins. Read from the computer analysis Lichess embeds in an analysed Chapter's export (see `docs/adr/0004`); a Game with no requested analysis has an empty profile. Each entry carries a Severity, a Phase, a Mistake Type, and the move number it happened on.
+A Game's classified mistakes by Daniel — the engine-judged non-best moves *he* played, recorded for every Game regardless of result so the improvement signal isn't biased by wins. Read from the computer analysis Lichess embeds in an analysed Chapter's export (see `docs/decisions/0004`); a Game with no requested analysis has an empty profile. Each entry carries a Severity, a Phase, a Mistake Type, and the move number it happened on.
 _Avoid_: weakness (a Tag-derived recurring theme on the Lessons page is a different thing)
 
 **Severity**:
@@ -87,13 +87,13 @@ One 0–100 quality number for Daniel's play in a Game — the mean of the publi
 The Analysis page's aggregates over the Error Profile across analysed Games (pure module `analysis_trends`, mirroring the Phase-4 analytics): the Accuracy trend over time with rating, the mistake-type trend with rating, the Phase × Mistake-Type matrix (his worst specific combination), and a histogram of the move numbers his mistakes land on (the time-trouble fingerprint). Games still awaiting analysis are excluded from every one.
 
 **AI Summary**:
-One plain-English paragraph about an analysed Game, written by Claude Haiku from the engine's *already-computed* facts (the Critical Moment and Error Profile) — never by asking the model to evaluate the position, so it cannot invent chess. Lives behind a single boundary module (`ai_summary`), the only place the dashboard touches the Anthropic API. Optional and resilient (see `docs/adr/0004`): with no `ANTHROPIC_API_KEY` it is a no-op empty string, any failure degrades silently, and a Sync that reached Lichess succeeds without it.
+One plain-English paragraph about an analysed Game, written by Claude Haiku from the engine's *already-computed* facts (the Critical Moment and Error Profile) — never by asking the model to evaluate the position, so it cannot invent chess. Lives behind a single boundary module (`ai_summary`), the only place the dashboard touches the Anthropic API. Optional and resilient (see `docs/decisions/0004`): with no `ANTHROPIC_API_KEY` it is a no-op empty string, any failure degrades silently, and a Sync that reached Lichess succeeds without it.
 
 **Analysis Cache**:
 The disposable `analysis_cache.json` that stores AI Summaries by Game identity (the ChapterURL plus a fingerprint of the facts), so an unchanged Game is never re-billed and a re-analysed one is summarised afresh. Same lifecycle as the USCF cache — never a source of truth, every filesystem misfortune degrades to "no cache".
 
 **Engine view**:
-The third view in a Game's board switcher (Game / My Analysis / **Engine**), where Daniel reviews where he went wrong and what was better. Under the AI Summary paragraph it shows the engine's evaluation across the Game (a win-probability advantage chart), his move judgments (the Error Profile's severities), and the recommended corrections (the best move + refutation line carried on each move's eval). An un-analysed Game shows an awaiting-analysis state rather than breaking (see `docs/adr/0004`).
+The third view in a Game's board switcher (Game / My Analysis / **Engine**), where Daniel reviews where he went wrong and what was better. Under the AI Summary paragraph it shows the engine's evaluation across the Game (a win-probability advantage chart), his move judgments (the Error Profile's severities), and the recommended corrections (the best move + refutation line carried on each move's eval). An un-analysed Game shows an awaiting-analysis state rather than breaking (see `docs/decisions/0004`).
 
 **My Analysis**:
 The Game-detail board view that plays Daniel's *own* annotations — his variations and comments on that Chapter, from the retained PGN — in place. It is offered only when he actually added them; a Lesson-only Game (its Lesson has its own card) or a bare Game shows just the default **Game** view (a clean replay with his annotations stripped). The board is rendered by Lichess's open-source pgn-viewer bundled as a local asset, not an iframe embed, themed from the shared `--cs-*` tokens (dark board, no flashbang).

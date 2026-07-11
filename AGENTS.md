@@ -9,7 +9,7 @@ stats, trends, and lessons with **Plotly Dash** (multi-page). USCF ratings data
 1. `CONTEXT.md` — the domain glossary (Game, Study, Sync, Series vs Rated Event,
    Official vs Live Rating, Forfeit, Reconciliation, Lesson, Tag…). Use these
    exact words; they have precise, non-interchangeable meanings.
-2. `docs/adr/000{1..7}-*.md` — the seven load-bearing decisions (below).
+2. `docs/decisions/000{1..7}-*.md` — the seven load-bearing decisions (below).
 3. `README.md` — exhaustive feature tour, CLI flags, env vars, deployment.
 
 ## Intent Layer
