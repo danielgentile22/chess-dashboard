@@ -1,0 +1,41 @@
+---
+status: accepted
+---
+
+# The data store is a registry of per-user stores
+
+## Context and Problem Statement
+
+The dashboard was hard-wired to one player: a module-level singleton in `data.py` (`_df`, `_uscf`, …) holding one person's Games, USCF record, and engine analysis, swapped atomically on Sync. Multi-user access (PRD #55) requires that one user's accessors never return another user's data.
+
+## Considered Options
+
+- A registry of per-user stores keyed by the authenticated user, with a thread-local active store
+- Threading a `user` parameter through every accessor and page callback
+- A process (or container) per user
+
+## Decision Outcome
+
+Chosen: "registry of per-user stores", because each feature already reads the store through the same accessor surface, so moving the state behind a per-user store is a single change at one boundary — and a thread-local active store inside one process is enough when the gate guarantees every request carries exactly one authenticated user (ADR 0006).
+
+Every accessor (`get_df`, `get_uscf_*`, the PRD #54 analysis accessors, and the coach accessors) resolves against the *current* user's store; a Sync runs per user against that user's Study IDs, Lichess token, and USCF member ID. "Current" is a thread-local set per request: the gated app (the login gate, `auth.py`) resolves the request's authenticated user and `activate()`s their store before any page renders, on the same thread Flask handles the request. This is only safe under the single-worker deployment ADR 0006 records. With no user active — the original single-user/ungated mode, local CLI use, and the entire pre-existing test suite — the active store is a single default store, and `initialize()` / `refresh()` / every accessor behave exactly as before the registry existed. This is why the change is one sweeping refactor of `data.py` and *not* a rewrite of the pages: the pages still call `data.get_df()` with no user argument; only what that resolves to changed.
+
+The refactor lands **once, against the complete feature set** — Games + USCF + PRD #54 analysis + the coach content of PRD #55 — rather than threading per-user context through each feature as it is built.
+
+Per-user caches follow: each user's disposable PGN / USCF / analysis caches live in their own subdirectory (`DATA_DIR/<username>/…`) so they never collide. The caches remain disposable and never a source of truth (ADR 0001 / 0003 unchanged); a host without a writable disk simply goes without them.
+
+### Consequences
+
+- Good, because the registry is the *only* place isolation is implemented: a page or callback that reads the store is automatically user-scoped, so a new feature cannot accidentally leak across users by forgetting to pass a user through.
+- Good, because stores are Synced **per user**, eagerly at startup and lazily on first access (`ensure_synced`), and a user whose main Study is unreachable at boot degrades to an empty store rather than taking the whole multi-user app down — the same enrichment-never-a-dependency posture USCF and coach content already take (ADR 0003).
+- Bad, because the design leans on the single-worker deployment (ADR 0006): the thread-local activation is load-bearing.
+
+## Pros and Cons of the Options
+
+### Threading a `user` parameter through accessors and callbacks
+
+- Bad, because threading a `user` parameter through thirty accessors and every page callback would have touched far more code for the same result, and left half-migrated states along the way.
+
+### A process (or container) per user
+
+- Bad, because it multiplies memory and deploy complexity for a dashboard shared with a few people, well beyond what the single small Fly.io machine the app targets would carry.

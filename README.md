@@ -18,8 +18,8 @@ Why it's technically interesting:
 
 - **Two unreliable sources, one honest view** — Lichess Studies are the source of truth; the undocumented USCF ratings API is enrichment that can never fail a sync. A matching engine pairs every game with its official USCF record (by member ID, then fuzzy name+date), and every disagreement between the sources lands on a Reconciliation page instead of being silently "corrected".
 - **Enrichment pipeline** — engine evals, error profiles, auto-derived weakness tags, Anthropic-generated plain-English game summaries, and coach-review chapters (matched to games *by the moves played*) all attach to games as optional layers; any layer being unavailable degrades gracefully.
-- **Multi-user with per-user isolation** — an opt-in login gate turns the same codebase into a coach/student deployment, each user seeing only their own store (`docs/adr/0005`).
-- **Deliberate architecture** — pure, framework-agnostic core modules with mirrored HTTP-client boundaries, ~20 test modules covering them, seven [ADRs](docs/adr/) recording the load-bearing decisions, CI on every push, deployed on Fly.io.
+- **Multi-user with per-user isolation** — an opt-in login gate turns the same codebase into a coach/student deployment, each user seeing only their own store (`docs/decisions/0005`).
+- **Deliberate architecture** — pure, framework-agnostic core modules with mirrored HTTP-client boundaries, ~20 test modules covering them, seven [ADRs](docs/decisions/) recording the load-bearing decisions, CI on every push, deployed on Fly.io.
 
 | | |
 |---|---|
@@ -41,7 +41,7 @@ flowchart LR
     CORE --> PAGES[Dash Pages<br/>Overview · Trends · Openings · … · Game detail]
 ```
 
-Every external service has exactly one client module that talks HTTP to it; everything computed is a pure function from DataFrames to data, testable without Dash. The seven decisions that shape all of this are written down as [ADRs](docs/adr/) — start with [0001: Lichess Studies are the source of truth](docs/adr/0001-lichess-studies-are-the-source-of-truth.md).
+Every external service has exactly one client module that talks HTTP to it; everything computed is a pure function from DataFrames to data, testable without Dash. The seven decisions that shape all of this are written down as [ADRs](docs/decisions/) — start with [0001: Lichess Studies are the source of truth](docs/decisions/0001-lichess-studies-are-the-source-of-truth.md).
 
 ---
 
@@ -65,7 +65,7 @@ Three things worth calling out:
 
 - **The Official/Live rating lens** — a header toggle that changes what *"your rating"* means across every rating-derived number, without hiding a single game.
 - **Game detail** — an interactive board (Lichess's open-source pgn-viewer, bundled locally, not an iframe) behind up to four views — Game / My Analysis / Engine / Coach — each shown only when it has content.
-- **Graceful degradation everywhere** — USCF unreachable, no engine analysis, no AI key, coach study down: every enrichment layer falls back to cached-or-absent and never fails a Sync (ADRs [0003](docs/adr/0003-uscf-is-enrichment-never-a-dependency.md) / [0004](docs/adr/0004-engine-analysis-is-enrichment-never-a-dependency.md)).
+- **Graceful degradation everywhere** — USCF unreachable, no engine analysis, no AI key, coach study down: every enrichment layer falls back to cached-or-absent and never fails a Sync (ADRs [0003](docs/decisions/0003-uscf-is-enrichment-never-a-dependency.md) / [0004](docs/decisions/0004-engine-analysis-is-enrichment-never-a-dependency.md)).
 
 ---
 
@@ -352,7 +352,7 @@ This project was built with heavy use of AI coding agents, and I want to be spec
 
 **How the work was actually split:**
 
-1. **Requirements and architecture — this is where my time went.** Every feature started as an extended planning session with an agent as a sounding board, not an author: I pushed on scope, weighed alternatives, and locked the requirements myself. The load-bearing decisions are mine and are written down as [ADRs](docs/adr/) precisely because they're the judgment the code can't show — Lichess Studies as the single source of truth ([0001](docs/adr/0001-lichess-studies-are-the-source-of-truth.md)), USCF / engine / coach data as blast-radius-capped enrichment ([0003](docs/adr/0003-uscf-is-enrichment-never-a-dependency.md), [0004](docs/adr/0004-engine-analysis-is-enrichment-never-a-dependency.md)), the single-worker in-memory store ([0006](docs/adr/0006-single-worker-in-memory-store.md)), matching that surfaces disagreements instead of resolving them ([0007](docs/adr/0007-match-precedence-and-tiebreakers.md)). The domain language every module speaks ([CONTEXT.md](CONTEXT.md)) is mine too. Getting these right, rather than accepting the first plausible design an agent proposed, is what kept the project from becoming AI slop.
+1. **Requirements and architecture — this is where my time went.** Every feature started as an extended planning session with an agent as a sounding board, not an author: I pushed on scope, weighed alternatives, and locked the requirements myself. The load-bearing decisions are mine and are written down as [ADRs](docs/decisions/) precisely because they're the judgment the code can't show — Lichess Studies as the single source of truth ([0001](docs/decisions/0001-lichess-studies-are-the-source-of-truth.md)), USCF / engine / coach data as blast-radius-capped enrichment ([0003](docs/decisions/0003-uscf-is-enrichment-never-a-dependency.md), [0004](docs/decisions/0004-engine-analysis-is-enrichment-never-a-dependency.md)), the single-worker in-memory store ([0006](docs/decisions/0006-single-worker-in-memory-store.md)), matching that surfaces disagreements instead of resolving them ([0007](docs/decisions/0007-match-precedence-and-tiebreakers.md)). The domain language every module speaks ([CONTEXT.md](CONTEXT.md)) is mine too. Getting these right, rather than accepting the first plausible design an agent proposed, is what kept the project from becoming AI slop.
 2. **PRDs, then implementation in slices.** Each locked set of requirements became a concrete PRD that agents implemented in small vertical slices — the phase-labelled commit history (`[E4]`, `[F7]`, `[G2]`, …) is those slices. The standing invariants agents had to respect on every slice live in [AGENTS.md](AGENTS.md); violating one is a bug even when tests pass.
 3. **Review.** Codex (GPT-5.5) did the first-pass review of each slice; I did the final PR review and the merge myself.
 
