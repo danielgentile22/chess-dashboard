@@ -45,3 +45,26 @@ python_version = "3.10"
 ignore_missing_imports = true
 warn_return_any = false
 warn_unused_ignores = true
+# The type-checked set — bare `mypy` (Makefile + CI) uses this, so the two can't
+# drift. The pure cores, HTTP clients, and orchestration; the Dash UI layer is
+# exercised by tests rather than type-checked.
+files = [
+    "pgn_stats_core.py", "lichess_client.py", "uscf_client.py", "uscf_core.py",
+    "engine_analysis_core.py", "analysis_trends.py", "coach_match_core.py",
+    "ai_summary.py", "analysis_cache.py", "sync.py", "data.py", "config.py",
+    "auth.py", "user_config.py",
+]
+
+# Coverage source lives here so `make test` and CI share one list and one gate.
+[tool.coverage.run]
+source = [
+    "pgn_stats_core", "lichess_client", "uscf_client", "uscf_core",
+    "engine_analysis_core", "analysis_trends", "coach_match_core",
+    "ai_summary", "analysis_cache", "sync", "data", "config",
+    "auth", "user_config", "shell", "filters", "components", "pages",
+]
+
+[tool.coverage.report]
+show_missing = true
+# The suite sits at ~96%; 92 is the floor CI enforces, with headroom for churn.
+fail_under = 92
