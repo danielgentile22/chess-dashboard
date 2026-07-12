@@ -1855,6 +1855,256 @@ class TestForfeitExclusion:
 
         assert counts["Win"] == 2  # the forfeit counts: nothing says it's one
 
+    def test_performance_rating_excludes_forfeits(self):
+        """The forfeit win never scores against its opponent's rating (#90.1):
+        1 real win (1480) + 1 real loss (1520) → 50% at avg 1500 → PR 1500,
+        not the inflated number a free point vs 1510 would produce."""
+        pr = performance_rating_stats(_df_with_forfeit())
+
+        assert pr["rated_games"] == 2
+        assert pr["performance_rating"] == 1500
+
+    def test_game_length_excludes_forfeits(self):
+        """The 1-move forfeit is not a game that unfolded (#90.3): it leaves the
+        histogram and never drags the winning-game average toward zero."""
+        hist, avgs = game_length_data(_df_with_forfeit())
+
+        assert len(hist) == 2       # the 1-move forfeit row is gone
+        assert avgs["Win"] == 4.0   # the real 4-move win, not (4 + 1) / 2
+
+    def test_milestones_giant_kill_excludes_forfeits(self):
+        """The highest-rated opponent 'beaten' is the real 1480 win, not the
+        1510 no-show — the milestone timeline never celebrates a forfeit (#90.2)."""
+        beat = [m for m in compute_milestones(_df_with_forfeit())
+                if m["description"].startswith("Beat highest-rated opponent")]
+
+        assert beat
+        assert "Opp One" in beat[0]["description"]
+        assert "Opp Three" not in beat[0]["description"]
+
+    def test_milestone_deltas_ignore_forfeit_giant_kill(self):
+        """Syncing in a forfeit win vs a 1510 opponent is not a new personal
+        best over the 1480 real win — no giant-kill banner fires (#90.2)."""
+        full = _df_with_forfeit()
+        old = full[~full["Forfeit"]]   # the two real games; best real win is 1480
+        kinds = {d["kind"] for d in milestone_deltas(old, full)}
+
+        assert "giant_kill" not in kinds
+
+    def test_opponent_summary_win_rate_excludes_forfeits(self):
+        """A forfeit win never lifts the win rate shown against an opponent
+        (#90.5): 1 real win + 1 real loss vs A → 2 games at 50%, not 66.7%."""
+        frame = pd.DataFrame({
+            "Opponent": ["A", "A", "A"],
+            "Outcome": ["Win", "Loss", "Win"],
+            "Forfeit": [False, False, True],
+        })
+        opp = opponent_summary(frame).set_index("Opponent")
+
+        assert opp.loc["A", "Games"] == 2
+        assert opp.loc["A", "Win"] == 1
+        assert opp.loc["A", "WinRate"] == 50.0
+
+    def test_activity_win_rate_excludes_forfeits(self):
+        """A no-show win never raises a month's win rate (#90.5)."""
+        frame = pd.DataFrame({
+            "Date_dt": pd.to_datetime(["2024-03-01", "2024-03-02"]),
+            "Outcome": ["Loss", "Win"],
+            "Forfeit": [False, True],
+        })
+        monthly, _ = activity_data(frame)
+        row = monthly.iloc[0]
+
+        assert int(row["Games"]) == 1
+        assert int(row["Win"]) == 0
+        assert float(row["WinRate"]) == 0.0
+
+    def test_daily_activity_net_excludes_forfeits(self):
+        """A forfeit win never turns a losing day green (#90.5): the day's Net
+        stays negative, not flat."""
+        frame = pd.DataFrame({
+            "Date_dt": pd.to_datetime(["2024-03-01", "2024-03-01"]),
+            "Outcome": ["Loss", "Win"],
+            "Opponent": ["A", "B"],
+            "Forfeit": [False, True],
+        })
+        daily = daily_activity(frame)
+
+        assert len(daily) == 1
+        assert int(daily.iloc[0]["Games"]) == 1
+        assert int(daily.iloc[0]["Net"]) == -1
+
+    def test_round_performance_win_rate_excludes_forfeits(self):
+        """A forfeit win never counts toward a round's win rate (#90.5)."""
+        frame = pd.DataFrame({
+            "RoundNum": [1, 1],
+            "Outcome": ["Loss", "Win"],
+            "Forfeit": [False, True],
+        })
+        rounds = round_performance(frame, min_games=1).set_index("Round")
+
+        assert int(rounds.loc[1, "Games"]) == 1
+        assert int(rounds.loc[1, "Win"]) == 0
+
+    def test_head_to_head_excludes_forfeits(self):
+        """The opponent drill-down is an over-the-board record: the no-show win
+        vs Opp Three never appears there, matching opponent_summary (#90.5)."""
+        h2h = head_to_head(_df_with_forfeit(), "Opp Three")
+
+        assert h2h["total"] == 0
+        assert h2h["win"] == 0
+
+    def test_opponent_rating_buckets_exclude_forfeits(self):
+        """A forfeit win never counts as a win in any rating-difference bucket
+        (#90.5): 2 real games, 1 real win, not 3 games / 2 wins."""
+        buckets = opponent_rating_bucket_summary(_df_with_forfeit())
+
+        assert int(buckets["Games"].sum()) == 2
+        assert int(buckets["Win"].sum()) == 1
+
+    def test_outcome_vs_rating_excludes_forfeits(self):
+        """The scatter plots scored games only: the 1510 no-show is not a point
+        on it (#90.5)."""
+        scatter = outcome_vs_rating_data(_df_with_forfeit())
+
+        assert len(scatter) == 2
+        assert 1510 not in set(scatter["OpponentRatingNum"])
+
+    def test_time_control_excludes_forfeits(self):
+        """A forfeit win never lifts a time control's win rate (#90.5)."""
+        tc = time_control_summary(_df_with_forfeit())
+
+        assert int(tc["Games"].sum()) == 2
+        assert int(tc["Win"].sum()) == 1
+
+    def test_milestones_first_win_excludes_forfeits(self):
+        """The earliest game is a forfeit win, then a real win: 'First win'
+        celebrates the real one, never the no-show (#90.2)."""
+        frame = pd.DataFrame({
+            "Date_dt": pd.to_datetime(["2024-01-01", "2024-01-08"]),
+            "Date": ["2024.01.01", "2024.01.08"],
+            "Index": [0, 1],
+            "Outcome": ["Win", "Win"],
+            "Opponent": ["Ghost", "Real"],
+            "OpponentRatingNum": [pd.NA, pd.NA],
+            "PlayerRatingNum": [pd.NA, pd.NA],
+            "Forfeit": [True, False],
+        })
+        first_win = [m for m in compute_milestones(frame)
+                     if m["description"].startswith("First win")]
+
+        assert first_win
+        assert "Real" in first_win[0]["description"]
+        assert "Ghost" not in first_win[0]["description"]
+
+    def test_recurring_weaknesses_excludes_forfeit_losses(self):
+        """A forfeit loss is a no-show, not a chess weakness: its Tags never
+        surface as a recurring weakness (#90)."""
+        frame = pd.DataFrame({
+            "Date_dt": pd.to_datetime(["2024-01-01", "2024-01-08"]),
+            "Index": [0, 1],
+            "Outcome": ["Win", "Loss"],   # the Loss is a no-show forfeit
+            "Tags": [[], ["ghost"]],
+            "ChapterURL": ["a", "b"],
+            "Forfeit": [False, True],
+        })
+
+        assert recurring_weaknesses(frame, min_occurrences=1) == []
+
+    def test_event_notable_opponents_exclude_forfeits(self):
+        """The score keeps the forfeit point (#29), but a 2000 no-show is never
+        the 'highest-rated opponent faced' in the event (#35)."""
+        frame = pd.DataFrame({
+            "Event": ["Cup", "Cup"],
+            "Date_dt": pd.to_datetime(["2024-05-01", "2024-05-02"]),
+            "Outcome": ["Win", "Win"],
+            "Opponent": ["Weak", "Ghost"],
+            "OpponentRatingNum": [1400, 2000],
+            "Forfeit": [False, True],
+        })
+        row = event_summary(frame).iloc[0]
+
+        assert row["HighestOpp"] == "Weak"        # not the 2000 no-show
+        assert int(row["HighestOppRating"]) == 1400
+        assert row["Games"] == 2                   # forfeit still counts as...
+        assert row["Score"] == "2/2"               # ...a tournament point
+
+    def test_milestone_deltas_all_forfeit_baseline_is_no_baseline(self):
+        """An old snapshot of only no-shows has no real win streak to beat, so
+        the first real streak is not a 'new record' banner (#29)."""
+        def _frame(outcomes, forfeits):
+            n = len(outcomes)
+            return pd.DataFrame({
+                "Outcome": outcomes,
+                "Date_dt": pd.to_datetime([f"2024-01-{i + 1:02d}" for i in range(n)]),
+                "Index": list(range(n)),
+                "Forfeit": forfeits,
+                "PlayerRatingNum": [pd.NA] * n,
+                "OpponentRatingNum": [pd.NA] * n,
+            })
+        old = _frame(["Win", "Win"], [True, True])        # only no-shows
+        new = pd.concat(
+            [old, _frame(["Win", "Win", "Win"], [False, False, False])],
+            ignore_index=True,
+        )
+        kinds = {d["kind"] for d in milestone_deltas(old, new)}
+
+        assert "win_streak" not in kinds
+
+
+# ---------------------------------------------------------------------------
+# KPI correctness (issue #90 items 4, 6, 7)
+#
+# Three non-forfeit KPI bugs from the same deep review: the favourite ECO
+# family picked the family of the most-common single code (not the most-common
+# family), current_rating resolved same-day ties on an unstable single-key
+# sort, and unique_opponents counted the "" placeholder as an opponent.
+# ---------------------------------------------------------------------------
+
+def _kpi_frame(**overrides) -> pd.DataFrame:
+    """A minimal frame with every column kpi_stats reads; pass column lists to
+    override. Length is taken from the first override."""
+    n = len(next(iter(overrides.values())))
+    base = {
+        "Outcome": ["Win"] * n,
+        "Opening": [""] * n,
+        "ECO": [""] * n,
+        "Opponent": ["o"] * n,
+        "PlayerRatingNum": [pd.NA] * n,
+        "OpponentRatingNum": [pd.NA] * n,
+        "Date_dt": [pd.NaT] * n,
+        "Index": list(range(n)),
+    }
+    base.update(overrides)
+    return pd.DataFrame(base)
+
+
+class TestKpiCorrectness:
+    def test_favorite_eco_family_is_most_common_family_not_code(self):
+        """Family B has 6 games spread across B20/B22; C50 is the most common
+        single code (4). The KPI names the family with the most games — B."""
+        frame = _kpi_frame(ECO=["B20"] * 3 + ["B22"] * 3 + ["C50"] * 4)
+
+        assert kpi_stats(frame)["favorite_eco_family"] == "B"
+
+    def test_current_rating_breaks_same_day_ties_by_index(self):
+        """Two games on the same day: the later round (higher Index) is the
+        current rating, regardless of row order — a stable Index tiebreak."""
+        frame = _kpi_frame(
+            PlayerRatingNum=[1520, 1500],
+            Date_dt=pd.to_datetime(["2024-03-01", "2024-03-01"]),
+            Index=[1, 0],   # rows out of Index order: Round 1 (1520) is latest
+        )
+
+        assert kpi_stats(frame)["current_rating"] == 1520
+
+    def test_unique_opponents_ignores_empty_opponent(self):
+        """A name-mismatch game keeps Opponent == "" — it is not a real
+        opponent and must not inflate the unique-opponents count."""
+        frame = _kpi_frame(Opponent=["A", "B", ""])
+
+        assert kpi_stats(frame)["unique_opponents"] == 2
+
 
 # ---------------------------------------------------------------------------
 # "My Analysis" availability (issue #60 [F6])

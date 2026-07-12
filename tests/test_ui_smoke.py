@@ -1190,7 +1190,11 @@ class TestEventsUnplayed:
 # ---------------------------------------------------------------------------
 
 def _pgn_with_weakness_pattern() -> str:
-    """An archive with a clear pattern: 4 of 4 losses tagged #time-trouble."""
+    """An archive with a clear pattern: 4 of 4 losses tagged #time-trouble.
+
+    Games run several moves so they read as real games — a 1-move game is a
+    forfeit under the enrichment rule (issue #29) and would be excluded from
+    the loss/weakness stats entirely."""
     games = []
     for i in range(1, 7):
         is_loss = i <= 4
@@ -1204,7 +1208,7 @@ def _pgn_with_weakness_pattern() -> str:
 [Result "{result}"]
 [ChapterURL "https://lichess.org/study/wstudy/wch{i:04d}"]
 
-{comment}1. e4 e5 {result}""")
+{comment}1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 {result}""")
     return "\n\n".join(games)
 
 
@@ -2103,8 +2107,10 @@ class TestRatingLensAcrossStats:
         official = update_kpis(*_filter_args(lens="official"))
         live = update_kpis(*_filter_args(lens="live"))
 
-        assert official[6] == "1344"     # performance vs typed opponent ratings
-        assert live[6] == "1330"         # vs what opponents were really rated
+        # Forfeit wins no longer score against opponent ratings (issue #90.1),
+        # so both lenses sit a few points below the pre-fix figures.
+        assert official[6] == "1338"     # performance vs typed opponent ratings
+        assert live[6] == "1324"         # vs what opponents were really rated
 
     def test_the_pre_supplement_era_shows_no_official_rating(
         self, ui_app, real_career_ui
