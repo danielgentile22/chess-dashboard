@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -39,7 +40,7 @@ from typing import Any
 import pandas as pd
 
 from coach_match_core import CoachMatchResult, match_coach_study
-from lichess_client import LichessError, fetch_study_pgn
+from lichess_client import LichessError, LichessRateLimitedError, fetch_study_pgn
 from pgn_stats_core import load_games_from_text
 from uscf_client import (
     UscfError,
@@ -70,6 +71,10 @@ from uscf_core import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Serializes UscfCache writes to the same file across live instances so a
+# read-union-write of the append-only user state stays atomic (issue #87 [8]).
+_CACHE_WRITE_LOCK = threading.Lock()
 
 __all__ = [
     "CoachSyncResult",
@@ -123,15 +128,7 @@ def sync_studies(
     SyncError : every Study failed to fetch (the per-Study reasons are in
                 the exception message).
     """
-    pgn_texts: list[str] = []
-    failures: list[tuple[str, str]] = []
-
-    for study_id in study_ids:
-        try:
-            pgn_texts.append(fetch_study_pgn(study_id, token=token))
-        except LichessError as exc:
-            logger.warning("Could not fetch Study %r: %s", study_id, exc)
-            failures.append((study_id, str(exc)))
+    pgn_texts, failures = _fetch_all_pgns(study_ids, token, "Study")
 
     if not pgn_texts:
         details = "; ".join(f"{sid}: {reason}" for sid, reason in failures)
@@ -149,10 +146,36 @@ def sync_studies(
             ", ".join(sid for sid, _ in failures), len(df),
         )
 
-    if cache_path:
+    # Only refresh the boot fallback when this Sync actually produced games —
+    # a reachable-but-gameless Sync must not clobber the last good cache, or an
+    # offline boot afterwards would fail with no games to load.
+    if cache_path and not df.empty:
         _write_cache(cache_path, merged_pgn)
 
     return SyncResult(df=df, player=player, failures=failures)
+
+
+def _fetch_all_pgns(
+    study_ids: list[str], token: str | None, what: str
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Fetch each Study's PGN, degrading per Study (one failure never loses the
+    rest).  A 429 aborts the loop: the remaining Studies are marked rate-limited
+    rather than fired into the same window (Lichess may block the token)."""
+    pgn_texts: list[str] = []
+    failures: list[tuple[str, str]] = []
+    for i, study_id in enumerate(study_ids):
+        try:
+            pgn_texts.append(fetch_study_pgn(study_id, token=token))
+        except LichessRateLimitedError as exc:
+            logger.warning("Rate-limited on %s %r — aborting remaining fetches: %s",
+                           what, study_id, exc)
+            failures.append((study_id, str(exc)))
+            failures.extend((sid, "skipped: rate-limited") for sid in study_ids[i + 1:])
+            break
+        except LichessError as exc:
+            logger.warning("Could not fetch %s %r: %s", what, study_id, exc)
+            failures.append((study_id, str(exc)))
+    return pgn_texts, failures
 
 
 # ---------------------------------------------------------------------------
@@ -311,23 +334,61 @@ class UscfCache:
         try:
             with open(self._path, encoding="utf-8") as f:
                 data = json.load(f)
-            return data if isinstance(data, dict) else {}
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Could not read USCF cache %r (starting empty): %s",
                            self._path, exc)
             return {}
+        if not isinstance(data, dict):
+            return {}
+        # A right-top-level / wrong-nested-type file (what a truncated or
+        # hand-edited JSON produces) must still degrade to "no cache", never
+        # raise AttributeError from an accessor: drop any misshaped section.
+        for section in ("current", "immutable", "aged"):
+            if not isinstance(data.get(section), dict):
+                data.pop(section, None)
+        for section in ("dismissals", "seen_achievements"):
+            if section in data and not isinstance(data[section], list):
+                data.pop(section, None)
+        return data
 
     def _write(self) -> None:
         if not self._path:
             return
-        try:
-            tmp_path = f"{self._path}.tmp"
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(self._data, f)
-            os.replace(tmp_path, self._path)
-        except OSError as exc:
-            logger.warning("Could not write USCF cache %r (continuing without): %s",
-                           self._path, exc)
+        with _CACHE_WRITE_LOCK:
+            # Union the append-only user state (dismissals, seen achievements)
+            # with whatever is on disk: another live instance of this file can
+            # write mid-Sync, and a stale instance must not clobber it.
+            # (ponytail: the deployed single worker serializes requests — ADR
+            # 0006 — so this only bites on the threaded dev server; the union
+            # keeps user judgement correct there.)
+            self._merge_user_state()
+            try:
+                tmp_path = f"{self._path}.tmp"
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(self._data, f)
+                os.replace(tmp_path, self._path)
+            except OSError as exc:
+                logger.warning("Could not write USCF cache %r (continuing "
+                               "without): %s", self._path, exc)
+
+    def _merge_user_state(self) -> None:
+        """Fold on-disk dismissals / seen achievements into this instance's copy
+        before writing, so a concurrent write is never lost.  Both sections are
+        append-only sets, so a union is always correct regardless of order."""
+        on_disk = self._read()
+        disk_dismissals = on_disk.get("dismissals", [])
+        if disk_dismissals or "dismissals" in self._data:
+            merged = list(self._data.get("dismissals", []))
+            merged.extend(d for d in disk_dismissals if d not in merged)
+            self._data["dismissals"] = merged
+        disk_seen = on_disk.get("seen_achievements")
+        mem_seen = self._data.get("seen_achievements")
+        # None means "never recorded" — keep it absent; only merge once either
+        # side has verifiably recorded a set (issue #36's None/[] distinction).
+        if disk_seen is not None or mem_seen is not None:
+            merged_seen = list(mem_seen or [])
+            merged_seen.extend(a for a in (disk_seen or []) if a not in merged_seen)
+            self._data["seen_achievements"] = merged_seen
 
 
 @dataclass
@@ -573,14 +634,7 @@ def sync_coach(
     if not coach_study_ids:
         return CoachSyncResult()
 
-    pgn_texts: list[str] = []
-    failures: list[tuple[str, str]] = []
-    for study_id in coach_study_ids:
-        try:
-            pgn_texts.append(fetch_study_pgn(study_id, token=token))
-        except LichessError as exc:
-            logger.warning("Could not fetch coach Study %r: %s", study_id, exc)
-            failures.append((study_id, str(exc)))
+    pgn_texts, failures = _fetch_all_pgns(coach_study_ids, token, "coach Study")
 
     if pgn_texts:
         merged = "\n\n".join(pgn_texts)

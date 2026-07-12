@@ -53,7 +53,6 @@ from engine_analysis_core import (
 from sync import (
     CoachSyncResult,
     SyncError,
-    SyncResult,
     UscfCache,
     UscfSyncResult,
     detect_new_games,
@@ -71,6 +70,7 @@ from uscf_core import (
     UscfAchievement,
     UscfEvent,
     UscfProfile,
+    attach_rating_bases,
     attach_round_numbers,
     enrich_games,
     match_games,
@@ -221,12 +221,14 @@ def initialize(
     )
     if demo_mode:
         logger.info("Demo mode: booting from PGN cache %s", cache_path)
-        _boot_from_cache(
-            store, SyncError(f"Demo mode requires a readable PGN cache at {cache_path!r}"),
+        df, player, cached_at = _load_cache_base(
+            store,
+            SyncError(f"Demo mode requires a readable PGN cache at {cache_path!r}"),
             reason="Demo mode", fallback=False,
         )
-        _sync_uscf_into_store(store)
-        _run_analysis_into_store(store)
+        _commit(store, _build_snapshot(
+            store, df, player, [], source="cache", synced_at=None, cached_at=cached_at,
+        ))
     else:
         logger.info("Syncing %d designated Studies from Lichess", len(study_ids))
         _sync_store(store)
@@ -262,75 +264,122 @@ def _sync_store(store: Store) -> None:
             token=store.token, cache_path=store.cache_path,
         )
     except SyncError as exc:
-        _boot_from_cache(store, exc)
-        _sync_uscf_into_store(store)
-        _run_analysis_into_store(store)
-        _run_coach_into_store(store)
+        df, player, cached_at = _load_cache_base(store, exc)
+        _commit(store, _build_snapshot(
+            store, df, player, [], source="cache", synced_at=None, cached_at=cached_at,
+        ))
         return
 
     if result.df.empty:
         raise RuntimeError(f"No games found in designated Studies: {store.study_ids}")
-    _swap(store, result)
-    _sync_uscf_into_store(store)
-    _run_analysis_into_store(store)
-    _run_coach_into_store(store)
+    _commit(store, _build_snapshot(
+        store, result.df, result.player, result.failures,
+        source="lichess", synced_at=datetime.now(timezone.utc), cached_at=None,
+    ))
 
 
-def _sync_uscf_into_store(store: Store) -> None:
+# ---------------------------------------------------------------------------
+# Building the next snapshot off-store, then swapping it in exactly once.
+#
+# ADR 0006 promises readers "either the previous complete dataset or the new
+# one, never a mix", and a failed Sync must not disturb current data.  So the
+# whole next state — enriched df, USCF, matches, coach, achievements — is built
+# in local values (``_build_snapshot``) that never touch the live Store, and
+# only ``_commit`` installs it.  Any exception while building leaves the Store
+# untouched; no half-enriched df is ever observable mid-Sync.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _Snapshot:
+    """A fully-built next state, assembled off-store.  ``_commit`` installs it."""
+
+    df: pd.DataFrame
+    player: str
+    sync_failures: list[tuple[str, str]]
+    synced_at: datetime | None
+    source: str
+    cached_at: datetime | None
+    uscf: UscfSyncResult
+    match_result: MatchResult
+    dismissed: set[str]
+    seen_achievement_ids: set[str] | None
+    new_achievements: list[UscfAchievement]
+    coach: CoachSyncResult
+
+
+def _build_snapshot(
+    store: Store,
+    base_df: pd.DataFrame,
+    player: str,
+    failures: list[tuple[str, str]],
+    *,
+    source: str,
+    synced_at: datetime | None,
+    cached_at: datetime | None,
+) -> _Snapshot:
+    """Assemble the complete next state from *base_df* without touching *store*.
+
+    Runs the USCF, engine-analysis, AI-summary, and coach enrichment on local
+    values, so the enrichment columns always exist on the returned df (with USCF
+    off or down, every Game is simply unmatched).  Reads *store* only for
+    configuration and the previous run's carried-forward state (dismissals,
+    seen achievements).  Enrichment failing here raises before any ``_commit``,
+    so the live Store keeps its previous complete snapshot (ADR 0003/0004).
     """
-    Run the USCF half of a Sync and enrich the Games with whatever matching
-    produces (a no-op USCF result when no member ID is configured).
-
-    The enrichment columns always exist afterwards — with USCF off or down,
-    every Game is simply unmatched — so pages never check for their presence.
-    """
+    # USCF enrichment (ADR 0003: optional, never required)
     if not store.uscf_member_id:
-        store.uscf = UscfSyncResult()
+        uscf = UscfSyncResult()
     else:
-        store.uscf = sync_uscf(store.uscf_member_id, cache_path=store.uscf_cache_path)
+        uscf = sync_uscf(store.uscf_member_id, cache_path=store.uscf_cache_path)
 
-    # Match & enrich (issue #28): USCF Game Records attach to Games
-    store.match_result = match_games(store.df, store.uscf.game_records)
-    store.df = enrich_games(store.df, store.match_result)
-    # Real round numbers from the crosstables (issue #34)
-    store.df = attach_round_numbers(
-        store.df, store.uscf.standings, store.uscf_member_id or ""
+    match_result = match_games(base_df, uscf.game_records)  # issue #28
+    df = enrich_games(base_df, match_result)
+    df = attach_round_numbers(df, uscf.standings, store.uscf_member_id or "")  # #34
+    # Sync-invariant rating bases as columns, so the lens is O(1) per callback (#87)
+    df = attach_rating_bases(
+        df, uscf.official_series, uscf.live_series, match_result, uscf.standings,
     )
+
+    # Engine analysis + AI summaries (ADR 0004: enrichment, never required)
+    df = enrich_games_with_analysis(df)  # issue #57 [F1]
+    df["Summary"] = _summaries_for(store, df)  # issue #59 [F5]
 
     # Dismissed Reconciliation entries survive restarts via the cache (#30)
-    store.dismissed = set(UscfCache(store.uscf_cache_path).dismissals()) | store.dismissed
-
+    dismissed = set(UscfCache(store.uscf_cache_path).dismissals()) | store.dismissed
     # Which achievements has this Sync seen for the first time? (issue #36)
-    _detect_new_achievements(store)
-
-
-def _run_analysis_into_store(store: Store) -> None:
-    """
-    Read the engine analysis Lichess embedded in each Game's Study export and
-    attach it as enrichment (issue #57 [F1]), following the USCF pattern.
-
-    The Analysis / Analyzed / Summary columns always exist afterwards — a Game
-    with no requested computer analysis simply degrades to ``analyzed=False``
-    with an empty Summary — so pages never check for their presence (ADR 0004).
-    """
-    enriched = enrich_games_with_analysis(store.df)
-    enriched["Summary"] = _summaries_for(store, enriched)
-    store.df = enriched
-
-
-def _run_coach_into_store(store: Store) -> None:
-    """
-    Fetch the user's coach Studies and match their Chapters to the Games
-    (issue #74 [G4]), following the USCF disposable-cache pattern.
-
-    Coach content is enrichment, never a dependency (ADR 0003): a coach Study
-    being unreachable degrades to cached/empty and never disturbs the Games.
-    The user's main Study stays the source of truth (ADR 0001).
-    """
-    store.coach = sync_coach(
-        store.coach_study_ids, store.df,
-        token=store.token, cache_path=store.coach_cache_path,
+    new_achievements, seen_ids = _detect_new_achievements(store, uscf)
+    # Coach review (issue #74 [G4]) — enrichment, never a dependency (ADR 0003)
+    coach = sync_coach(
+        store.coach_study_ids, df, token=store.token, cache_path=store.coach_cache_path,
     )
+
+    return _Snapshot(
+        df=df, player=player, sync_failures=failures, synced_at=synced_at,
+        source=source, cached_at=cached_at, uscf=uscf, match_result=match_result,
+        dismissed=dismissed, seen_achievement_ids=seen_ids,
+        new_achievements=new_achievements, coach=coach,
+    )
+
+
+def _commit(store: Store, snap: _Snapshot) -> None:
+    """Install a fully-built snapshot into the live Store — the single swap
+    ADR 0006's atomicity contract rests on.  Every field moves together; a
+    reader sees the previous complete state until this returns."""
+    store.df = snap.df
+    store.player = snap.player
+    store.sync_failures = snap.sync_failures
+    store.synced_at = snap.synced_at
+    store.source = snap.source
+    store.cached_at = snap.cached_at
+    store.uscf = snap.uscf
+    store.match_result = snap.match_result
+    # Union, not overwrite: a dismissal made while the snapshot was building
+    # (threaded dev server) landed in store.dismissed after snap.dismissed was
+    # computed — dismissals are append-only, so it must survive the swap (#87).
+    store.dismissed = snap.dismissed | store.dismissed
+    store.seen_achievement_ids = snap.seen_achievement_ids
+    store.new_achievements = snap.new_achievements
+    store.coach = snap.coach
 
 
 def _summaries_for(store: Store, enriched: pd.DataFrame) -> list[str]:
@@ -350,18 +399,20 @@ def _summaries_for(store: Store, enriched: pd.DataFrame) -> list[str]:
     ]
 
 
-def _detect_new_achievements(store: Store) -> None:
+def _detect_new_achievements(
+    store: Store, uscf: UscfSyncResult
+) -> tuple[list[UscfAchievement], set[str] | None]:
     """
     Compare this Sync's achievements against everything previous Syncs have
     seen, so genuinely fresh norms/awards get celebrated — exactly once.
 
-    The very first recording (no seen-state anywhere) registers everything
-    silently.  A USCF outage records nothing — cached/absent achievements are
-    never "new".
+    Returns ``(new_achievements, seen_ids)`` for the snapshot rather than
+    mutating the store.  The very first recording (no seen-state anywhere)
+    registers everything silently.  A USCF outage records nothing — cached/absent
+    achievements are never "new", and the carried-forward seen-state is unchanged.
     """
-    if not store.uscf.available or store.uscf.from_cache:
-        store.new_achievements = []
-        return
+    if not uscf.available or uscf.from_cache:
+        return [], store.seen_achievement_ids
 
     cache = UscfCache(store.uscf_cache_path)
     seen: set[str] | None
@@ -371,30 +422,30 @@ def _detect_new_achievements(store: Store) -> None:
         cached = cache.seen_achievements()
         seen = set(cached) if cached is not None else None
 
-    current = store.uscf.achievements
+    current = uscf.achievements
     if seen is None:
-        store.new_achievements = []                     # first recording — silent
+        new_achievements: list[UscfAchievement] = []    # first recording — silent
     else:
-        store.new_achievements = [
-            a for a in current if a.achievement_id not in seen
-        ]
+        new_achievements = [a for a in current if a.achievement_id not in seen]
 
-    store.seen_achievement_ids = (seen or set()) | {a.achievement_id for a in current}
-    cache.record_achievements(sorted(store.seen_achievement_ids))
+    seen_ids = (seen or set()) | {a.achievement_id for a in current}
+    cache.record_achievements(sorted(seen_ids))
+    return new_achievements, seen_ids
 
 
-def _boot_from_cache(
+def _load_cache_base(
     store: Store, sync_error: SyncError, *, reason: str = "Lichess unreachable",
     fallback: bool = True,
-) -> None:
-    """Load the PGN cache of the last successful Sync, if there is one.
+) -> tuple[pd.DataFrame, str, datetime]:
+    """Read the PGN cache of the last successful Sync — the base a snapshot is
+    then enriched from — without touching the store.
 
-    ``fallback`` distinguishes an unplanned degrade (Lichess unreachable — worth
-    a WARNING) from demo mode, where booting from the cache is the whole point
-    and the caller has already logged its INFO intent.
+    Raises *sync_error* when there is no usable cache, so the caller degrades to
+    the original Sync failure.  ``fallback`` distinguishes an unplanned degrade
+    (Lichess unreachable — worth a WARNING) from demo mode, where booting from
+    the cache is the whole point and the caller has already logged its intent.
     """
     if not store.cache_path or not os.path.exists(store.cache_path):
-        # No cache → the original Sync failure is the clearest error to show
         raise sync_error
 
     if fallback:
@@ -405,10 +456,8 @@ def _boot_from_cache(
     if df.empty:
         raise sync_error
 
-    store.df, store.player, store.sync_failures = df, player, []
-    store.synced_at = None  # there has been no successful Sync this run
-    store.source, store.cached_at = "cache", cached_at
     logger.info("Loaded %d games from cache (last Synced %s)", len(df), cached_at)
+    return df, player, cached_at
 
 
 def refresh() -> RefreshOutcome:
@@ -449,10 +498,14 @@ def refresh() -> RefreshOutcome:
         new_df = detect_new_games(result.df, previous_urls)
         new_games = new_df[["Opponent", "Outcome", "Result", "Date"]].to_dict("records")
 
-        _swap(store, result)
-        _sync_uscf_into_store(store)  # USCF failing never fails the Sync (ADR 0003)
-        _run_analysis_into_store(store)  # nor does engine analysis (ADR 0004)
-        _run_coach_into_store(store)  # nor does coach content (ADR 0003)
+        # Build the whole next state off-store, then swap it in exactly once
+        # (ADR 0006).  Enrichment (USCF/analysis/coach) failing raises here,
+        # before _commit, so current data is untouched — never half-updated.
+        snapshot = _build_snapshot(
+            store, result.df, result.player, result.failures,
+            source="lichess", synced_at=datetime.now(timezone.utc), cached_at=None,
+        )
+        _commit(store, snapshot)
         logger.info(
             "Sync complete: %d games (%d new)", len(result.df), len(new_games)
         )
@@ -464,16 +517,6 @@ def refresh() -> RefreshOutcome:
         return RefreshOutcome(status="error", error=str(exc))
     finally:
         store.sync_lock.release()
-
-
-def _swap(store: Store, result: SyncResult) -> None:
-    """Atomically replace the store's contents with a (live) Sync result."""
-    store.df = result.df
-    store.player = result.player
-    store.sync_failures = result.failures
-    store.synced_at = datetime.now(timezone.utc)
-    store.source = "lichess"
-    store.cached_at = None
 
 
 # ---------------------------------------------------------------------------
@@ -675,11 +718,10 @@ def get_reconciliation() -> list[ReconciliationEntry]:
     store = _current()
     if not uscf_enabled() or not store.uscf.available:
         return []
-    # Mid-Sync, the store briefly holds the freshly-swapped Lichess df before
-    # USCF enrichment rebinds it.  No enrichment columns yet → nothing to
-    # reconcile yet; the next callback (post-Sync) sees the full picture.
-    if "UscfColorConflict" not in store.df.columns:
-        return []
+    # No mid-Sync column guard needed: the snapshot is built off-store and
+    # swapped once (_commit), so whenever uscf.available is true the store's df
+    # is already fully enriched — the half-swapped window that this used to
+    # guard no longer exists (ADR 0006, issue #87 [1]).
     return reconcile(
         store.df, store.match_result, store.uscf.official_series,
         dismissed=frozenset(store.dismissed),

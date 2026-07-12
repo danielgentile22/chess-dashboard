@@ -21,6 +21,7 @@ import requests
 
 __all__ = [
     "LichessError",
+    "LichessRateLimitedError",
     "LichessUnreachableError",
     "StudyNotFoundError",
     "fetch_study_pgn",
@@ -45,6 +46,14 @@ class StudyNotFoundError(LichessError):
 
 class LichessUnreachableError(LichessError):
     """Lichess could not be reached (network failure or timeout)."""
+
+
+class LichessRateLimitedError(LichessError):
+    """Lichess returned HTTP 429 — the caller must stop hammering the API.
+
+    Lichess's guidelines ask clients to wait a full minute after a 429 (and may
+    throttle or block tokens that don't), so callers abort the rest of the Sync
+    rather than fire the next request into the same rate-limit window."""
 
 
 def fetch_study_pgn(
@@ -76,7 +85,10 @@ def fetch_study_pgn(
             headers=_headers(token),
             timeout=timeout,
         )
-    except (requests.Timeout, requests.ConnectionError) as exc:
+    except requests.RequestException as exc:
+        # RequestException covers Timeout/ConnectionError plus mid-download drops
+        # (ChunkedEncodingError, TooManyRedirects); all must stay typed so the
+        # per-Study degrade in sync_studies survives a flaky download.
         raise LichessUnreachableError(
             f"Could not reach Lichess to fetch Study {study_id!r}: {exc}"
         ) from exc
@@ -85,6 +97,10 @@ def fetch_study_pgn(
         raise StudyNotFoundError(
             f"Study {study_id!r} was not found on Lichess. "
             "Check the study ID (and the API token if the Study is private)."
+        )
+    if response.status_code == 429:
+        raise LichessRateLimitedError(
+            f"Lichess rate-limited the request for Study {study_id!r} (HTTP 429)."
         )
     if response.status_code != 200:
         raise LichessError(

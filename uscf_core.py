@@ -68,6 +68,7 @@ __all__ = [
     "UscfRating",
     "achievement_milestones",
     "apply_rating_lens",
+    "attach_rating_bases",
     "attach_round_numbers",
     "build_achievements",
     "build_game_records",
@@ -1035,14 +1036,23 @@ def _name_pass(
     chapter_candidates: dict[str, list[int]] = {}
     record_claimants: dict[int, list[str]] = {}
 
+    # Normalize each record's opponent name once (loop-invariant across chapters)
+    # instead of re-running the regex per chapter × record pair (issue #87 [11]).
+    otb_records = [
+        (_normalize_name(record.opponent_name), i, record)
+        for i, record in enumerate(records)
+        if record.rating_system in _OTB_RATING_SYSTEMS
+    ]
+
     for _, game in df.iterrows():
         url = game["ChapterURL"]
         if not url or url in matched_urls or _opponent_id(game):
             continue
-        for i, record in enumerate(records):
-            if i in used or record.rating_system not in _OTB_RATING_SYSTEMS:
+        game_name = _normalize_name(str(game["Opponent"]))  # once per chapter
+        for record_name, i, record in otb_records:
+            if i in used:
                 continue
-            if (_names_match(str(game["Opponent"]), record)
+            if (_names_match_normalized(game_name, record_name)
                     and record.player_outcome == game["Outcome"]
                     and _within_event_window(game["Date_dt"], record,
                                              grace=_WINDOW_GRACE)):
@@ -1066,8 +1076,16 @@ def _names_match(chapter_opponent: str, record: UscfGameRecord) -> bool:
     insensitive; first-name spelling variants tolerated only when the last
     name matches exactly ('Carter Clark' ↔ 'Carver Clark').
     """
-    chapter_name = _normalize_name(chapter_opponent)
-    record_name = _normalize_name(record.opponent_name)
+    return _names_match_normalized(
+        _normalize_name(chapter_opponent), _normalize_name(record.opponent_name)
+    )
+
+
+def _names_match_normalized(chapter_name: str, record_name: str) -> bool:
+    """Whether two already-normalized opponent names are the same person.
+
+    Split out so callers that compare one name against many records can
+    normalize each side once instead of per pair (issue #87 [11])."""
     if not chapter_name or not record_name:
         return False
     if chapter_name == record_name:
@@ -1238,6 +1256,57 @@ OFFICIAL_LENS = "official"
 LIVE_LENS = "live"
 
 
+def attach_rating_bases(
+    df: pd.DataFrame,
+    official_series: list[OfficialRatingPoint],
+    live_series: list[LiveRatingPoint],
+    match_result: MatchResult,
+    standings: dict[tuple[str, str], list[StandingEntry]] | None = None,
+) -> pd.DataFrame:
+    """
+    Precompute each Game's Sync-invariant rating bases as columns, once per Sync.
+
+    A Game's Official/Live/opponent-Live basis depends only on its matched
+    record, its date, and the USCF series — none of which change between Syncs.
+    Computing them here lets ``apply_rating_lens`` be a vectorized column pick on
+    every filter callback instead of an ``iterrows`` loop (issue #87 [6]).
+
+    Returns *df* unchanged when there is no USCF data at all (both series empty),
+    matching ``apply_rating_lens``'s own no-USCF passthrough.
+    """
+    if df.empty or (not official_series and not live_series):
+        return df
+
+    out = df.copy()
+    live_by_section = {(p.event_id, p.section_name): p.pre for p in live_series}
+    records_by_url = {m.chapter_url: m.record for m in match_result.matches}
+    # The opponents' crosstable pre-ratings (issue #35), one flat lookup:
+    # (event_id, section_name, member_id) → pre-rating
+    opponent_pre = {
+        (event_id, section_name, entry.member_id): entry.pre_rating
+        for (event_id, section_name), entries in (standings or {}).items()
+        for entry in entries
+    }
+
+    official_values: list[float | int | None] = []
+    live_values: list[float | int | None] = []
+    opponent_values: list[float | int | None] = []
+    for _, game in out.iterrows():
+        record = records_by_url.get(game["ChapterURL"])
+        official_value = _official_basis(record, game, official_series)
+        official_values.append(official_value)
+        live_values.append(_live_basis(record, live_by_section,
+                                       fallback=official_value))
+        opponent_values.append(_opponent_live_basis(record, game, opponent_pre))
+
+    out["OfficialBasisNum"] = pd.Series(official_values, index=out.index, dtype="object")
+    out["LiveBasisNum"] = pd.Series(live_values, index=out.index, dtype="object")
+    out["OpponentLiveBasisNum"] = pd.Series(
+        opponent_values, index=out.index, dtype="object"
+    )
+    return out
+
+
 def apply_rating_lens(
     df: pd.DataFrame,
     lens: str,
@@ -1273,37 +1342,28 @@ def apply_rating_lens(
     if df.empty or (not official_series and not live_series):
         return df
 
+    # The per-Game bases are Sync-invariant, so they are computed once per Sync
+    # (attach_rating_bases) and ride the store df as columns.  On that hot path
+    # this function is just a vectorized column pick; a df without the columns
+    # (a direct unit-test call) has them computed here, once.
+    if "OfficialBasisNum" not in df.columns:
+        df = attach_rating_bases(df, official_series, live_series,
+                                 match_result, standings)
+
     out = df.copy()
-    live_by_section = {(p.event_id, p.section_name): p.pre for p in live_series}
-    # Built once, not via record_for() per row — get_filtered runs this for
-    # every filter-driven callback, so per-row dict rebuilding multiplies fast.
-    records_by_url = {m.chapter_url: m.record for m in match_result.matches}
-    # The opponents' crosstable pre-ratings (issue #35), one flat lookup:
-    # (event_id, section_name, member_id) → pre-rating
-    opponent_pre = {
-        (event_id, section_name, entry.member_id): entry.pre_rating
-        for (event_id, section_name), entries in (standings or {}).items()
-        for entry in entries
-    } if lens == LIVE_LENS else {}
-
-    values = []
-    opponent_values: list[float | int | None] = []
-    for _, game in out.iterrows():
-        record = records_by_url.get(game["ChapterURL"])
-        official_value = _official_basis(record, game, official_series)
-        if lens == LIVE_LENS:
-            values.append(_live_basis(record, live_by_section,
-                                      fallback=official_value))
-            opponent_values.append(_opponent_live_basis(record, game, opponent_pre))
-        else:
-            values.append(official_value)
-
+    values = list(out["LiveBasisNum" if lens == LIVE_LENS else "OfficialBasisNum"])
     out["PlayerRatingNum"] = pd.to_numeric(
         pd.Series(values, index=out.index, dtype="object"), errors="coerce",
     )
     out["PlayerRating"] = [_rating_display(v) for v in values]
 
-    if lens == LIVE_LENS and opponent_pre:
+    # Opponent ratings only move under the Live lens, and only when crosstables
+    # were cached (issue #35); otherwise the typed values from enrich stand.
+    has_opponent_data = lens == LIVE_LENS and any(
+        entries for entries in (standings or {}).values()
+    )
+    if has_opponent_data:
+        opponent_values = list(out["OpponentLiveBasisNum"])
         out["OpponentRatingNum"] = pd.to_numeric(
             pd.Series(opponent_values, index=out.index, dtype="object"),
             errors="coerce",
