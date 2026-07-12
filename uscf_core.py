@@ -1191,7 +1191,7 @@ def _optimal_assignments(
 
 def _max_cardinality_matchings(
     n_games: int, record_indices: list[int]
-) -> "list[dict[int, int]]":
+) -> list[dict[int, int]]:
     """All matchings pairing as many Games as possible (the smaller side fully
     used).  Brute-force — the caller caps group size (_MAX_BRUTE_FORCE_GROUP)."""
     if n_games <= len(record_indices):

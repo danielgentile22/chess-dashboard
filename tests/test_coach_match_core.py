@@ -194,7 +194,7 @@ _SHARED = ["e4", "c5", "Nf3", "d6", "d4", "cxd4", "Nxd4", "Nf6", "Nc3", "a6",
            "Be2", "e5", "Nb3", "Be7", "O-O", "O-O", "Be3", "Be6", "Nd5", "Nbd7"]
 
 
-def _games(*rows) -> "pd.DataFrame":
+def _games(*rows):
     import pandas as pd
     return pd.DataFrame(
         [{"ChapterURL": url, "Moves": list(moves)} for url, moves in rows]
