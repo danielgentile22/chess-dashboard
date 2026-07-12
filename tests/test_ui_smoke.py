@@ -291,6 +291,9 @@ class TestOverviewCallbacks:
         badges, stats = update_streak(*_filter_args())
         assert len(badges) == 7  # one badge per fixture game
         assert stats  # streak stat cards present
+        # Colourblind channel (issue #88): each badge carries its W/D/L letter,
+        # not just a coloured square.
+        assert all(b.children in ("W", "D", "L") for b in badges)
 
     def test_wdl_and_termination_charts_build(self, ui_app, ui_data):
         from pages.overview import update_terminations, update_wdl
@@ -613,6 +616,16 @@ class TestTrendsCallbacks:
         assert update_length_hist(*_filter_args()).data
         assert update_length_stats(*_filter_args()) is not None
 
+    def test_length_hist_distinguishes_outcomes_without_colour(self, ui_app, ui_data):
+        """Colourblind channel (issue #88): the overlaid win/loss distributions
+        get distinct hatch patterns and the hover names the outcome."""
+        from pages.trends import update_length_hist
+        fig = update_length_hist(*_filter_args())
+        by_name = {t.name: t for t in fig.data}
+        assert by_name["Win"].marker.pattern.shape != by_name["Loss"].marker.pattern.shape
+        for name, word in (("Win", "wins"), ("Loss", "losses")):
+            assert word in by_name[name].hovertemplate
+
     def test_empty_filter_result_does_not_error(self, ui_app, ui_data):
         from pages.trends import (
             update_dow,
@@ -645,7 +658,7 @@ class TestTrendsCallbacks:
             cell
             for fig in figures
             for trace in fig.data
-            for row in (trace.text or [])
+            for row in (trace.hovertext or [])
             for cell in row
         )
 
@@ -684,6 +697,19 @@ class TestTrendsCallbacks:
         impossible = _filter_args(start="2030-01-01", end="2030-12-31")
         result = update_activity_calendar(*impossible)
         assert "empty-state" in str(getattr(result, "className", ""))
+
+    def test_activity_calendar_carries_a_non_color_net_sign(self, ui_app, ui_data):
+        """Colourblind channel (issue #88): played days show a +/− net-sign glyph
+        so win vs loss doesn't ride on red-vs-green alone."""
+        from pages.trends import update_activity_calendar
+        blocks = update_activity_calendar(*_filter_args())
+        figures = [c.figure for block in blocks for c in _walk_components(block)
+                   if getattr(c, "figure", None) is not None]
+        glyphs = {cell for fig in figures for trace in fig.data
+                  for row in (trace.text or []) for cell in row if cell}
+        assert glyphs == {"+", "−"}  # both a winning and a losing day in the fixture
+        assert all(t.texttemplate == "%{text}"
+                   for fig in figures for t in fig.data if t.text is not None)
 
 
 # ---------------------------------------------------------------------------
@@ -828,6 +854,25 @@ class TestRepertoireTreePage:
         rendered = str(update_repertoire("White", *_filter_args()))
         assert "leaking points" in rendered
         assert "rep-flagged" in rendered
+
+    def test_repertoire_score_marks_baseline_side_without_colour(self, ui_app, ui_data):
+        """Colourblind channel (issue #88): the score % carries a ▴/▾ arrow for
+        above/below baseline, so it isn't green-vs-red text alone."""
+        from pages.openings import update_repertoire
+        rendered = str(update_repertoire("White", *_filter_args()))
+        assert "▾" in rendered  # the underperforming 1.d4 line sits below baseline
+        assert "▴" in rendered  # and at least one line sits above it
+
+    def test_repertoire_score_exactly_at_baseline_reads_neutral(self, ui_app, ui_data):
+        """A score that ties the baseline is neither above nor below — it must
+        get the neutral marker, not a false '▴ above' (issue #88 / review)."""
+        from pages.openings import _tree_node
+        node = dict(ply=1, san="d4", games=2, win=1, draw=0, loss=1, score_pct=50.0,
+                    underperforming=False, moves=[], ended_here=[], game_refs=[])
+        rendered = str(_tree_node(node, baseline=50.0))
+        assert "•" in rendered and "at your 50% baseline" in rendered
+        assert "rep-node-score draw" in rendered
+        assert "▴" not in rendered and "▾" not in rendered
 
     def test_thin_branches_are_not_flagged(self, ui_app, ui_data):
         """As Black every branch holds at most 2 games — below the 3-game

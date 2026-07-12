@@ -147,14 +147,25 @@ def _tree_node(node: dict, baseline: float):
             ]),
         ])
 
-    score_cls = "win" if node["score_pct"] >= baseline else "loss"
+    # ▴/•/▾ marks above/at/below your overall baseline — the non-color channel,
+    # since the number alone doesn't reveal which side of the (dynamic) baseline
+    # it is on and colour can't carry it for a red-green viewer (issue #88).
+    # A tie is genuinely neutral, so it gets its own marker, not a false "above".
+    score_pct = node["score_pct"]
+    if score_pct > baseline:
+        score_cls, score_arrow, rel = "win", "▴", "above"
+    elif score_pct < baseline:
+        score_cls, score_arrow, rel = "loss", "▾", "below"
+    else:
+        score_cls, score_arrow, rel = "draw", "•", "at"
     summary_row = html.Summary(className="rep-node-row", children=[
         label,
         _wdl_bar(node),
         html.Span(str(node["games"]), className="rep-node-games",
                   title=f"{node['win']}W {node['draw']}D {node['loss']}L"),
-        html.Span(f"{node['score_pct']:.0f}%",
-                  className=f"rep-node-score {score_cls}"),
+        html.Span(f"{score_arrow} {score_pct:.0f}%",
+                  className=f"rep-node-score {score_cls}",
+                  title=f"{rel} your {baseline:.0f}% baseline"),
         html.Span("⚠ leaking points", className="rep-node-flag")
         if node["underperforming"] else None,
     ])

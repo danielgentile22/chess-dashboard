@@ -164,10 +164,16 @@ code {
   gap: 4px;
 }
 .form-dot {
-  width: 9px;
-  height: 9px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cs-bg);   /* dark W/D/L glyph — reads on green, red, and gray */
 }
 .form-dot.win     { background: var(--cs-win); box-shadow: 0 0 5px var(--cs-win-glow); }
 .form-dot.draw    { background: var(--cs-draw); }
@@ -624,7 +630,13 @@ code {
 .sbadge {
   width: 18px; height: 18px;
   border-radius: 3px;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cs-bg);   /* dark W/D/L glyph — reads on green, red, and gray */
   cursor: default;
   transition: transform .1s;
   position: relative;
@@ -1985,6 +1997,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
   min-width: 44px;
 }
 .rep-node-score.win  { color: var(--cs-win); }
+.rep-node-score.draw { color: var(--cs-muted); }   /* exactly at baseline — neutral */
 .rep-node-score.loss { color: var(--cs-loss); }
 
 .rep-node-flag {
@@ -2697,7 +2710,7 @@ details[open] > summary.rep-node-row::before { transform: rotate(90deg); }
      the streak fire + form dots, which matter more at the chess club. */
   .app-header-titles { display: none; }
   .header-form { margin-left: 4px; gap: 8px; }
-  .form-dot { width: 8px; height: 8px; }
+  .form-dot { width: 13px; height: 13px; font-size: 7px; }
   .app-header-right { gap: 10px; }
   .header-btn { padding: 6px 10px; }
   .header-btn-text { display: none; }        /* icon-only buttons */

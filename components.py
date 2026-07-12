@@ -200,7 +200,9 @@ def form_indicator(form: dict) -> list:
 
     if form["last_5"]:
         children.append(html.Span(
-            [html.Span(className=f"form-dot {o.lower()}", title=o) for o in form["last_5"]],
+            # The outcome letter (W/D/L) inside each dot is the non-color
+            # channel — colour alone can't carry win vs loss (issue #88).
+            [html.Span(o[0], className=f"form-dot {o.lower()}", title=o) for o in form["last_5"]],
             className="form-dots",
             title="Last 5 games, oldest → newest",
         ))
