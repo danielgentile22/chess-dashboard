@@ -286,10 +286,10 @@ def _line_has_eval(node: chess.pgn.GameNode, *, max_plies: int = 8) -> bool:
 
 
 def _choose_sibling(
-    siblings: list[chess.pgn.GameNode],
+    siblings: list[chess.pgn.ChildNode],
     board_before: chess.Board,
     best_move: str | None,
-) -> chess.pgn.GameNode:
+) -> chess.pgn.ChildNode:
     """Pick the sibling variation that is the *engine's* line, not the player's.
 
     A hand-annotated Chapter (ADR 0002) can hang both the player's own sideline
@@ -378,9 +378,11 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
 
         cp = _node_cp(node)
         has_eval = cp is not None
-        if has_eval:
+        if cp is None:
+            cp_after = prev_cp  # missing eval carries forward → no swing
+        else:
+            cp_after = cp
             evaluated += 1
-        cp_after = cp if has_eval else prev_cp  # missing eval carries forward → no swing
         if ply == 1 and custom_start:
             prev_cp = cp_after  # no honest baseline for the first custom-position move
 
