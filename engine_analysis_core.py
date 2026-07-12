@@ -79,6 +79,12 @@ _START_CP = 15
 # saturates to ~100/0 — the exact value past a few hundred cp is irrelevant.
 _MATE_CP = 10_000
 
+# ponytail: the share of plies that must carry an actual [%eval] before a Game
+# counts as analysed. A stray manual eval or a server run that truncated partway
+# must not read as fully analysed with inflated accuracy — below this it degrades
+# to analyzed=False (awaiting analysis). Raise the bar if partials still leak.
+_MIN_EVAL_COVERAGE = 0.8
+
 # Win-probability-drop thresholds (percentage points) for the headline's
 # severity word — the same 0.1 / 0.2 / 0.3 boundaries Lichess uses, ×100.
 _BLUNDER_DROP = 30.0
@@ -111,6 +117,9 @@ class MoveEval:
     win_pct_before: float         # mover's perspective, 0–100
     win_pct_after: float
     win_pct_drop: float           # mover's win% lost on this move
+    # False when this move carried no [%eval] and its eval was carried forward
+    # (a zero swing that must not count as a real, ~100%-accuracy move).
+    has_eval: bool = True
     best_move: str | None = None  # the engine's recommended move, if judged
     refutation_line: list[str] = field(default_factory=list)
 
@@ -217,7 +226,10 @@ def player_accuracy(moves: Iterable[MoveEval], player_color: str) -> float | Non
     """
     if not player_color:
         return None
-    own = [_move_accuracy(m.win_pct_drop) for m in moves if m.side == player_color]
+    # Only the player's genuinely evaluated moves count — a carried-forward move
+    # (no [%eval]) is a fake zero-drop that would read as a perfect 100.
+    own = [_move_accuracy(m.win_pct_drop)
+           for m in moves if m.side == player_color and m.has_eval]
     if not own:
         return None
     return sum(own) / len(own)
@@ -234,7 +246,7 @@ _DIRECTIVE_RE = re.compile(r"\[%[^\]]*\]")
 # named in an engine judgment.  Requiring the "was best" tail keeps it from
 # grabbing SAN out of the surrounding prose.
 _BEST_MOVE_RE = re.compile(
-    r"\b([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\s+was\s+best",
+    r"\b([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?[+#]?)\s+was\s+best",
 )
 
 
@@ -260,15 +272,63 @@ def _best_move_from_judgment(judgment: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _line_has_eval(node: chess.pgn.GameNode, *, max_plies: int = 8) -> bool:
+    """True when this variation's mainline carries an ``[%eval]`` — the mark of
+    an engine-generated line (hand-written sidelines usually carry none)."""
+    cursor: chess.pgn.GameNode | None = node
+    seen = 0
+    while cursor is not None and seen < max_plies:
+        if _node_cp(cursor) is not None:
+            return True
+        cursor = cursor.variations[0] if cursor.variations else None
+        seen += 1
+    return False
+
+
+def _choose_sibling(
+    siblings: list[chess.pgn.ChildNode],
+    board_before: chess.Board,
+    best_move: str | None,
+) -> chess.pgn.ChildNode:
+    """Pick the sibling variation that is the *engine's* line, not the player's.
+
+    A hand-annotated Chapter (ADR 0002) can hang both the player's own sideline
+    and the engine's recommended line off the same parent, and the player's —
+    added first — serialises as ``siblings[0]``.  Prefer the sibling whose first
+    move is the judgment's named best move; failing that, the first sibling whose
+    line carries an ``[%eval]`` (an engine line does, a hand line usually
+    doesn't); only then fall back to ``siblings[0]``.
+    """
+    if best_move:
+        want = best_move.rstrip("+#")
+        for sib in siblings:
+            if sib.move is None:
+                continue
+            try:
+                if board_before.san(sib.move).rstrip("+#") == want:
+                    return sib
+            except (ValueError, AssertionError):
+                continue
+    for sib in siblings:
+        if _line_has_eval(sib):
+            return sib
+    return siblings[0]
+
+
 def _refutation_line(
-    node: chess.pgn.GameNode, board_before: chess.Board, *, max_plies: int = 8
+    node: chess.pgn.GameNode,
+    board_before: chess.Board,
+    *,
+    best_move: str | None = None,
+    max_plies: int = 8,
 ) -> list[str]:
     """The engine's recommended line for this move, as SAN.
 
     Lichess exports the better continuation as a sibling variation — an
     alternative to the played move from the same position — so it hangs off
-    the *parent* node.  We follow that variation's mainline from the
-    pre-move position and read it back as SAN.
+    the *parent* node.  :func:`_choose_sibling` disambiguates which sibling is
+    the engine's when the player also annotated one; we then follow that
+    variation's mainline from the pre-move position and read it back as SAN.
     """
     parent = node.parent
     if parent is None:
@@ -279,7 +339,7 @@ def _refutation_line(
 
     board = board_before.copy()
     sans: list[str] = []
-    cursor: chess.pgn.GameNode | None = siblings[0]
+    cursor: chess.pgn.GameNode | None = _choose_sibling(siblings, board_before, best_move)
     while cursor is not None and cursor.move is not None and len(sans) < max_plies:
         try:
             sans.append(board.san(cursor.move))
@@ -299,7 +359,11 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
     """
     board = game.board()
     prev_cp: int = _START_CP
-    any_eval = False
+    # A Chapter that began from a custom position has no exported pre-move-1 eval,
+    # and the standard-opening baseline (_START_CP) doesn't describe it — so the
+    # first move must not be scored as a swing against it.
+    custom_start = board.fen() != chess.STARTING_FEN
+    evaluated = 0
     moves: list[MoveEval] = []
     ply = 0
 
@@ -309,13 +373,18 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
             continue
         ply += 1
         side = "White" if board.turn == chess.WHITE else "Black"
+        move_number = board.fullmove_number  # honours a custom FEN's move counter
         san = board.san(move)
 
-        cp_after = _node_cp(node)
-        if cp_after is None:
-            cp_after = prev_cp  # carry the prior eval forward → no swing
+        cp = _node_cp(node)
+        has_eval = cp is not None
+        if cp is None:
+            cp_after = prev_cp  # missing eval carries forward → no swing
         else:
-            any_eval = True
+            cp_after = cp
+            evaluated += 1
+        if ply == 1 and custom_start:
+            prev_cp = cp_after  # no honest baseline for the first custom-position move
 
         white_before = win_pct_from_cp(prev_cp)
         white_after = win_pct_from_cp(cp_after)
@@ -325,14 +394,14 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
             win_before, win_after = 100.0 - white_before, 100.0 - white_after
 
         judgment = _judgment_text(node)
-        refutation = _refutation_line(node, board)
         best_move = _best_move_from_judgment(judgment)
+        refutation = _refutation_line(node, board, best_move=best_move)
         if best_move is None and refutation:
             best_move = refutation[0]
 
         moves.append(MoveEval(
             ply=ply,
-            move_number=(ply + 1) // 2,
+            move_number=move_number,
             side=side,
             san=san,
             eval_before=prev_cp / 100.0,
@@ -340,6 +409,7 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
             win_pct_before=win_before,
             win_pct_after=win_after,
             win_pct_drop=win_before - win_after,
+            has_eval=has_eval,
             best_move=best_move,
             refutation_line=refutation,
         ))
@@ -347,7 +417,12 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
         board.push(move)
         prev_cp = cp_after
 
-    return moves if any_eval else []
+    if not moves:
+        return []
+    # A Game only counts as analysed when most of its plies actually carry an
+    # [%eval]; below that it degrades to analyzed=False rather than passing a
+    # barely-touched Game off as fully analysed (see _MIN_EVAL_COVERAGE).
+    return moves if evaluated / len(moves) >= _MIN_EVAL_COVERAGE else []
 
 
 # ---------------------------------------------------------------------------
@@ -660,6 +735,8 @@ def _build_error_profile(
     for index, move_eval in enumerate(moves):
         if move_eval.side != player_color:
             continue
+        if not move_eval.has_eval:  # carried-forward move — nothing real to classify
+            continue
         severity = classify_severity(move_eval.win_pct_drop)
         if severity is None:
             continue
@@ -686,13 +763,17 @@ def analyze_game(
     player_color: str = "",
     player_outcome: str = "",
     chapter_url: str = "",
+    setup_fen: str = "",
 ) -> GameAnalysis:
     """Parse one Game's movetext into a :class:`GameAnalysis`.
 
     *movetext* is the rich movetext kept by ``pgn_stats_core.extract_movetext``
     (comments, ``[%eval]``, variations).  *player_color* / *player_outcome*
     ("White"/"Black", "Win"/"Loss"/"Draw") frame the critical moment for the
-    player; both optional so the function works headless.
+    player; both optional so the function works headless.  *setup_fen* is the
+    Chapter's starting position when it began from a custom FEN (Studies allow
+    this); it is restored before parsing so the moves stay legal instead of
+    truncating against the standard start.
 
     A Game with no requested analysis — or unparseable movetext — degrades to
     ``analyzed=False`` with an empty analysis.  This never raises: engine
@@ -701,6 +782,8 @@ def analyze_game(
     if not movetext or not movetext.strip():
         return GameAnalysis(chapter_url=chapter_url)
 
+    if setup_fen:
+        movetext = f'[FEN "{setup_fen}"]\n[SetUp "1"]\n\n{movetext}'
     try:
         game = chess.pgn.read_game(io.StringIO(movetext))
     except (ValueError, KeyError):
@@ -738,9 +821,11 @@ def enrich_games_with_analysis(df: pd.DataFrame) -> pd.DataFrame:
     """
     enriched = df.copy()
     if enriched.empty:
-        # The columns exist even on an empty store, so accessors are total.
+        # The columns exist even on an empty store, so accessors are total —
+        # including TagSources, which the non-empty path always sets too.
         enriched["Analysis"] = pd.Series(dtype=object)
         enriched["Analyzed"] = pd.Series(dtype=bool)
+        enriched["TagSources"] = pd.Series(dtype=object)
         return enriched
 
     analyses: list[GameAnalysis] = []
@@ -755,6 +840,7 @@ def enrich_games_with_analysis(df: pd.DataFrame) -> pd.DataFrame:
                 player_color=str(row.get("Color") or ""),
                 player_outcome=str(row.get("Outcome") or ""),
                 chapter_url=chapter_url,
+                setup_fen=str(row.get("SetupFEN") or ""),
             )
         except Exception:  # enrichment must never break a Sync (ADR 0004)
             logger.exception("Engine analysis failed for %s — degrading", chapter_url)

@@ -53,12 +53,15 @@ Milestones
 from __future__ import annotations
 
 import io
+import logging
 import math
 import re
 from collections import Counter
 
 import chess.pgn
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CANONICAL_TAGS",
@@ -197,19 +200,35 @@ def extract_movetext(game) -> str:
     return game.accept(exporter).strip()
 
 
-def mainline_movetext(movetext: str) -> str:
+def _read_movetext(movetext: str, setup_fen: str = ""):
+    """Reparse stored headerless movetext, restoring a custom start position.
+
+    ``extract_movetext`` drops all headers, so a Chapter that began from a custom
+    FEN (Studies allow this) must have that position handed back in — otherwise
+    ``read_game`` rebuilds it from the standard start and truncates at the first
+    now-illegal move.  Returns the parsed game, or ``None`` for blank/unparseable
+    input.
+    """
+    if not movetext or not movetext.strip():
+        return None
+    if setup_fen:
+        movetext = f'[FEN "{setup_fen}"]\n[SetUp "1"]\n\n{movetext}'
+    return chess.pgn.read_game(io.StringIO(movetext))
+
+
+def mainline_movetext(movetext: str, setup_fen: str = "") -> str:
     """
     *movetext* reduced to the bare played line — comments, ``[%eval]``
     annotations, NAGs, and variations all stripped (issue #60 [F6]).
 
     This is the inverse of :func:`extract_movetext`: it feeds the Game-detail
     pgn-viewer its default "clean replay" view, where Daniel first sees the bare
-    game before switching to his own annotated analysis.  A blank or unparseable
-    movetext yields ``""`` so a caller can skip it without a presence check.
+    game before switching to his own annotated analysis.  *setup_fen* restores a
+    custom starting position (Studies allow one) so the clean line isn't
+    truncated against the standard start.  A blank or unparseable movetext yields
+    ``""`` so a caller can skip it without a presence check.
     """
-    if not movetext or not movetext.strip():
-        return ""
-    game = chess.pgn.read_game(io.StringIO(movetext))
+    game = _read_movetext(movetext, setup_fen)
     if game is None:
         return ""
     exporter = chess.pgn.StringExporter(
@@ -230,9 +249,18 @@ _LESSON_RE = re.compile(r"^\s*lesson:\s*(.+)", re.IGNORECASE | re.DOTALL)
 # numbering ("#1") from becoming Tags.
 _TAG_RE = re.compile(r"#([a-zA-Z][a-zA-Z0-9-]*)")
 
-# Lichess embeds machine annotations in comments: [%clk 1:30:00], [%cal ...],
-# [%csl ...]. Strip them before looking for Lessons/Tags.
+# A URL: stripped before tag extraction so a link's #fragment
+# (…/Lucena_position#Endgame) can't masquerade as a hand-written #endgame Tag.
+_URL_RE = re.compile(r"https?://\S+")
+
+# Directives Lichess embeds in comments: [%eval 0.18], [%clk 1:30:00],
+# [%cal ...] (arrows), [%csl ...] (circles). Stripped before looking for
+# Lessons/Tags — but [%cal]/[%csl] are hand-drawn by the user, so has_my_analysis
+# treats them as his analysis (via _SHAPE_RE) rather than machine noise.
 _LICHESS_DIRECTIVE_RE = re.compile(r"\[%[^\]]*\]")
+
+# The hand-drawn shapes: arrows ([%cal]) and board circles ([%csl]).
+_SHAPE_RE = re.compile(r"\[%(?:cal|csl)\b")
 
 # The canonical Tag taxonomy (CONTEXT.md) — the default vocabulary for what a
 # Game taught. Freeform tags are allowed; they sort after these.
@@ -280,7 +308,8 @@ def extract_lessons_and_tags(game) -> tuple[list[str], list[str]]:
         if lesson_match:
             lessons.append(lesson_match.group(1).strip())
 
-        for tag in _TAG_RE.findall(text):
+        # Drop URLs first so a link's #fragment isn't harvested as a Tag.
+        for tag in _TAG_RE.findall(_URL_RE.sub("", text)):
             tag = tag.lower()
             if tag not in seen_tags:
                 seen_tags.add(tag)
@@ -289,20 +318,19 @@ def extract_lessons_and_tags(game) -> tuple[list[str], list[str]]:
     return lessons, tags
 
 
-def has_my_analysis(movetext: str) -> bool:
+def has_my_analysis(movetext: str, setup_fen: str = "") -> bool:
     """
     Whether *movetext* carries Daniel's own annotations — the signal the
     Game-detail view uses to offer a "My Analysis" board (issue #60 [F6]).
 
-    True when he added something to the Chapter himself: a comment of his own.
-    Lichess's machine annotations (``[%eval]`` / ``[%clk]``) are stripped first,
-    so they never count.
+    True when he added something to the Chapter himself: a comment of his own,
+    or shapes he drew on the board (``[%cal]`` arrows / ``[%csl]`` circles).
+    The genuinely machine-generated directives (``[%eval]`` / ``[%clk]``) are
+    stripped first, so they never count.
 
     A blank or unparseable movetext is simply "no analysis" — never an error.
     """
-    if not movetext or not movetext.strip():
-        return False
-    game = chess.pgn.read_game(io.StringIO(movetext))
+    game = _read_movetext(movetext, setup_fen)
     if game is None:
         return False
 
@@ -310,6 +338,9 @@ def has_my_analysis(movetext: str) -> bool:
         return True
 
     for raw in _all_comments(game):
+        # Arrows/circles are hand-drawn shapes — his analysis, even without prose.
+        if _SHAPE_RE.search(raw):
+            return True
         text = _LICHESS_DIRECTIVE_RE.sub("", raw).strip()
         # A Lesson is its own surface (ADR 0002); only other prose counts here.
         if text and not _LESSON_RE.match(text):
@@ -388,6 +419,28 @@ def load_games_from_text(
             idx += 1
             h = _norm_headers(game.headers)
 
+            # Surface a malformed Chapter loudly rather than trusting a silently
+            # truncated parse (ADR 0001: data problems surface, never hidden).
+            # python-chess records illegal SAN / mangled tokens into game.errors
+            # and skips the rest of that line, handing back a valid-looking but
+            # cut-short game. The WARNING is the loud signal today; the ParseError
+            # flag rides the row so a surface can flag the partial as such.
+            # ponytail: flag is log-only until a UI reads it — wire into the Sync
+            # toast (shell.py renders outcome.failures) when a partial must show.
+            parse_error = bool(game.errors)
+            if parse_error:
+                logger.warning(
+                    "Malformed movetext in chapter %r (%s) — row is partial: %s",
+                    _first_present(h, ["chaptername"]) or _first_present(h, ["event"]),
+                    _first_present(h, ["chapterurl"]) or "no chapter URL",
+                    "; ".join(str(e) for e in game.errors),
+                )
+
+            # A Chapter that starts from a custom position (Studies allow this)
+            # carries a FEN; kept so the headerless-movetext reparse sites can
+            # restore it instead of truncating against the standard start.
+            setup_fen = _first_present(h, ["fen"])
+
             white = _first_present(h, ["white"])
             black = _first_present(h, ["black"])
             white_rating = _first_present(h, ["whiteelo", "whiterating", "whiteuscf", "whiteuscfelo"])
@@ -435,6 +488,7 @@ def load_games_from_text(
                 "Result": result, "Winner": winner_from_result(result),
                 "Termination": termination, "Plies": plies, "FullMoves": fullmoves,
                 "Moves": moves_san, "Movetext": movetext,
+                "SetupFEN": setup_fen, "ParseError": parse_error,
                 "StudyName": study_name, "ChapterName": chapter_name,
                 "ChapterURL": chapter_url,
                 "Lessons": lessons, "Tags": tags,
