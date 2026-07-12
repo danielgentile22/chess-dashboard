@@ -181,6 +181,118 @@ class TestResultLookup:
     def test_result_is_empty_by_default(self):
         assert CoachMatchResult().matches == ()
         assert CoachMatchResult().unmatched_chapters == ()
+        assert CoachMatchResult().ambiguous_chapters == ()
+
+
+# ---------------------------------------------------------------------------
+# Ambiguity vs teaching extras (issue #92): a review the coach wrote but the
+# matcher couldn't place must surface, not vanish among the dropped extras.
+# ---------------------------------------------------------------------------
+
+# A 20-ply opening two Games can share (deep theory the user repeats).
+_SHARED = ["e4", "c5", "Nf3", "d6", "d4", "cxd4", "Nxd4", "Nf6", "Nc3", "a6",
+           "Be2", "e5", "Nb3", "Be7", "O-O", "O-O", "Be3", "Be6", "Nd5", "Nbd7"]
+
+
+def _games(*rows):
+    import pandas as pd
+    return pd.DataFrame(
+        [{"ChapterURL": url, "Moves": list(moves)} for url, moves in rows]
+    )
+
+
+def _chapter(name: str, prefix, url: str = "") -> CoachChapter:
+    return CoachChapter(
+        chapter_name=name, chapter_url=url, move_prefix=tuple(prefix),
+        comments=(), variation_count=0, movetext="",
+    )
+
+
+class TestAmbiguitySurfaces:
+    def test_a_chapter_fitting_two_games_is_ambiguous_not_dropped(self):
+        """Both of the user's Games share the same 20-ply opening; the coach's
+        one review of that line fits both → ambiguous, surfaced (not matched,
+        not silently dropped among the extras)."""
+        df = _games(("game-1", _SHARED), ("game-2", _SHARED))
+        result = match_coach_chapters(df, [_chapter("Review", _SHARED, "coach-1")])
+
+        assert result.matches == ()
+        assert [c.chapter_name for c in result.ambiguous_chapters] == ["Review"]
+        assert result.unmatched_chapters == ()
+
+    def test_a_game_two_chapters_claim_makes_both_ambiguous(self):
+        """Two coach Chapters both mirror the one Game → neither is a safe
+        match; both surface as ambiguous."""
+        df = _games(("game-1", _SHARED))
+        result = match_coach_chapters(df, [
+            _chapter("Review A", _SHARED, "coach-a"),
+            _chapter("Review B", _SHARED, "coach-b"),
+        ])
+
+        assert result.matches == ()
+        assert {c.chapter_name for c in result.ambiguous_chapters} == {
+            "Review A", "Review B"}
+
+    def test_zero_candidate_extras_stay_unmatched_not_ambiguous(self):
+        """A teaching extra that fits no Game keeps being dropped silently — only
+        reviews with a real candidate Game are the ambiguous ones."""
+        extra = ["d4", "d5", "c4", "e6", "Nc3", "Nf6", "Bg5", "Be7", "e3", "O-O"]
+        df = _games(("game-1", _SHARED))
+        result = match_coach_chapters(df, [
+            _chapter("Real review", _SHARED, "coach-1"),
+            _chapter("Teaching QGD", extra, "coach-2"),
+        ])
+
+        assert [m.chapter_url for m in result.matches] == ["game-1"]
+        assert [c.chapter_name for c in result.unmatched_chapters] == ["Teaching QGD"]
+        assert result.ambiguous_chapters == ()
+
+
+class TestPrefixOverlapGate:
+    def test_short_opening_fragment_does_not_false_match_a_full_game(self):
+        """A 10-ply opening-lesson Chapter shares only the opening of a full
+        Game — below _PREFIX_PLIES and one side keeps going, so no match (#92)."""
+        full_game = _SHARED + ["Rc1", "Qc7", "f4", "exf4", "Bxf4", "Ne5"]  # 26 plies
+        df = _games(("game-1", full_game))
+        result = match_coach_chapters(df, [_chapter("Najdorf intro", _SHARED[:10])])
+
+        assert result.matches == ()
+
+    def test_two_short_games_that_both_ended_still_match(self):
+        """A genuine short miniature the coach reviewed: both the Chapter's
+        mainline and the Game's movelist end at the same 12 plies → a real
+        match, not a fragment."""
+        short = _SHARED[:12]
+        df = _games(("game-1", short))
+        result = match_coach_chapters(df, [_chapter("Miniature", short, "coach-1")])
+
+        assert [m.chapter_url for m in result.matches] == ["game-1"]
+
+
+class TestDocumentOrderAndResultToken:
+    _DOC_PGN = (
+        '[Event "x"]\n[ChapterURL "https://lichess.org/study/c/doc1"]\n\n'
+        "1. e4 e5 2. Nf3 { MAIN2 } ( 2. f4 { SIDE2 } ) 2... Nc6 { MAIN2b } *\n"
+    )
+
+    def test_comments_are_in_pgn_document_order(self):
+        """A sideline's comment reads right after its branch point, before the
+        mainline continues — not after every later mainline comment (#92)."""
+        chapter = parse_coach_study(self._DOC_PGN)[0]
+        assert [c.text for c in chapter.comments] == ["MAIN2", "SIDE2", "MAIN2b"]
+
+    def test_movetext_has_no_trailing_result_token(self):
+        """The Coach board wraps the user's authoritative Result header around
+        this movetext; a stray '*'/'1-0' terminator would contradict it (#92)."""
+        for result_token in ("*", "1-0", "1/2-1/2"):
+            pgn = (
+                f'[Event "x"]\n[Result "{result_token}"]\n'
+                '[ChapterURL "https://lichess.org/study/c/r"]\n\n'
+                f"1. e4 e5 2. Nf3 Nc6 {result_token}\n"
+            )
+            chapter = parse_coach_study(pgn)[0]
+            assert chapter.movetext.split()[-1] not in {"*", "1-0", "0-1", "1/2-1/2"}
+            assert "Nc6" in chapter.movetext
 
 
 def _by_name(chapters: list[CoachChapter], needle: str) -> CoachChapter:

@@ -1277,6 +1277,23 @@ class TestCoachContent:
         )
         assert data.get_coach_chapter(some_unreviewed) is None
 
+    def test_ambiguous_coach_review_surfaces_via_get_coach_ambiguities(self, tmp_path):
+        """A review the matcher can't place (two Chapters mirror the same Game)
+        must surface for Reconciliation, not vanish among the extras (#92)."""
+        alice_chapter = "[Event" + COACH_PGN.split("[Event", 2)[1]
+        twin = alice_chapter.replace("gc000001", "gc000099").replace(
+            "Alice Anderson (your win)", "Alice Anderson (dup)")
+        ambiguous_pgn = alice_chapter + "\n\n" + twin
+
+        with stub_studies(**{"s-main": SNAPSHOT_PGN, "s-coach": ambiguous_pgn}):
+            data.register_users(self._daniel(), data_dir=str(tmp_path))
+            data.sync_user("daniel")
+        data.activate("daniel")
+
+        ambiguities = data.get_coach_ambiguities()
+        assert len(ambiguities) == 2
+        assert data.get_coach_chapter(ALICE_URL) is None  # ambiguous → not matched
+
     def test_coach_study_unreachable_never_fails_the_sync(self, tmp_path):
         with stub_studies(**{"s-main": SNAPSHOT_PGN,
                              "s-coach": StudyNotFoundError("private")}):

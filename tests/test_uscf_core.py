@@ -622,6 +622,57 @@ class TestRepeatOpponentDisambiguation:
         assert result.matches[0].chapter_url == df.iloc[1]["ChapterURL"]
         assert result.unmatched_chapter_urls == (df.iloc[0]["ChapterURL"],)
 
+    def test_greedy_pairing_would_steal_the_record_the_other_game_needs(self):
+        """The #92 case: greedy-by-best-pair gives G0 the record G1 needed,
+        forcing G1 onto an event whose window doesn't contain its date.  The
+        optimal assignment keeps each Game on the event that actually fits."""
+        df = games_df(
+            chapter(opponent="Repeat Foe", opponent_id="20000200", color="White",
+                    result="1-0", date="2025.11.01"),   # inside both windows
+            chapter(opponent="Repeat Foe", opponent_id="20000200", color="White",
+                    result="1-0", date="2025.10.05"),   # inside event A only
+        )
+        common = dict(opponent_id="20000200", opponent_first="Repeat",
+                      opponent_last="Foe", player_color="White",
+                      player_outcome="Win")
+        records = uscf_core.build_game_records([
+            uscf_game(**common, event="EVENT A", event_id="AAAA",
+                      start="2025-10-01", end="2025-11-15"),
+            uscf_game(**common, event="EVENT B", event_id="BBBB",
+                      start="2025-10-20", end="2025-11-30"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        event_for = {m.chapter_url: m.record.event_id for m in result.matches}
+        g0_url, g1_url = df.iloc[0]["ChapterURL"], df.iloc[1]["ChapterURL"]
+        assert len(result.matches) == 2
+        assert event_for[g1_url] == "AAAA"   # the only window containing 2025-10-05
+        assert event_for[g0_url] == "BBBB"
+
+    def test_an_unresolvable_tie_leaves_both_games_unmatched(self):
+        """Two Wins vs one opponent across two rated events, and nothing — color
+        or date — says which Game belongs to which event.  ADR 0007: never
+        guess; both stay unmatched to surface in Reconciliation."""
+        df = games_df(
+            chapter(opponent="Twin Foe", opponent_id="20000201", color="White",
+                    result="1-0", date="2025.10.15"),
+            chapter(opponent="Twin Foe", opponent_id="20000201", color="White",
+                    result="1-0", date="2025.11.15"),
+        )
+        common = dict(opponent_id="20000201", opponent_first="Twin",
+                      opponent_last="Foe", player_color="White",
+                      player_outcome="Win", start="2025-10-01", end="2025-11-30")
+        records = uscf_core.build_game_records([
+            uscf_game(**common, event="EVENT A", event_id="AAAA"),
+            uscf_game(**common, event="EVENT B", event_id="BBBB"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+        assert set(result.unmatched_chapter_urls) == set(df["ChapterURL"])
+
 
 class TestMatchingPolicies:
     def test_color_disagreement_does_not_prevent_a_match(self):
@@ -822,6 +873,55 @@ class TestMatchGamesByName:
 
         assert result.matches == ()
 
+    def test_accented_opponent_name_matches_uscfs_ascii_record(self):
+        """USCF stores plain ASCII ('JOSE GARCIA'); the chapter carries the
+        accented spelling.  Folding diacritics lets the name pass match (#92)."""
+        df = games_df(chapter(opponent="José García", opponent_id="",
+                              color="White", result="1-0", date="2026.04.17"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000077", opponent_first="Jose",
+                      opponent_last="Garcia", player_color="White",
+                      player_outcome="Win", event="ACC APRIL 2026",
+                      start="2026-04-03", end="2026-04-24"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+        assert result.matches[0].record.opponent_id == "20000077"
+
+    def test_hyphenated_last_name_matches_space_separated_record(self):
+        """'Smith-Jones' (chapter) normalizes to USCF's space-separated form."""
+        df = games_df(chapter(opponent="Ana Smith-Jones", opponent_id="",
+                              color="White", result="1-0", date="2026.04.17"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000078", opponent_first="Ana",
+                      opponent_last="Smith Jones", player_color="White",
+                      player_outcome="Win", event="ACC APRIL 2026",
+                      start="2026-04-03", end="2026-04-24"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert len(result.matches) == 1
+
+    def test_compound_surname_does_not_match_a_different_person(self):
+        """'Ana Smith-Jones' must not collapse to 'Jones' and name-match a
+        different in-window 'Alex Jones' (same initial, same last token) — the
+        variant tolerance compares the whole surname (ADR 0007 never guesses)."""
+        df = games_df(chapter(opponent="Ana Smith-Jones", opponent_id="",
+                              color="White", result="1-0", date="2026.04.17"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000079", opponent_first="Alex",
+                      opponent_last="Jones", player_color="White",
+                      player_outcome="Win", event="ACC APRIL 2026",
+                      start="2026-04-03", end="2026-04-24"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+
 
 # ---------------------------------------------------------------------------
 # The matching engine against the real fixture pair: Daniel's full Study
@@ -910,6 +1010,17 @@ class TestMatchingAgainstRealData:
 # ---------------------------------------------------------------------------
 
 class TestEnrichGames:
+    def test_empty_df_still_has_the_enrichment_columns(self):
+        """ADR 0003: enrichment columns always exist so pages never column-guard,
+        even in the no-games state (issue #92).  A consumer that trusts the
+        contract (df[df['Forfeit']]) must not KeyError on the empty df."""
+        import pandas as pd
+        enriched = uscf_core.enrich_games(pd.DataFrame(), uscf_core.MatchResult())
+        assert enriched.empty
+        for col in ("UscfMatched", "Forfeit", "UscfEventId", "UscfColorConflict"):
+            assert col in enriched.columns
+        assert enriched[enriched["Forfeit"]].empty
+
     def _enriched_pair(self):
         """One matched Game + one unmatched Game, enriched."""
         df = games_df(
@@ -1237,6 +1348,34 @@ class TestReconcileRatingMismatches:
         )
 
         assert [e for e in entries if e.kind == "rating_mismatch"] == []
+
+    def test_gap_month_event_checks_against_the_supplement_in_effect(self):
+        """An event in a gap month (no supplement dated that month) validates the
+        typed rating against the latest earlier supplement — the same value the
+        Official lens shows — instead of silently skipping the check (#92)."""
+        df = games_df(chapter(opponent_id="20000056", color="White",
+                              result="1-0", date="2025.10.15",
+                              player_rating="1100"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000056", player_color="White",
+                      player_outcome="Win", event="OCTOBER OPEN",
+                      event_id="202510150001", start="2025-10-15", end="2025-10-15"),
+        ])
+        official = uscf_core.build_official_series([
+            {"ratingSupplementDate": "2025-09-01",
+             "ratings": [{"source": "R", "rating": 1038}]},
+            {"ratingSupplementDate": "2025-11-01",
+             "ratings": [{"source": "R", "rating": 1133}]},
+        ])
+        result = uscf_core.match_games(df, records)
+
+        entries = uscf_core.reconcile(
+            uscf_core.enrich_games(df, result), result, official,
+        )
+
+        mismatches = [e for e in entries if e.kind == "rating_mismatch"]
+        assert len(mismatches) == 1
+        assert "1038" in mismatches[0].uscf_says   # September, still in effect
 
     def test_no_official_rating_for_that_month_means_no_check(self):
         """Months before the first supplement have no official value — typed

@@ -22,6 +22,14 @@ from lichess_client import StudyNotFoundError
 COACH_PGN = (Path(__file__).parent / "data" / "coach-study.pgn").read_text()
 ALICE_URL = "https://lichess.org/study/abcdWXYZ/alic0001"
 
+# A second coach Study's PGN (distinct Chapter, its own Lichess study id) — used
+# to prove per-Study caching keeps one Study's content when another is down.
+SECOND_STUDY_PGN = (
+    '[Event "Coach review — extra"]\n'
+    '[ChapterURL "https://lichess.org/study/coachBBBB/xx000001"]\n\n'
+    "1. d4 d5 2. c4 e6 *\n"
+)
+
 
 def _stub_fetch(**study_pgns):
     def fake(study_id, **kwargs):
@@ -110,3 +118,42 @@ class TestSyncCoach:
             result = sync.sync_coach(["coach1"], study_snapshot_df,
                                      cache_path=str(tmp_path / "coach.pgn"))
         assert result is not None
+
+    def test_partial_fetch_never_shrinks_or_clobbers_the_full_cache(
+        self, study_snapshot_df, tmp_path
+    ):
+        """One Study down must not lose its Chapters nor overwrite its cache with
+        the Studies that happened to fetch — each Study is cached on its own so a
+        later total outage still finds the full content (issue #92)."""
+        cache = str(tmp_path / "coach.pgn")
+        coach2_cache = tmp_path / "coach-coach2.pgn"
+
+        # Sync 1: both reachable → each Study cached under its own file.
+        with _stub_fetch(coach1=COACH_PGN, coach2=SECOND_STUDY_PGN):
+            sync.sync_coach(["coach1", "coach2"], study_snapshot_df, cache_path=cache)
+        assert coach2_cache.read_text() == SECOND_STUDY_PGN
+
+        # Sync 2: coach2 down → its cache is reused and left intact (not shrunk).
+        with _stub_fetch(coach1=COACH_PGN, coach2=StudyNotFoundError("down")):
+            result = sync.sync_coach(["coach1", "coach2"], study_snapshot_df,
+                                     cache_path=cache)
+        assert result.from_cache is True          # coach2 served from its cache
+        assert result.failure                     # the failure is recorded
+        assert coach2_cache.read_text() == SECOND_STUDY_PGN  # untouched
+        assert len(result.result.comments_for(ALICE_URL)) == 7  # coach1 still fresh
+
+    def test_legacy_merged_cache_survives_a_full_outage_after_upgrade(
+        self, study_snapshot_df, tmp_path
+    ):
+        """Installs from before per-Study caching have one merged coach.pgn.  A
+        full outage right after upgrading (no per-Study caches yet) must still
+        serve it, not lose coach content (issue #92)."""
+        cache = tmp_path / "coach.pgn"
+        cache.write_text(COACH_PGN)   # the pre-upgrade merged cache
+
+        with _stub_fetch(coach1=StudyNotFoundError("down")):
+            result = sync.sync_coach(["coach1"], study_snapshot_df,
+                                     cache_path=str(cache))
+
+        assert result.from_cache is True
+        assert len(result.result.comments_for(ALICE_URL)) == 7

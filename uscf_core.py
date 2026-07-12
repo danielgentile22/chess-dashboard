@@ -45,7 +45,9 @@ MatchResult             Everything matching produced: matches + both leftovers.
 """
 from __future__ import annotations
 
+import itertools
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -1091,16 +1093,33 @@ def _names_match_normalized(chapter_name: str, record_name: str) -> bool:
     if chapter_name == record_name:
         return True
 
-    # Spelling-variant tolerance: exact last name + same first initial
+    # Spelling-variant tolerance: exact surname + same first initial, and only a
+    # first-name variant ('Carter Clark' ↔ 'Carver Clark').  The surname is every
+    # token after the first, compared whole — so a compound surname split into
+    # tokens ('Smith Jones') can't collapse to its last piece and match a
+    # different person ('Alex Jones'); ADR 0007 never guesses.
     chapter_parts, record_parts = chapter_name.split(), record_name.split()
-    return (chapter_parts[-1] == record_parts[-1]
+    return (chapter_parts[1:] == record_parts[1:]
             and chapter_parts[0][0] == record_parts[0][0])
 
 
 def _normalize_name(name: str) -> str:
-    """Lowercase, punctuation stripped, whitespace collapsed."""
-    cleaned = re.sub(r"[^\w\s]", "", name.lower())
+    """Lowercase, diacritics folded, hyphens → space, other punctuation dropped,
+    whitespace collapsed — so 'José García' and 'Smith-Jones' meet USCF's plain
+    ASCII, space-separated spelling (only widens equality toward USCF's own
+    records; ADR 0007)."""
+    folded = "".join(
+        c for c in unicodedata.normalize("NFKD", name.lower())
+        if not unicodedata.combining(c)
+    )
+    cleaned = re.sub(r"[^\w\s]", "", folded.replace("-", " "))
     return " ".join(cleaned.split())
+
+
+# Repeat-opponent groups are tiny (the same opponent, same result, a few times);
+# above this the optimal-assignment enumeration is factorial, so a larger group
+# is left unmatched rather than guessed (ADR 0007).  8! matchings is instant.
+_MAX_BRUTE_FORCE_GROUP = 8
 
 
 def _pair_group(
@@ -1115,25 +1134,84 @@ def _pair_group(
     Pair Games with candidate records that all share the same match key.
 
     Most groups are one Game ↔ one record.  When the same opponent was played
-    more than once with the same result, the pairs that agree on color and the
-    Rated Event date window win; leftovers on either side stay unmatched.
+    more than once with the same result, pick the assignment with the highest
+    total color/date-window agreement — an *optimal* bipartite matching, not a
+    greedy best-pair pick, so one Game can't steal the record another needed.
+
+    ADR 0007 (never guess): color and the date window are tiebreakers only.  A
+    Game is assigned only when every optimal assignment agrees on its record's
+    identity; a tie between materially different records leaves that Game
+    unmatched, to surface in Reconciliation rather than attach the wrong one.
     """
-    scored = sorted(
-        (-_tiebreak_score(game, records[i]), game_order, record_order, i)
-        for game_order, game in enumerate(games)
-        for record_order, i in enumerate(candidate_indices)
-        if i not in used
-    )
+    available = [i for i in candidate_indices if i not in used]
+    if not games or not available:
+        return []
+
+    urls = [g["ChapterURL"] for g in games]
+    if len(games) > _MAX_BRUTE_FORCE_GROUP or len(available) > _MAX_BRUTE_FORCE_GROUP:
+        # ponytail: a group this large to disambiguate is beyond real chess data
+        # (the same opponent, same result, 9+ times).  Rather than guess it
+        # greedily, leave it all unmatched — ADR 0007 prefers a missed match to
+        # an invented one, and every item surfaces in Reconciliation.
+        return []
+
+    score = {(gi, ri): _tiebreak_score(games[gi], records[ri])
+             for gi in range(len(games)) for ri in available}
+    optimal = _optimal_assignments(len(games), available, score)
 
     matches: list[GameMatch] = []
-    taken_games: set[int] = set()
-    for _neg_score, game_order, _record_order, i in scored:
-        if game_order in taken_games or i in used:
-            continue
-        matches.append(GameMatch(games[game_order]["ChapterURL"], records[i], matched_by))
-        taken_games.add(game_order)
-        used.add(i)
+    for gi in range(len(games)):
+        identities = {
+            _record_identity(records[a[gi]]) if gi in a else None
+            for a in optimal
+        }
+        if len(identities) == 1 and next(iter(identities)) is not None:
+            ri = optimal[0][gi]  # every optimal assignment agrees on this record
+            matches.append(GameMatch(urls[gi], records[ri], matched_by))
+            used.add(ri)
     return matches
+
+
+def _optimal_assignments(
+    n_games: int, record_indices: list[int], score: dict[tuple[int, int], int]
+) -> list[dict[int, int]]:
+    """Every maximum-cardinality Game→record matching (dict gi→record index)
+    with the top total tiebreak score.  Scores are ≥ 0, so a maximum matching is
+    always at least as good — the choice is only *which* records win, never
+    whether to match one at all."""
+    best_total, best = -1, []
+    for assign in _max_cardinality_matchings(n_games, record_indices):
+        total = sum(score[pair] for pair in assign.items())
+        if total > best_total:
+            best_total, best = total, [assign]
+        elif total == best_total:
+            best.append(assign)
+    return best
+
+
+def _max_cardinality_matchings(
+    n_games: int, record_indices: list[int]
+) -> list[dict[int, int]]:
+    """All matchings pairing as many Games as possible (the smaller side fully
+    used).  Brute-force — the caller caps group size (_MAX_BRUTE_FORCE_GROUP)."""
+    if n_games <= len(record_indices):
+        return [
+            {gi: combo[gi] for gi in range(n_games)}
+            for combo in itertools.permutations(record_indices, n_games)
+        ]
+    return [
+        {combo[j]: record_indices[j] for j in range(len(record_indices))}
+        for combo in itertools.permutations(range(n_games), len(record_indices))
+    ]
+
+
+def _record_identity(record: UscfGameRecord) -> tuple:
+    """What makes two candidate records materially the same match: same event,
+    section, opponent, color, result, rating system.  A tie between records that
+    differ on any of these is a real ambiguity (ADR 0007), not interchangeable
+    duplicates — so it must not be resolved by an arbitrary pick."""
+    return (record.event_id, record.section_name, record.opponent_id,
+            record.player_color, record.player_outcome, record.rating_system)
 
 
 def _tiebreak_score(game: pd.Series, record: UscfGameRecord) -> int:
@@ -1209,6 +1287,12 @@ def enrich_games(df: pd.DataFrame, result: MatchResult) -> pd.DataFrame:
     """
     enriched = df.copy()
     if enriched.empty:
+        # The enrichment columns must exist even with no Games so consumers never
+        # column-guard (ADR 0003) — mirrors attach_round_numbers' empty case.
+        for column, default in _ENRICHMENT_DEFAULTS.items():
+            enriched[column] = pd.Series(
+                dtype="bool" if isinstance(default, bool) else "object"
+            )
         return enriched
 
     for column, default in _ENRICHMENT_DEFAULTS.items():
@@ -1441,11 +1525,14 @@ def _official_basis(
 def _supplement_in_effect(
     official_series: list[OfficialRatingPoint], on_date: date
 ) -> int | None:
-    """The Official Rating in effect on a date: the latest supplement published
-    on or before it.  None before the first supplement — never invented."""
+    """The Official Rating in effect on a date: the latest supplement whose month
+    is on or before it.  A supplement covers its whole month whatever day it is
+    dated (real ones are the 1st; USCF supplements are monthly), so the compare
+    is month-granular.  None before the first supplement — never invented."""
+    on_month = on_date.replace(day=1)
     in_effect = None
     for point in official_series:  # chronological
-        if point.month > on_date:
+        if point.month.replace(day=1) > on_month:
             break
         in_effect = point.rating
     return in_effect
@@ -1619,15 +1706,9 @@ def _rating_mismatch_entries(
     result: MatchResult,
     official_series: list[OfficialRatingPoint],
 ) -> list[ReconciliationEntry]:
-    """Typed header ratings that disagree with the Official Rating for the
-    matched Rated Event's start month.  Typed values are validation-only —
-    they power no stats — so this is bookkeeping, not a data problem."""
-    # Keyed by (year, month): a supplement covers its month whatever day it
-    # carries, and the lookup must never miss on a date quirk.
-    official_by_month = {
-        (point.month.year, point.month.month): point.rating
-        for point in official_series
-    }
+    """Typed header ratings that disagree with the Official Rating in effect for
+    the matched Rated Event's start.  Typed values are validation-only — they
+    power no stats — so this is bookkeeping, not a data problem."""
     games_by_url = {game["ChapterURL"]: game for _, game in df.iterrows()}
 
     entries = []
@@ -1636,7 +1717,10 @@ def _rating_mismatch_entries(
         start = match.record.event_start
         if game is None or start is None or pd.isna(game["PlayerRatingNum"]):
             continue
-        official = official_by_month.get((start.year, start.month))
+        # The same "latest supplement on or before" the Official lens displays,
+        # so a gap-month event still validates against May's supplement rather
+        # than silently skipping (there is no supplement in that calendar month).
+        official = _supplement_in_effect(official_series, start)
         typed = int(game["PlayerRatingNum"])
         if official is None or typed == official:
             continue
@@ -1646,8 +1730,8 @@ def _rating_mismatch_entries(
             opponent=str(game["Opponent"]),
             date=str(game["Date"]),
             lichess_says=f"Typed rating {typed}",
-            uscf_says=(f"Official Rating for {start:%B %Y}: {official} "
-                       f"({match.record.event_name})"),
+            uscf_says=(f"Official Rating in effect for the {start:%B %Y} event: "
+                       f"{official} ({match.record.event_name})"),
             chapter_url=str(match.chapter_url),
         ))
     return entries
