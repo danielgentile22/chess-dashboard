@@ -182,6 +182,24 @@ class TestRefreshAtomicity:
         assert data.get_df() is good_df
         assert "UscfColorConflict" in data.get_df().columns
 
+    def test_dismissal_during_snapshot_build_survives_the_commit(self, sample_pgn_text):
+        """A dismissal made while a refresh's snapshot is still building (a
+        threaded-server race) must not be lost when _commit swaps it in —
+        dismissals are append-only user judgement (issue #87 [1])."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+
+        def dismiss_midway(*args, **kwargs):
+            data._current().dismissed.add("late:dismissal")
+            return sync.CoachSyncResult()
+
+        with stub_studies(study1=sample_pgn_text), \
+             mock.patch("data.sync_coach", side_effect=dismiss_midway):
+            outcome = data.refresh()
+
+        assert outcome.status == "success"
+        assert "late:dismissal" in data._current().dismissed
+
 
 # ---------------------------------------------------------------------------
 # USCF enrichment in the store (issue #25, ADR 0003)

@@ -373,7 +373,10 @@ def _commit(store: Store, snap: _Snapshot) -> None:
     store.cached_at = snap.cached_at
     store.uscf = snap.uscf
     store.match_result = snap.match_result
-    store.dismissed = snap.dismissed
+    # Union, not overwrite: a dismissal made while the snapshot was building
+    # (threaded dev server) landed in store.dismissed after snap.dismissed was
+    # computed — dismissals are append-only, so it must survive the swap (#87).
+    store.dismissed = snap.dismissed | store.dismissed
     store.seen_achievement_ids = snap.seen_achievement_ids
     store.new_achievements = snap.new_achievements
     store.coach = snap.coach
