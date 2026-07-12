@@ -140,6 +140,17 @@ class TestMalformed:
             parse_users(_config(_record(username="daniel"),
                                 _record(username="daniel")))
 
+    @pytest.mark.parametrize("bad", ["john smith", "a/b", ".", "..", "he@llo"])
+    def test_username_that_wont_map_to_a_cache_dir_raises(self, bad):
+        # Only chars that survive the cache-dir mapping unchanged are allowed,
+        # so distinct users can never collapse to one directory (#89).
+        with pytest.raises(UserConfigError, match="(?i)username"):
+            parse_users(_config(_record(username=bad)))
+
+    def test_dotted_and_hyphenated_usernames_are_allowed(self):
+        users = parse_users(_config(_record(username="a.b_c-1")))
+        assert set(users) == {"a.b_c-1"}
+
 
 # ---------------------------------------------------------------------------
 # The hashing helper

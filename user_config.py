@@ -27,9 +27,10 @@ via the ``USCF_DASHBOARD_USERS`` environment variable::
 
 A malformed record raises :class:`UserConfigError` clearly at load, so a bad
 config fails loudly rather than silently serving the wrong data.  Passwords are
-stored and compared as hashes, never plaintext — mint one with::
+stored and compared as hashes, never plaintext — mint one with a getpass prompt
+(so the plaintext never lands in shell history or ``ps``)::
 
-    python -m user_config hash 'my password'
+    python -m user_config hash
 
 Public API
 ----------
@@ -41,9 +42,15 @@ UserConfigError The clear failure raised on any malformed config.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 
 from werkzeug.security import check_password_hash, generate_password_hash
+
+# Usernames map 1:1 to a private cache directory, so they are restricted to
+# characters that survive that mapping unchanged (issue #89 [F2]) — see
+# data._safe_dirname, which then becomes a no-op.
+_USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 class UserConfigError(ValueError):
@@ -55,11 +62,12 @@ class UserRecord:
     """One allow-listed user: their credentials and their configured sources."""
 
     username: str
-    password_hash: str
+    # repr=False: secrets must never surface in a log/traceback/pytest diff (#89).
+    password_hash: str = field(repr=False)
     study_ids: tuple[str, ...]          # the Games' source of truth (ADR 0001)
     coach_study_ids: tuple[str, ...]    # the coach's review Studies (issue #74)
     uscf_member_id: str | None          # enriches the Games (ADR 0003)
-    lichess_token: str | None           # reads this user's private coach Studies
+    lichess_token: str | None = field(repr=False)  # reads private coach Studies
 
     def verify(self, password: str) -> bool:
         """Whether *password* matches this user's stored hash."""
@@ -118,10 +126,12 @@ def _record_from_item(item: object, index: int) -> UserRecord:
     if "password" in item:
         raise UserConfigError(
             f"{where} carries a plaintext 'password' — passwords must be stored "
-            "as a 'password_hash'.  Mint one with: python -m user_config hash '<pw>'"
+            "as a 'password_hash'.  Mint one with: python -m user_config hash "
+            "(prompts for the password so it stays out of shell history)"
         )
 
     username = _require_str(item, "username", where)
+    _validate_username(username, where)
     password_hash = _require_str(item, "password_hash", where)
     study_ids = _require_ids(item, "study_ids", where)
     coach_study_ids = _optional_ids(item, "coach_study_ids", where)
@@ -136,6 +146,21 @@ def _record_from_item(item: object, index: int) -> UserRecord:
         uscf_member_id=uscf_member_id,
         lichess_token=lichess_token,
     )
+
+
+def _validate_username(username: str, where: str) -> None:
+    """Reject usernames that wouldn't map 1:1 to a private cache dir (#89 [F2]).
+
+    ``.`` and ``..`` are path components (they'd escape / collapse DATA_DIR), and
+    anything outside ``_USERNAME_RE`` would be rewritten by ``_safe_dirname`` and
+    could silently collide with another user's cache directory.
+    """
+    if username in (".", "..") or not _USERNAME_RE.match(username):
+        raise UserConfigError(
+            f"{where} has an invalid username {username!r} — usernames may contain "
+            "only letters, digits, '_', '-' and '.' (and cannot be '.' or '..'), so "
+            "each maps to its own private cache directory."
+        )
 
 
 def _require_str(item: dict, key: str, where: str) -> str:
@@ -180,7 +205,11 @@ def _optional_ids(item: dict, key: str, where: str) -> tuple[str, ...]:
 
 
 def _hash_cli() -> int:
-    """`python -m user_config hash '<password>'` — print a hash for a config."""
+    """`python -m user_config hash` — prompt (getpass) and print a config hash.
+
+    The argument form ``hash '<password>'`` still works, but is undocumented:
+    a plaintext password on the command line lands in shell history and ``ps``.
+    """
     import getpass
     import sys
 
@@ -190,7 +219,8 @@ def _hash_cli() -> int:
     if len(sys.argv) == 2 and sys.argv[1] == "hash":
         print(hash_password(getpass.getpass("Password: ")))
         return 0
-    print("usage: python -m user_config hash '<password>'", file=sys.stderr)
+    print("usage: python -m user_config hash   (prompts for the password)",
+          file=sys.stderr)
     return 2
 
 

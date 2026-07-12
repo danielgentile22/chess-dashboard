@@ -27,7 +27,7 @@ Per-user caches follow: each user's disposable PGN / USCF / analysis caches live
 ### Consequences
 
 - Good, because the registry is the *only* place isolation is implemented: a page or callback that reads the store is automatically user-scoped, so a new feature cannot accidentally leak across users by forgetting to pass a user through.
-- Good, because stores are Synced **per user**, eagerly at startup and lazily on first access (`ensure_synced`), and a user whose main Study is unreachable at boot degrades to an empty store rather than taking the whole multi-user app down — the same enrichment-never-a-dependency posture USCF and coach content already take (ADR 0003).
+- Good, because stores are Synced **per user** lazily on first access (`ensure_synced`), and a user whose main Study is unreachable degrades to an empty store rather than taking the whole multi-user app down — the same enrichment-never-a-dependency posture USCF and coach content already take (ADR 0003). (Eager per-user Sync at worker boot was dropped in issue #89: it grew boot time linearly with the roster's external HTTP and risked Gunicorn/Fly killing a slow-booting worker. The trade-off is that the first request for each user pays that user's Sync.)
 - Bad, because the design leans on the single-worker deployment (ADR 0006): the thread-local activation is load-bearing.
 
 ## Pros and Cons of the Options

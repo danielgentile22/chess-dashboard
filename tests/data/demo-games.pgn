@@ -1,6 +1,6 @@
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.06.20"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.09.10"]
 [Round "1"]
 [White "Alex Archer"]
 [Black "Daniel Gentile"]
@@ -22,9 +22,9 @@
 1. d4 g6 2. Be3 Bg7 3. Nf3 a6 4. Nc3 b5 5. a3 Bb7 6. Bf4 d6 7. e4 Nd7 8. Be2 Rc8 9. e5 dxe5 10. dxe5 Bxf3 11. Bxf3 Nxe5 12. Bb7 Rb8 13. Bxa6 c6 14. Bxe5 Bxe5 15. Qe2 Bxc3+ 16. bxc3 Qa5 (16... Nf6 17. a4 Qa5 18. Qe5 O-O 19. O-O Qxa6) 17. Qe5 Qxa6 18. Qxh8 Kf8 19. Qxh7 Qa5 20. Qh3 Rd8 21. O-O Rd2 22. Qc8+ Kg7 23. Qxc6 Rxc2 24. Rfc1 Qxa3 25. Re1 Rxc3 26. Qxb5 Rc5 27. Qd7 Qb2 28. Rab1 Qc3 29. h3 Qf6 30. Rbd1 Rc2 31. Qd4 e6 32. Qxf6+ Nxf6 33. Ra1 Rc7 34. Rac1 Re7 35. Rc8 Rd7 36. Ra1 Re7 37. Raa8 Rd7 38. g4 Re7 39. g5 { 1-0 White wins. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.06.27"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.09.17"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Blair Archer"]
@@ -46,9 +46,9 @@
 1. e4 c5 2. a3 Nc6 3. b4 cxb4 4. axb4 Nxb4 5. c3 Nc6 6. d4 d5 7. Nd2 e6 8. Bd3 g6 9. Ngf3 Bg7 10. e5 Nge7 11. h4 O-O 12. h5 Nf5 13. g4 Nh6 14. Nb1 f5 15. hxg6 fxg4 16. Bxh6 Bxh6 17. Rxh6 Rxf3 18. Rxh7 Qg5 19. Na3 Ne7 20. Qc2 g3 21. Rxe7 gxf2+ 22. Kf1 Qg1+ 23. Ke2 f1=Q+ 24. Kd2 Qe3# { 0-1 Black wins. } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.07.18"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.10.08"]
 [Round "3"]
 [White "Daniel Gentile"]
 [Black "Casey Archer"]
@@ -70,9 +70,9 @@
 1. e4 e5 2. Nc3 Nc6 3. Bc4 Nf6 4. d3 d6 5. f4 Bg4 6. Nf3 Nd4 7. h3 Bxf3 8. gxf3 Nh5 9. h4 exf4 10. Nd5 Ne6 11. b3 c6 12. Nc3 Be7 13. Bxe6 fxe6 14. Ne2 Bxh4+ 15. Kd2 Ng3 16. Nxf4 Nxh1 17. Qxh1 Bg5 18. Qh5+ g6 19. Qg4 Qf6 20. Ke2 Bxf4 21. Bxf4 O-O 22. Rg1 Qxf4 23. Qxe6+ Rf7 24. Rg4 Qxf3+ 25. Kd2 Rf8 26. Rxg6+ hxg6 27. Qxg6+ Rg7 28. Qe6+ Qf7 29. Qxd6 Qf4+ { 0-1 Black wins. } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.07.25"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.10.15"]
 [Round "4"]
 [White "Devon Archer"]
 [Black "Daniel Gentile"]
@@ -94,9 +94,9 @@
 1. e4 c6 2. d4 d5 3. e5 c5 4. c3 Nc6 5. Ne2 Bf5 6. Be3 cxd4 7. Nxd4 e6 8. Nxf5 exf5 9. Bd3 Nge7 10. f4 g6 11. O-O Bh6 12. Bd4 Nxd4 13. cxd4 Nc6 14. Bb5 O-O 15. Nc3 Qb6 16. Bxc6 bxc6 17. Na4 Qb4 18. a3 Qe7 19. Rc1 Qh4 20. g3 Qe7 21. Rxc6 f6 22. Qb3 Rad8 23. Nc5 fxe5 24. Ne6 exf4 25. Nxd8 Rxd8 26. gxf4 Qe4 27. Qf3 Qxd4+ 28. Qf2 Bg7 29. Rc7 Qxb2 30. Qxb2 Bxb2 31. a4 Bd4+ 32. Kg2 Bb6 33. Re1 { 0-1 Black wins. } 0-1
 
 
-[Event "4th Annual Beltway Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.08.01"]
+[Event "Summit Open"]
+[Site "Fairhaven"]
+[Date "2024.10.22"]
 [Round "1"]
 [White "Daniel Gentile"]
 [Black "Emerson Archer"]
@@ -119,9 +119,9 @@
 1. e4 c5 2. d4 cxd4 3. c3 a6?! 4. Nf3?! (4. cxd4! { Don't try to force the game back to theory. Stick to the general principles. }) 4... d6 (4... dxc3 5. Nxc3 d6 6. Bc4 Nc6 7. O-O Nf6) 5. cxd4 Bg4 6. h3 (6. Bc4!? { an interesting idea. } 6... Nc6? (6... Nf6 7. Bxf7+?? Kxf7 8. Ng5+ Ke8) 7. Bxf7+ Kxf7 8. Ng5+ Ke8 9. Qxg4) (6. Qb3!? b5 7. a4 bxa4 8. Rxa4) 6... Bxf3 7. Qxf3 Nf6 8. Nc3?! (8. e5! { Push knight, win space! } 8... dxe5 9. dxe5 (9. Qxb7) 9... Nd5 10. Bc4 (10. Bg5)) 8... e6 9. Bc4 b5 10. Bb3 (10. e5 Nbd7 11. exf6 bxc4 12. fxg7 Bxg7) 10... Nc6 11. Be3 Be7? 12. O-O? (12. e5! { Tactical weaknesses! }) 12... Qc7 13. d5! (13. Rac1! O-O 14. d5! exd5 15. Nxd5 Nxd5 (15... Qd7 16. Nb6! (16. Rxc6! Qxc6 (16... Nxd5 17. exd5) 17. Nxe7+)) 16. exd5 Ne5 17. Rxc7 Nxf3+ 18. gxf3) 13... Ne5 14. Qe2 exd5 15. Nxd5 Nxd5 16. Bxd5! (16. exd5) 16... Rd8 17. Rac1 Qd7 (17... Qb8) 18. f4! { Push knight, win space! More forcing than Bf4. } (18. Bf4? O-O 19. Bxe5 dxe5 20. Bc6) 18... Nc4 19. b3! (19. Bd4 O-O (19... f6) 20. b3 Na5 21. Qe1) 19... O-O (19... Nxe3 20. Bc6 Qxc6 21. Rxc6 Nxf1 22. Qxf1) 20. bxc4 bxc4 21. Bxc4 Rc8 22. Bxa6 Rxc1 23. Rxc1 d5 24. exd5 Qxd5 25. Rc8 Rxc8 26. Bxc8 g6 27. Ba6 Bh4 28. Bc4 Qb7 29. Bd4 Qd7 30. Qe5 { 1-0 White wins. } 1-0
 
 
-[Event "4th Annual Beltway Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.08.02"]
+[Event "Summit Open"]
+[Site "Fairhaven"]
+[Date "2024.10.23"]
 [Round "2"]
 [White "Finley Archer"]
 [Black "Daniel Gentile"]
@@ -144,9 +144,9 @@
 1. c4 e6 2. d4 d5 3. Nc3 Nf6 { QGD. } 4. Bg5 dxc4 5. e4 c5 6. dxc5 Qa5 7. Bxf6 gxf6 8. Qd4 Nd7 (8... Bxc5 9. Qxf6 Rg8) 9. O-O-O Qxc5 10. Qd2? { abbandons } (10. Bxc4!) 10... h5!? 11. Qe2 (11. Nf3?? Bh6) 11... b5 12. g3 Bb7 13. Nf3 Ke7? (13... O-O-O! 14. Kb1 Be7 15. Bg2 Nb6) (13... b4 14. Na4 Qc6) 14. Nd4 (14. Nd5+ exd5 15. exd5+) (14. Bh3 a6 15. Rhe1 Bh6+ 16. Kb1 b4 17. Nd5+ exd5 18. exd5+) 14... a6 15. Qd2 Bh6 16. f4 Rhd8 17. Bh3 b4?! 18. Nb1 Ne5! 0-1
 
 
-[Event "4th Annual Beltway Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.08.02"]
+[Event "Summit Open"]
+[Site "Fairhaven"]
+[Date "2024.10.23"]
 [Round "3"]
 [White "Daniel Gentile"]
 [Black "Harper Archer"]
@@ -169,9 +169,9 @@
 1. e4 e5 (1... d5 2. exd5 Qxd5) 2. Nf3 Nc6 3. Bc4 Nf6 (3... Bc5 4. d3 Nf6 5. c3 d6 6. Qe2 (6. Qc2) (6. Qb3)) 4. Ng5 d5 5. exd5 Na5 6. Bb5+ c6 7. dxc6 bxc6 8. Qf3 Bd7 9. Ba4 Rc8 10. Nc3 Bd6 11. d3 Qe7 12. O-O h6 13. Nge4 Nb7 14. Nxf6+ Qxf6 15. Qxf6 gxf6 16. Ne4 Be7 17. f4 f5 18. Ng3 Nc5 19. Bb3 Ne6 (19... Nxb3 20. axb3) 20. fxe5 c5 21. Nxf5 Bc6 22. Nxe7 Kxe7 23. Bxe6?! { - Gives up the BP. - goes into opposite-color bishops endgame. } 23... Kxe6 24. Rf6+ Kxe5 25. Rxh6 Rhg8 26. g3 Kf5 27. Rh5+ Kg4 28. Rxc5 Rge8 29. Bd2 Re2 30. Rg5+ Kh3 31. Rd1 (31. Rh5+ Kg4 32. Rh4+ Kf5 33. Rf1+ Kg6 34. Rf2) 31... Bf3 32. Kf1 Rxc2 33. Rf5 Bg4 34. Rf2 Rxf2+ 35. Kxf2 Bxd1 36. Ke1 Bf3 37. Bc3 Rxh2 38. Be5 Re2+ { 0-1 Black wins. } 0-1
 
 
-[Event "4th Annual Beltway Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.08.03"]
+[Event "Summit Open"]
+[Site "Fairhaven"]
+[Date "2024.10.24"]
 [Round "4"]
 [White "Jordan Archer"]
 [Black "Daniel Gentile"]
@@ -194,9 +194,9 @@
 1. d4 d5 2. c4 e6 (2... c6 3. Nc3 Nf6 4. Nf3 Bg4 5. e3 e6 6. Bd3 Nbd7 7. O-O Bh5 8. Qc2 Bg6 9. Bxg6 hxg6) 3. Nf3 Nf6 4. Nc3 c5 5. e3 Qc7?! { Don't move your queen too soon! } (5... Be7! 6. Be2 O-O! 7. O-O Nc6 8. b3 b6) 6. b3 (6. Nb5 Qd8) (6. cxd5 exd5 7. dxc5 Qxc5 8. Bd3 Nc6 9. Bd2 Be7 10. Rc1 Qd6 11. Nb5 Qd8 12. Nbd4) 6... Be7 (6... cxd4 7. exd4 Bb4 8. Bd2 Qa5 9. Rc1 Bxc3 10. Bxc3 Qxa2 11. Ra1) 7. Bd3 Nc6 8. Bb2 b6 9. O-O O-O 10. h3 Bb7 (10... dxc4 11. bxc4 (11. Bxc4 Rd8 12. Qe2 Bb7) 11... Rd8 (11... cxd4 12. exd4 Rd8)) 11. Qc2 dxc4 (11... Nb4! 12. Qe2 Nxd3 13. Qxd3 dxc4 14. bxc4 Bxf3 15. gxf3) (11... Rfd8) 12. Bxc4 cxd4 13. Nxd4 Nxd4 14. exd4 Rfd8 15. Rfd1 Nd5! 16. Nxd5 Bxd5 17. Rac1 Bf6 18. Qxh7+ Kxh7 19. Bd3+ Kg8 20. Rxc7 Kf8 21. Rdc1 a6 22. Bc4 b5 23. Bxd5 Rxd5 24. Rc8+ Rxc8 25. Rxc8+ Ke7 26. Ba3+ Kd7 27. Rf8 Rxd4 28. Rxf7+ Kc6 29. Kf1 Rd2 30. Bb4 Rxa2 31. Bf8 Rb2 32. Bxg7 Bxg7 33. Rxg7 a5 34. g4 Rxb3 35. Kg2 a4 36. g5 a3 37. g6 Kb6 38. Rf7 a2 39. g7 a1=Q 40. g8=Q Qe5 41. Qd8+ Kc6 42. Qc8+ Kd5 (42... Kb6) 43. Rd7+ Ke4 44. Qc2+ Kf4 45. Rf7+ Kg5 46. Qxb3 Qe4+ 47. Kh2 Qe5+ 48. f4+ { 1-0 White wins. } 1-0
 
 
-[Event "4th Annual Beltway Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.08.03"]
+[Event "Summit Open"]
+[Site "Fairhaven"]
+[Date "2024.10.24"]
 [Round "5"]
 [White "Kai Archer"]
 [Black "Daniel Gentile"]
@@ -219,9 +219,9 @@
 1. e4 c6 2. d4 d5 3. Nc3 dxe4 4. Nxe4 Nf6 5. Ng3 Bg4 (5... h5! 6. h4 Bg4! 7. f3 Bd7) 6. f3 Bh5?! (6... Bd7) 7. Nxh5 Nxh5 8. Be3 e6 9. Bd3 Nd7 10. c3 Bd6 11. Bf2 Nf4 12. Kf1 Nxd3 13. Qxd3 c5? (13... O-O) 14. d5 exd5 15. Qxd5 O-O?? 16. Qxd6 { 1-0 White wins. } 1-0
 
 
-[Event "DMV Late Summer Action (U1500)"]
-[Site "Dulles"]
-[Date "2025.08.17"]
+[Event "Lakeside Open"]
+[Site "Fairhaven"]
+[Date "2024.11.07"]
 [Round "1"]
 [White "Logan Archer"]
 [Black "Daniel Gentile"]
@@ -244,9 +244,9 @@
 1. e4 c6 2. d4 (2. Nc3) 2... d5 3. exd5 (3. e5) (3. Nc3) (3. Nd2 dxe4 4. Nxe4 Nf6 5. Nxf6+ exf6) 3... cxd5 4. c4 { Panov Attack. } (4. Bd3) (4. Nf3 Nc6 (4... Bg4) (4... e6) 5. c3 Bg4 6. Be2 e6) 4... Bf5 5. Nc3 (5. Qb3! dxc4 6. Bxc4 e6 7. Qxb7) 5... e6 6. Bd3 Bxd3 7. Qxd3 Ne7? { Violates opening principles! } (7... Nf6! 8. Nf3 Bb4 9. O-O O-O) (7... Bd6 8. Nf3 Ne7) (7... dxc4! 8. Qxc4 Bd6 9. Nf3 Ne7 10. O-O O-O) 8. Nf3 Nf5? 9. cxd5 exd5 10. Qxf5 Be7 11. Qxd5 Qb6 12. Qb5+ Nd7 13. O-O O-O 14. Qxd7 Rfe8 15. Nd5 Qd6 16. Nxe7+ Qxe7 17. Qxe7 Rxe7 18. Re1 Rae8 19. Bd2 { 1-0 White wins. } 1-0
 
 
-[Event "DMV Late Summer Action (U1500)"]
-[Site "Dulles"]
-[Date "2025.08.17"]
+[Event "Lakeside Open"]
+[Site "Fairhaven"]
+[Date "2024.11.07"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Morgan Archer"]
@@ -269,9 +269,9 @@
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Na5 6. Bb5+ Bd7 7. Bxd7+ (7. Qe2! Bxb5 8. Qxb5+ c6 9. dxc6 bxc6 10. Qxe5+) 7... Qxd7 8. Nc3 Nxd5 9. Qf3?! c6 (9... Nb4!) 10. O-O! (10. Nxd5 cxd5) 10... Bd6 (10... Nxc3 11. dxc3) 11. Nxd5 cxd5 12. Qxd5 O-O 13. Ne4 Rfe8? 14. Nxd6 (14. Qxd6 Qf5 15. d3) 14... Re6 15. Re1? Qxd6 (15... Nc6!) 16. Qxd6? Rxd6 17. Rxe5 Nc6 18. Re1 Rdd8 19. d3 Re8 20. Bd2 Nd4 21. c3 Nc2 22. Rxe8+ Rxe8 23. Rc1 Na3 24. bxa3 Re2 25. Re1! Rxe1+ 26. Bxe1 Kf8 27. Kf1 Ke7 28. Ke2 Kd6 29. Bd2 g6 30. Bh6 a6 31. Bf8+ Kd5 32. Bb4 f5 33. Ke3 Ke6 34. Kd4 h5 35. f4 b5 36. c4 bxc4 37. dxc4 Kd7 38. Ke5 { 1-0 White wins. } 1-0
 
 
-[Event "DMV Late Summer Action (U1500)"]
-[Site "Dulles"]
-[Date "2025.08.17"]
+[Event "Lakeside Open"]
+[Site "Fairhaven"]
+[Date "2024.11.07"]
 [Round "3"]
 [White "Daniel Gentile"]
 [Black "Quinn Archer"]
@@ -294,9 +294,9 @@
 1. e4 c5 2. d4 cxd4 3. c3 dxc3 4. Nxc3 d6 5. Bc4 Nf6 6. e5 (6. Nf3 e6 7. Be3 Be7 8. O-O a6 9. Rc1 b5 10. Be2 Bb7 11. Qc2 Nc6) 6... dxe5?? 7. Bxf7+ Kxf7 8. Qxd8 Nc6 9. Qd3 g6 10. Nf3 Bf5 11. Qb5 e4 12. Ne5+ Nxe5 13. Qxe5 Bg7 14. Bg5 Rhe8 15. Bxf6 Bxf6 16. Qd5+ e6 17. Qb3 b6 18. O-O h5 19. Rfe1 Bxc3 20. Qxc3 Rac8 21. Qa3 a5 22. Qb3 Rb8 23. Rac1 Rb7 24. h3 g5 25. Rc6 Reb8 26. Rec1 Kg6 27. Rc7 g4 28. Rxb7 Rxb7 29. hxg4 hxg4 30. Rc6 b5 { [%csl Gc6,Ge6,Gf5] } 31. Rxe6+ Bxe6 32. Qxe6+ Kg5 33. Qd5+ Kf6 34. Qxb7 b4 35. Qb6+ Kg7 36. Qxa5 Kf7 37. Qxb4 Ke6 38. Qxe4+ Kd7 39. Qxg4+ Kc7 40. Qe6 { [%cal Ge6a6,Ge6e8,Ge6c8] } 40... Kb7 41. Qd6 Kc8 42. Qe7 Kb8 43. g4 (43. f4 Ka8 44. g4 Kb8 45. f5 Ka8 46. g5 Kb8 47. f6 Ka8 48. f7 Kb8 49. f8=B Ka8 50. g6 Kb8 51. g7 Ka8 52. g8=N Kb8 53. b4 Ka8 54. a4 Kb8 55. a5 Ka8 56. b5 Kb8 57. a6 Ka8 58. b6 Kb8 59. a7+ Ka8 60. b7+ Kxa7 61. b8=Q+ Kxb8 62. Qb7+ Kxb7) 43... Ka8 44. g5 Kb8 45. g6 Ka8 46. g7 Kb8 { 1-0 White wins. } 1-0
 
 
-[Event "DMV Late Summer Action (U1500)"]
-[Site "Dulles"]
-[Date "2025.08.17"]
+[Event "Lakeside Open"]
+[Site "Fairhaven"]
+[Date "2024.11.07"]
 [Round "4"]
 [White "Alex Bennett"]
 [Black "Daniel Gentile"]
@@ -319,9 +319,9 @@
 1. e4 c6 2. d4 d5 3. e5 c5 4. c3 Nc6 5. Bb5 Qa5 6. Bxc6+ bxc6 7. Bd2 Qb6 8. Qb3 cxd4 9. Qxb6 axb6 10. cxd4 e6 11. f4 Ne7 12. g4? c5 13. Be3 Nc6 14. Ne2 Ba6 15. Nbc3 Nb4 16. Kd2 Be7 17. h4 Bxe2 (17... O-O) (17... Kd7! 18. a3 (18. Rhc1 Rhc8) 18... Nc6) 18. Kxe2 (18. Nxe2 Rxa2 19. Rxa2 Nxa2 20. Ra1 Nb4 21. Ra8+ Bd8 22. dxc5 bxc5 23. Bxc5 Nc6 24. b4) 18... Nc2 19. Rac1 Nxd4+ 20. Bxd4 cxd4 21. Nb5 Rxa2 (21... O-O 22. a3 (22. Nxd4 Bc5) 22... Bc5 23. b4 Be7) (21... Kd7) 22. Rc8+ Bd8 23. Nd6+ Ke7 (23... Kd7 24. Nxf7 Kxc8 25. Nxh8 Rxb2+) 24. Rhc1 Rxb2+ 25. Kd1 b5 26. R1c7+ Bxc7 27. Rxc7+ Kd8 28. Rc8+ Kd7 29. Rxh8 b4 30. Kc1 d3 (30... Rf2) 31. Kxb2 d2 32. Kc2 b3+ 33. Kxd2 (33. Kd1 b2 34. Rb8) 33... Kc6 34. Rxh7 Kc5 35. Rxg7 Kb4 36. Kc1 d4 37. Rxf7 Ka3 38. Nc4+ Ka2 39. Ra7# { 1-0 White wins. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.08.29"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.11.19"]
 [Round "5"]
 [White "Blair Bennett"]
 [Black "Daniel Gentile"]
@@ -343,9 +343,9 @@
 1. e4 c6 (1... e5 2. Bc4 (2. Nf3 f6?? 3. Nxe5!) 2... Nc6 3. Qh5 Nf6 4. Qxf7#) 2. c4 d5 3. cxd5 cxd5 4. Nc3?! { Gives Black a tempo, gives Black space. } (4. exd5 Nf6 (4... Qxd5?! { Developing the Q too early. } 5. Nc3) 5. Bb5+ Nbd7 6. Nc3 a6 7. Bc4 b5 8. Bb3 b4) 4... d4 5. Nce2 e5 6. Qb3?! { Developing the Q too early. } (6. d3 Nc6 7. a3) 6... Nc6 (6... Nf6!) (6... Be6 7. Qxb7 Nd7) 7. f4 (7. Nf3 Nf6) 7... f6? (7... Nf6! 8. fxe5 Nxe5 9. Qb5+ Nc6) (7... exf4) 8. Nf3 (8. fxe5 fxe5) 8... d3 9. Nc3 Nb4 10. Nd5 (10. Kd1 Nc2 (10... exf4!?) 11. Rb1 Ne7 12. fxe5 fxe5 13. Bxd3 Qxd3 14. Qxc2) 10... Nc2+ 11. Kd1 Nxa1 12. Qxd3 Bd6 13. Qc3 Bg4? { Up material  coordinate / simplify, trade and win the endgame. } (13... Ne7 14. Bb5+ Bd7 15. Bxd7+ Qxd7 16. Nxe7 Bxe7 17. b3 exf4 18. Qxa1 O-O) 14. Bb5+ Kf7? { Exposing the king. } (14... Bd7! 15. Bxd7+ Qxd7 16. fxe5 Rc8 17. Qd4 Nc2 18. Qxa7 fxe5 (18... Bc5)) (14... Kf8! { King is much safer here. } 15. b3 Ne7 16. Nxe7 Qxe7 17. Qxa1 exf4) 15. d4 (15. Ke1 Ne7 16. Kd1 Re8 17. Ke1 Kg8 18. Kd1 Kh8) 15... Ne7?! { No need to do anything crazy. } (15... exd4! 16. Qxd4 Ne7 (16... Bxf3+ 17. gxf3 Ne7) 17. b3 Nxd5 18. exd5 (18. Qxd5+ Be6 19. Qd4 Bc5 20. Qxd8 Rhxd8+) 18... Bxf3+ 19. gxf3 Qb6) 16. fxe5 Rc8 17. Qd3 Nxd5 18. Bc4 fxe5 (18... Bxf3+ 19. gxf3 fxe5 20. Bxd5+ Kf8) 19. Bxd5+ Kg6? (19... Kf8 20. Rf1 Qc7) (19... Ke8) 20. h3! Rxc1+? { Panic. } (20... Qc7! 21. Bd2 Qc2+ 22. Qxc2 Bxf3+ 23. gxf3 Nxc2 24. Rg1+ Kf6 (24... Kh5) 25. Bg5+ Kg6) 21. Kxc1 Qc7+ 22. Kb1 Rc8 23. Nh4+ Kf6 24. Rf1+ Kg5 25. Qe3+ Kxh4 26. hxg4 Qc2+ 27. Kxa1 Qxg2 28. Qe1+ Kg5 29. Rf5+ Kxg4 30. Qd1+ Kh4 31. Rh5+ Kg3 32. Rg5+ Kf2 33. Rxg2+ Kxg2 34. Qd2+ Kg3 35. dxe5 Bxe5 36. Qg5+ Kf3 37. Qf5+ Bf4 38. Qxc8 h5 39. Qh3+ Kf2 40. e5 g5 41. Qf3+ Kg1 42. Qg2# { 1-0 White wins. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.09.05"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.11.26"]
 [Round "6"]
 [White "Daniel Gentile"]
 [Black "Casey Bennett"]
@@ -367,9 +367,9 @@
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d4 exd4 6. O-O dxc3 7. e5 Ng4 8. Bxf7+ Ke7 9. Bg5+ Nf6 10. exf6+ gxf6 11. Bc1 Kxf7 12. Qd5+ Kf8 13. Qxc5+ d6 14. Bh6+ Kf7 15. Qh5+ Ke6 16. Re1+ Ne5 17. Nxc3 Kd7 18. Nxe5+ fxe5 19. Qf7+ Qe7 20. Qxe7+ Kxe7 21. Nd5+ Kd7 22. Rac1 c6 23. Bg7 Rd8 24. Nf6+ Kc7 25. Nxh7 Rg8 26. Nf6 Rxg7 27. Ne8+ Kb6 28. Nxg7 Bd7 29. Nh5 Rh8 30. Ng3 c5 31. Ne4 Kc6 32. Red1 Kc7 33. Nxd6 b6 34. Nc4 e4 35. Re1 Bc6 36. Nd2 Rg8 37. Nxe4 Kb7 38. Ng3 a6 39. Re7+ Kc8 40. Rce1 Rd8 41. h3 Rd2 42. R1e2 Rd5 43. Nf1 Bb5 44. Ne3 Rg5 45. Re1 Kd8 46. Nd1 Bc6 47. g4 Rg8 48. R7e6 Bb7 49. Rxb6 Bf3 50. Rxa6 Rh8 51. Kh2 Rf8 52. Re3 Bxd1 53. Ra8+ { 1-0 White wins. } 1-0
 
 
-[Event "DMV FIDE Classical (U1400)"]
-[Site "Dulles"]
-[Date "2025.09.06"]
+[Event "Highland Open"]
+[Site "Fairhaven"]
+[Date "2024.11.27"]
 [Round "1"]
 [White "Devon Bennett"]
 [Black "Daniel Gentile"]
@@ -392,9 +392,9 @@
 1. d4 d5 2. Nf3 c5 3. b3 Bf5 4. e3 e6 5. Bd3 Bxd3 6. Qxd3 Bd6 7. Bb2 Ne7 8. Nbd2 O-O 9. Ne5 Bxe5 10. dxe5 Nbc6 11. a3 Ng6 12. f4 d4 13. O-O dxe3 14. Qxe3 Qd5 15. Rad1 Nce7 16. Ne4 Nf5 17. Qe2 Nd4 18. Bxd4 cxd4 19. Nc3 Qc5 20. Ne4 d3+ 21. Qf2 Qxf2+ 22. Rxf2 dxc2 23. Rxc2 Nxf4 24. Rf2 Ng6 25. Nc5 b6 26. Nd7 Rfd8 27. Rfd2 Rdc8 28. g3 Nf8 29. a4 Rc7 30. Nxf8 Kxf8 31. Rd8+ Rxd8 32. Rxd8+ Ke7 33. Rh8 h6 34. Rh7 Kf8 35. Rh8+ Ke7 36. Rh7 Rc1+ 37. Kg2 Rc2+ 38. Kh3 Rb2 39. Rxg7 Rxb3 40. Rg4 f6 41. Rg7+ Kf8 42. exf6 Rf3 43. Rxa7 Rxf6 44. Kg4 Rf7 45. Ra8+ Kg7 46. h4 Rb7 47. a5 bxa5 48. Rxa5 Re7 49. Kf4 Kg6 50. g4 Rf7+ 51. Kg3 Re7 52. h5+ Kf6 53. Kh4 e5 54. g5+ hxg5+ 55. Kg4 e4 56. Rf5+ Kg7 57. Rxg5+ Kh6 58. Rg6+ Kh7 59. Kg5 Re5+ 60. Kf6 Rxh5 61. Rg7+ Kh6 62. Rg6+ Kh7 63. Rg7+ Kh8 64. Kg6 e3 65. Re7 Rh3 66. Re8# { 1-0 White wins. } 1-0
 
 
-[Event "DMV FIDE Classical (U1400)"]
-[Site "Dulles"]
-[Date "2025.09.06"]
+[Event "Highland Open"]
+[Site "Fairhaven"]
+[Date "2024.11.27"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Emerson Bennett"]
@@ -416,9 +416,9 @@
 1. e4 c5 2. d4 e6 3. Nf3 Nc6 4. Bc4 Nf6 5. Nc3 h6 6. O-O Bd6 7. e5 Na5 8. Bb3 Nxb3 9. axb3 Bxe5 10. dxe5 Ng4 11. h3 h5 12. hxg4 hxg4 13. Bg5 f6 14. exf6 gxf6 15. Nh2 fxg5 16. Qxg4 Qc7 17. f4 Rh4 18. Qxg5 Qd8 19. Qxd8+ Kxd8 20. f5 d5 21. f6 Rh8 22. f7 Ke7 23. Ng4 Bd7 24. Ne5 d4 25. f8=Q+ Rhxf8 26. Rxf8 Rxf8 27. Ng6+ { 1-0 White wins. } 1-0
 
 
-[Event "DMV FIDE Classical (U1400)"]
-[Site "Dulles"]
-[Date "2025.09.07"]
+[Event "Highland Open"]
+[Site "Fairhaven"]
+[Date "2024.11.28"]
 [Round "3"]
 [White "Finley Bennett"]
 [Black "Daniel Gentile"]
@@ -441,9 +441,9 @@
 1. e4 c6 2. d4 d5 3. exd5 cxd5 4. Bd3 Nc6 5. c3 Nf6 6. Be3 Bg4 7. Qb3 Na5 8. Qc2 e6 9. Nd2 Bd6 10. Ngf3 O-O 11. O-O Nc6 12. h3 Bxf3 13. Nxf3 Qe7 14. Bg5 h6 15. Bh4 Rfc8 16. Rfe1 g5 (16... Nb4 17. Qd1 Nxd3 18. Qxd3 g5 19. Bg3 Bxg3 20. fxg3 Ne4) 17. Bg3 Nb4 18. Qd2 Nxd3 19. Bxd6 Qxd6 20. Qxd3 a6 21. a4 Rab8 22. Ne5 Kg7 23. Re3 Rg8 24. b4 b5 25. axb5 Rxb5 26. Rf3 Rf8 27. g3 Ne4 28. Re3 f6 29. Nf3 f5 30. Ne5 Rb6 31. Kg2 Rc8 32. c4 Rxb4 33. cxd5 Qxd5 34. f3 Rb2+ 35. Re2 Rxe2+ 36. Qxe2 Qxd4 37. Rxa6 Qxe5 38. fxe4 fxe4 39. Ra7+ Kg6 40. h4 h5 41. hxg5 Rc3 42. Qf2 Qf5 43. Rg7+ Kxg7 44. Qd4+ Kg6 45. Qxc3 Kxg5 46. Qg7+ Qg6 47. Qe5+ Qf5 48. Qg7+ Qg6 49. Qe5+ Kh6 50. Qh8+ Qh7 51. Qf6+ Qg6 52. Qh8+ Kg5 53. Qe5+ { 1/2-1/2  wins. } 1/2-1/2
 
 
-[Event "DMV FIDE Classical (U1400)"]
-[Site "Dulles"]
-[Date "2025.09.07"]
+[Event "Highland Open"]
+[Site "Fairhaven"]
+[Date "2024.11.28"]
 [Round "4"]
 [White "Daniel Gentile"]
 [Black "Harper Bennett"]
@@ -466,9 +466,9 @@
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d4 exd4 6. O-O Nxe4 7. cxd4 d5 8. dxc5 dxc4 9. Qe2 Bf5 10. Nc3 Qe7 11. Qxc4 O-O-O 12. Re1 Qxc5 13. Qxc5 Nxc5 14. Bf4 Nd3 15. Bg3 Nxe1 16. Rxe1 Rhe8 17. Rxe8 Rxe8 18. Nd5 Re2 19. b4 Rxa2 20. h3 h5 21. b5 Ra1+ 22. Kh2 Rd1 23. Ne3 Rb1 24. bxc6 bxc6 25. Nxf5 g6 26. Ne3 a5 27. Ne5 a4 28. Nxc6 a3 29. Be5 f5 30. Nc2 Rb2 31. Nxa3 Ra2 32. Nb5 Rxf2 33. Bxc7 g5 34. Bg3 Rb2 35. Nd6+ Kd7 36. Ne5+ Ke6 37. Nf3 f4 38. Nxg5+ Kxd6 39. Bxf4+ Kc5 40. Ne4+ Kb4 41. Ng3 h4 42. Nf5 Kb3 43. Nxh4 Rf2 44. Nf3 Ra2 45. h4 Kc4 46. Kh3 Kd3 47. g3 Ke4 48. Kg4 Kd5 49. h5 Ra7 50. h6 Rb7 51. Kh5 Ke6 52. g4 Kd5 53. Nh4 Ke4 54. Bd2 Ke5 55. Bc3+ Ke6 56. g5 Kf7 57. h7 Rb3 { 1-0 White wins. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.09.19"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.12.10"]
 [Round "7"]
 [White "Jordan Bennett"]
 [Black "Daniel Gentile"]
@@ -490,9 +490,9 @@
 1. e4 c6 2. Bc4 d5 3. exd5 cxd5 4. Bd3 Nf6 5. Nf3 Bg4 6. h3 Bh5 7. c3 e5 8. Qa4+ Nc6 9. Nxe5 Qc7 10. Nxc6 bxc6 11. O-O Be7 12. Re1 O-O 13. Bc2 Bc5 14. d4 Rfe8 15. Rxe8+ Rxe8 16. Bd2 Bd6 17. Bd3 Bf4 18. Qc2 c5 19. dxc5 Qe5 20. Na3 d4 21. cxd4 Qxd4 22. Bxf4 Qxf4 23. c6 Qd4 24. c7 Rc8 25. Ba6 { 1-0 White wins. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.09.26"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.12.17"]
 [Round "8"]
 [White "Kai Bennett"]
 [Black "Daniel Gentile"]
@@ -514,9 +514,9 @@
 1. e4 d6 (1... e5 2. Nf3 Nc6 3. Nc3 (3. Bc4) (3. Bb5) (3. d4) 3... Nf6 4. Bc4?! { Italian Variation. } (4. d4) (4. Bb5) 4... Nxe4! 5. Bxf7+! (5. Nxe4 d5 6. Bd3 dxe4 7. Bxe4 Bd6) 5... Kxf7 6. Nxe4 d5 7. Neg5+ Kg8 8. d3 h6 9. Nh3 Bg4) 2. d4 Nf6 3. Nc3 g6 4. Bc4 (4. f3 c6 5. Be3 Bg7 6. Qd2 O-O 7. O-O-O { PLAN 1. }) (4. Nf3 Bg7 5. Be2 (5. Bd3 O-O 6. Be3) 5... O-O 6. O-O { PLAN 2. }) 4... Bg7 5. b3? { - White is inconsistent, develops both sides, - Fianchetto makes no sense, because Bb2's view is blocked. - too slow - allows Nxe4. } 5... Nxe4! 6. Nxe4 (6. Bxf7+ Kxf7 7. Nxe4 Rf8 { Artificial castling. }) 6... d5 7. Bxd5 (7. Qf3) 7... Qxd5 8. Nc3 Qxd4?! (8... Qxg2 9. Qf3 Qxf3 10. Nxf3 Nc6) 9. Bb2 (9. Qxd4 Bxd4 10. Nb5 Bxa1! (10... Bb6?) 11. Nxc7+ Kd7 12. Nxa8 b6 13. Bf4 Na6 (13... e5 14. Be3 Bb7)) 9... O-O 10. Qxd4 Bxd4 11. O-O-O Nc6 (11... Bxf2!? 12. Nd5) 12. Nf3 Bxf2 13. Nd5 Bb6 14. Rhe1 Be6! (14... Re8?? 15. Nf6+) (14... e6? 15. Nf6+ Kg7 16. Nd7+ Kg8 17. Nxf8) (14... Bc5?! 15. Nxc7 Rb8) (14... Bg4 15. Rxe7 Nxe7?? 16. Nxe7#) 15. Nf4 Bg4 16. Rd3 Rfd8 17. Rc3 Rd7? (17... Ba5!) 18. Rxc6 bxc6 19. Ne5 Be3+! (19... Rd1+ 20. Rxd1 Be3+ 21. Rd2 Rd8 22. Nfd3 Bxd2+ 23. Kxd2 { Rook for 2 knights not great }) 20. Kb1 Rd1+ (20... Bxf4! 21. Nxg4 h5 22. Ne5 Bxe5 23. Bxe5 Rad8) 21. Rxd1 Bxd1 22. Nfd3 c5 23. c3 Rd8 24. Ne1 Be2 25. Kc2 Rd2+ 26. Kc1 Rd5+ 27. Kc2 Rxe5 28. c4 Bd4 29. Bc1 Bd3+?? 30. Nxd3 Re2+ 31. Kd1 Rxg2 32. h3 Rxa2 33. Ke1 Ra1 34. Kd2 Ra2+ 35. Ke1 Rh2 36. Nf4 e5 37. Nd5 Rxh3 38. Nxc7 Rxb3 39. Nd5 a5 40. Bd2 Rb1+ 41. Ke2 a4 42. Bc3 Bxc3 43. Nxc3 Rb2+ 44. Kf3 Rb3 45. Ke2 Rxc3 46. Kd2 Rxc4 47. Kd1 a3 48. Kd2 a2 49. Kd3 Rb4 50. Kc2 a1=Q 51. Kd2 Qa3 52. Kd1 Rb2 53. Kc1 Qa1# { 0-1 Black wins. } 0-1
 
 
-[Event "2nd Annual Federal Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.10.04"]
+[Event "Fairview Open"]
+[Site "Fairhaven"]
+[Date "2024.12.25"]
 [Round "1"]
 [White "Logan Bennett"]
 [Black "Daniel Gentile"]
@@ -539,9 +539,9 @@
 1. e4 d6 2. d4 Nf6 3. Nc3 g6 4. Bg5 Bg7 5. Be2 (5. e5 dxe5 (5... Nfd7 6. f4 O-O 7. Nf3 f6) 6. dxe5 Ng4) (5. f3 O-O 6. Qd2 c6 7. Bd3 b5) 5... O-O 6. Qd2 c6 7. Bh6 b5 8. Nf3? Nbd7?! (8... b4! 9. Na4 Nxe4 10. Qe3 Nf6 11. O-O-O Ng4) 9. Bxg7 Kxg7 10. h4 e5?! 11. h5 Nxh5 12. Ng5 (12. g4 Nf4 13. dxe5 dxe5 14. Nxe5! Nxe2 15. Qh6+) 12... Nf4! 13. Nf3 (13. Nxh7 Rh8) (13. Rxh7+ Kg8) 13... Nxg2+ 14. Kd1 Nf4 15. dxe5 dxe5 16. Kc1 Nc5 17. Qe3 Nce6 18. Nxe5 Nxe2+? (18... b4! 19. Nd1 (19. Nxc6 Qd6) 19... Nxe2+ 20. Qxe2 Qg5+) 19. Nxe2 Qg5 20. Qxg5? (20. f4) 20... Nxg5 21. Nxc6 Nxe4 22. f3 Nf6 23. Kd2 Bb7 24. Ncd4 Rad8 25. c3 Bxf3 26. Ke3 Bxe2 27. Kxe2 Rfe8+ 28. Kf3 a6 29. a4 b4 30. Rhg1 bxc3 31. bxc3 Rc8 32. Nf5+ Kg8? (32... Kf8 33. Nd6 Rxc3+) 33. Rac1 Rc5 34. Nd6 Rd8 35. Nb7 Rd3+ 36. Ke2 Rcxc3 37. Rxc3 Rxc3 38. Rf1 Ne4 39. Nd8 Ng3+ { 0-1 Black wins. } 40. Kd2 Rc8 { 0-1 Black wins. } 0-1
 
 
-[Event "2nd Annual Federal Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.10.04"]
+[Event "Fairview Open"]
+[Site "Fairhaven"]
+[Date "2024.12.25"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Casey Archer"]
@@ -564,9 +564,9 @@
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d4 exd4 6. O-O O-O (6... dxc3 7. e5) 7. cxd4 Be7 8. d5! Na5? (8... Nb8 9. e5 Ne8 10. Re1 d6 11. e6 fxe6 12. dxe6) 9. Bd3 d6 10. Nc3? Bg4 11. b4 Qd7 12. bxa5 Bh5 13. Be2 Bg6 14. e5 Ne8 15. Re1 Qf5 16. exd6 Nxd6 17. Bd3 Qf6 18. Bb2 { 1-0 White wins. } (18. Bxg6 Qxc3 19. Bd2) 18... Qf4 { 1-0 White wins. } 1-0
 
 
-[Event "2nd Annual Federal Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.10.04"]
+[Event "Fairview Open"]
+[Site "Fairhaven"]
+[Date "2024.12.25"]
 [Round "3"]
 [White "Morgan Bennett"]
 [Black "Daniel Gentile"]
@@ -589,9 +589,9 @@
 1. c4 d6?! (1... Nf6 2. Nc3 g6 3. g3 Bg7 4. Bg2 O-O 5. e3 c5 6. d4 cxd4 7. exd4 Qc7 8. b3 d5! 9. Nxd5 Nxd5 10. Bxd5 Nc6 11. Be3 Rd8 12. Ne2 Bg4 13. O-O e6) 2. g3 Nf6 3. Bg2 g6 4. d4 Bg7 5. Nc3 Nbd7?! (5... O-O! { "First thing, hide the king!!" }) 6. e3 c6 (6... O-O! { "First thing, hide the king!!" }) 7. Nge2 O-O 8. O-O Qc7 9. b3 e5 10. Bb2 b6? { Weakens your position too much, } (10... exd4! 11. exd4 Re8 12. Re1 (12. Qd2 Nf8 13. d5 (13. c5 d5) 13... c5) 12... Nf8) 11. d5 (11. Nb5!) 11... cxd5? (11... c5!) 12. Nb5? (12. Nxd5 Nxd5 13. Qxd5 Rb8 14. Rfd1 Bb7 15. Qxd6 Qxd6 16. Rxd6 Bxg2 17. Kxg2) 12... Qb8 13. Bxd5 Nxd5 14. Qxd5 Bb7 15. Qxd6 Qxd6 (15... Qe8) (15... Qc8 16. Qc7) 16. Nxd6 Bf3 17. Nc3 Nc5 18. Ba3 e4 19. Rac1 Nd3 20. Rc2 f5 21. Nd5 Rfd8 22. Nc7 Rab8 23. Ne6 Rd7 24. Rd2 Bc3 25. Rc2 Bb4 26. Bxb4 Nxb4 27. Rd2 Nd3! (27... Nxa2 28. Nxf5 (28. Nxe4 Rxd2 29. Nxd2)) 28. Nb5 a6 (28... Nf4!! 29. gxf4 (29. Nxf4) (29. exf4 Rxd2) (29. Rxd7 Nh3#) 29... Rxd2) 29. Nbd4 Re8 30. Nxf3 Rxe6 31. Rfd1 Red6 32. Ne5 Rd8 33. Nxd3 Rxd3 (33... exd3) 34. Rxd3 exd3 (34... Rxd3 35. Rxd3 exd3) 35. f3 (35. Kf1) 35... Kf7 36. Kf2 Ke6 37. e4 fxe4 38. fxe4 Ke5 39. Ke3 d2 40. Rxd2 Rxd2 41. Kxd2 Kxe4 42. Kc3 a5 (42... g5 43. b4 g4 (43... a5 44. bxa5 bxa5 45. c5 Kd5) 44. c5 bxc5 45. bxc5 Kd5 46. Kb4) 43. a3 h5 44. b4 axb4+ 45. axb4 g5 46. b5 Ke5 47. c5 bxc5 48. b6 Kd6 49. b7 Kc7 50. b8=Q+ Kxb8 51. Kc4 Kc7 52. Kxc5 Kd7 53. Kd5 h4 54. g4 (54. gxh4 gxh4) 54... h3 55. Ke5 Ke7 56. Kf5 Kf7 57. Kxg5 Kg7 58. Kh4 Kh6 59. Kxh3 Kg5 60. Kg3 Kg6 61. h4 Kh6 62. Kf4 Kg6 63. h5+ Kh6 64. Kf5 Kg7 65. g5 Kh7 66. g6+ Kg7 67. h6+ Kh8 68. Kf6 Kg8 69. h7+ Kh8 70. g7+ Kxh7 { 1-0 White wins. } 1-0
 
 
-[Event "2nd Annual Federal Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.10.05"]
+[Event "Fairview Open"]
+[Site "Fairhaven"]
+[Date "2024.12.26"]
 [Round "4"]
 [White "Daniel Gentile"]
 [Black "Quinn Bennett"]
@@ -614,9 +614,9 @@
 1. e4 d5 2. exd5 Qxd5 3. Nc3 Qa5 4. d4 c6 5. Nf3 Bg4 6. h3 Bh5 7. g4 Bg6 8. Ne5 e6 9. Bg2 (9. h4! Be4 10. Nc4) 9... Bd6 10. Nc4 Qc7 11. Nxd6+ Qxd6 12. Ne2 Ne7 13. O-O O-O 14. Nf4 Nd7 15. b3 Rad8 16. c4 f6 17. Nxg6 (17. c5! Nxc5 18. Ba3 (18. Nxg6 Nxg6 19. Ba3)) (17. Re1! Bf7 18. a4 (18. Qe2)) (17. Qe2 Bf7 18. Re1 e5 19. dxe5 fxe5 20. Nd3) 17... Nxg6 18. Be3 Nf4 19. Bxf4 Qxf4 20. Qd3 (20. Qe2 Rfe8 21. Rad1) 20... Ne5! 21. Qe3 Qxd4 22. Qxd4 Rxd4 23. Rad1 Rfd8 24. Rxd4 Rxd4 25. Re1 Kf7 26. Kh2 Rd2 27. a4 Rxf2 28. Kg3 Rb2 29. Re3 Rd2 30. Be4 g6 31. Kf4 Nd7 32. Rd3 Rxd3 33. Bxd3 Nc5 34. Bc2 e5+ 35. Ke3 Ne6 36. Be4 Nd4 37. b4 f5 38. gxf5 gxf5 39. Bd3 Kf6 40. b5 c5 41. a5 b6 42. axb6 axb6 43. Bb1 Kg5 44. Kf2 Kf4 45. Bd3 e4 46. Bf1 e3+ 47. Ke1 Kf3 48. Bd3 e2 49. h4 Ke3 50. Bb1 Nf3# { 0-1 Black wins. } 0-1
 
 
-[Event "2nd Annual Federal Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.10.05"]
+[Event "Fairview Open"]
+[Site "Fairhaven"]
+[Date "2024.12.26"]
 [Round "5"]
 [White "Morgan Archer"]
 [Black "Daniel Gentile"]
@@ -639,9 +639,9 @@
 1. e4 d6 2. d4 Nf6 3. Nc3 g6 4. Nf3 Bg7 5. Bc4 O-O 6. O-O Nxe4! 7. Nxe4 d5 8. Bd3 dxe4 9. Bxe4 c6?! 10. Bf4 Nd7 11. Re1 c5 12. c3 cxd4 13. cxd4 Nf6 14. Bg5 Nxe4 15. Rxe4 Re8 16. Qd2 Qd5 17. Rxe7 Bg4 18. Rxe8+ Rxe8 19. Ne1? (19. Ne5 Bxe5 20. dxe5 Rxe5 21. Qxd5 Rxd5) 19... Qxd4 20. Qxd4 Bxd4 21. Nd3 Bf5 22. Nf4 Bxb2 23. Rb1 (23. Rd1 Bc2 24. Rf1 f6 25. Bh4 g5 { gg5 }) 23... Bxb1 24. Nd5 Re1# { 0-1 Black wins. } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.10.10"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2024.12.31"]
 [Round "9"]
 [White "Daniel Gentile"]
 [Black "Jordan Bennett"]
@@ -663,9 +663,9 @@
 1. e4 e5 2. Nf3 Nf6 3. Nxe5 Qe7 4. Nf3?! { My prep is d4 not Nf3. Still an ok move but I left theory first. } 4... Nxe4 5. Be2 g6 { Makes a bit of sense because he wants to develop bishop somehow and castle but definitely didn't seem like the correct way to develop for him. } 6. O-O Bg7 7. Nc3 { I liked the position after Nxc3, dxc3 since it removes his most active piece while opening up my bishop. } 7... Nxc3 8. dxc3 O-O 9. Re1 { Putting my rook on the same file as his queen seemed like a no brainer. I considered Bf4 and Bg5 a lot tho and couldn't really tell if either was better than moving rook. } 9... d6 10. h3 { Didn't want to allow his bishop to develop to g4. In hindsight not an accurate move as I can just keep developing and Bg4 would have posed no threats to me. } 10... Qf6 11. Bg5 { Was considering Bg5 for a while now and him moving his queen there means he will waste two tempi. } 11... Qf5 12. Qd2 { Simple idea of potentially attacking his bishop on g7 with Bh6 in the future and also further developing by moving my queen off her starting position and connecting my rooks. } 12... f6 { Did no see this move coming. In my mind the bishop being attacked was going to h6 anyway and now he has just weakened his king further. } 13. Bd3 { I thought this move put my bishop on a better square for free since his queen doesn't have any good moves from here. } 13... Qd5 14. b3 { Liked this idea because now he has to waste another tempo moving king or queen. Plus this remains a threat for the future as I saw later. (Chess.com gave it a !!) } 14... Kh8 15. Bh6 { Finally time to move bishop. I didn't see any other threats. In addition I calculated both Bxh6 Qxh6 followed by Re7 soon with a strong attack on the king and if black wastes time Bxg7+ Kxg7, Re7+ Kh8 (since g8 loses to Bc4), Qh6 again with strong attack on king. } 15... Bf5 (15... Bxh6 16. Qxh6 { [%cal Gh6f8] } 16... Nd7 17. Re7) (15... Bd7 16. Bxg7+ Kxg7 17. Re7+ Kh8 (17... Kg8 18. Bc4) 18. Qh6) 16. Bxg7+ Kxg7 17. Re7+ { As mentioned on move 15, strong initiative against black's king. } 17... Rf7 18. Rxf7+ Kxf7?? { Ouch! } (18... Qxf7 19. Bxf5 gxf5 20. Re1) 19. Bc4 Qxc4 20. bxc4 { Ugly pawns < Queen } 20... Nd7 21. Qd5+ { Free pawn } 21... Be6 22. Qxb7 Rb8 23. Qxc7 { Free pawn plus pin on knight } 23... Ke7 24. Re1 { More pins! } 1-0
 
 
-[Event "2nd Annual Thanksgiving Open (U1600)"]
-[Site "Dulles"]
-[Date "2025.11.01"]
+[Event "Cedar Open"]
+[Site "Fairhaven"]
+[Date "2025.01.22"]
 [Round "1"]
 [White "Alex Carter"]
 [Black "Daniel Gentile"]
@@ -688,9 +688,9 @@
 1. e4 c6 2. d4 d5 3. exd5 cxd5 4. Bd3 Nc6 5. c3 Nf6 6. h3 (6. Bf4 Bg4 { [%csl Gg4,Gd1] } 7. Qb3 Na5 { [%csl Ga5] } (7... Qd7) 8. Qb5+ Bd7 9. Qc5 e5) 6... e5 (6... Bg4) 7. dxe5 Nxe5 8. Nf3 Nxd3+ 9. Qxd3 Bc5 { First move out of theory. Should have played Bd6. I considered this (since I didn't remember) but the bishop seemed more active here and I wanted to keep eyes on the d5 pawn. Apparently 10. Be3 would then be undesirable given that I don't want to exchange my dark bishop here. } (9... Bd6 10. O-O O-O 11. Bg5 h6 (11... Be7) 12. Bxf6 { [%csl Gd5] } 12... Qxf6 13. Qxd5 Rd8 14. Qh5 (14. Nbd2 Bh2+ { [%csl Gd5] }) 14... b5 15. Qxb5 (15. Nbd2 Bb7) 15... Ba6 { [%csl Gf1] } 16. Qxa6 Bh2+) 10. O-O O-O { First thing hide the king! } 11. Bg5 { Be3 was indeed not played but this seemed annoying to me. I can't move the queen or I get my pawns doubled and if I don't protect my d5 pawn he can take the f6 knight and once I take back with my queen I lose the pawn. } 11... Be6 { Need to protect the pawn somehow and the bishop can't really go anywhere else. } (11... Qd6 12. Bxf6 Qxf6 13. Qxd5) (11... h6 12. Bxf6 Qxf6) 12. Nbd2 h6 { As already mentioned that bishop is giving me some problems so I wanted to try to kick it out. } 13. Bh4 { Seems like the best move. I was hoping he would either trade or move off the diagonal. } 13... Rc8 { I considered g4 but rejected it as too weakening, so I played Rc8 instead. It felt aimless since the rook might belong on a8 for future queenside play. Re8 would have made more sense on the fully open file. } 14. Nb3 Bd6 { Considered Be6 too but I had a small plan with this move: } 15. Bxf6 { I didn't see this coming. I feel like trading that bishop off only helped me as that pin was quite a problem in my position. } (15. Rac1 g5 16. Bg3 Bxg3 17. fxg3 { Doubling white's pawns and opening a diagonal to the king } { [%csl Bg3,Bg2][%cal Ra7g1] }) 15... Qxf6 { I felt like my queen could have been happier elsewhere but with the trade of the bishop for my knight I can't complain. } 16. Qd4 { I felt like trading queens was forced because of the attack on my a7 pawn. } 16... Qxd4 17. Nbxd4 Rfe8 { Just trying to develop and I didn't feel like moving my bishop made much sense since it can only go to d7. } { [%csl Be6] } 18. Rfe1 (18. Nxe6 fxe6 { This just seemed to fix my isolated pawn "problem". }) 18... Re7 { I couldn't really think of any interesting plans here so I just went for the doubling of rooks on the one fully open file. } 19. Re2 Rce8 20. Rae1 a6 { Wanted to stop Nh5 from ever happening. } 21. Kf1 g6 { Since white started bringing their king to the middle I thought I'd copy by first giving my king a square to go to. } 22. Nxe6 fxe6 { As mentioned earlier this means I no longer have an isolated pawn. I also thought either one of these pawns could become a passer at some point. } 23. Ne5 { I didn't consider this much because I couldn't see where the knight would go next. } 23... Kg7 24. b3 Rf8 { The idea here was to then play Bc5 and increase my pressure on the f2 pawn. } { [%cal Gd6c5] } 25. Nd3 { This stopped Bc5 and I had missed it. Now I don't have a plan anymore and my pawn is under attack. } 25... Rc7 { Here I knew I was gambling. I spent some time calculating but couldn't really see if I was going to be winning or losing at the end. It felt like the only way to make something more concrete happen so i went for it. } 26. Rxe6 Rxc3 27. Rxd6 Rxd3 28. Re7+ Rf7 29. Rxf7+ Kxf7 { This was as far as I had seen and I missed that he could play Rd6+ winning another pawn. } 30. Rd7+ Kf6 31. Rxb7 Ke5 { At this point I thought I had made a mistake with 25... Rc7 therefore I decided to bring the king forward and fully gamble on my d5 pawn promoting instead of trying to defend the other pawns. } 32. Ke2 Kd4 33. Rb4+ Kc3 34. Rg4 { This seemed incorrect. How is he going to stop my pawn from promoting? } 34... Rd2+ (34... d4 35. Rxg6 Rd2+ 36. Ke1 Rxa2 37. Rd6 d3 { I can't see how he will stop the pawn without sacrificing his rook. }) 35. Ke1 d4 36. Rxg6 Rxa2 37. Rg3+ { This again seemed wrong. He is just helping me move my pawn forward. } (37. Rc6+) 37... d3 38. f4 { I think he should have gone for this idea much sooner. It might have given him a chance to sack his rook for my pawn and then promote his own pawn. } 38... Ra1+ 39. Kf2 Kc2 40. Rg6 d2 41. Rc6+ Kb2 { I didn't want to play Kxb3 as it seemed like it might open me up to too many checks. } 0-1
 
 
-[Event "2nd Annual Thanksgiving Open (U1600)"]
-[Site "Dulles"]
-[Date "2025.11.01"]
+[Event "Cedar Open"]
+[Site "Fairhaven"]
+[Date "2025.01.22"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Blair Carter"]
@@ -712,9 +712,9 @@
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 { Always happy when this happens. } 6. Nxf7 Kxf7 7. Qf3+ Qf6 { I don't think I've ever seen this specific move before. But I thought for a minute and realized that after Bd5 I will transpose to the line I know. } (7... Ke8 8. Bxd5 Qf6 9. Bxc6+ Qxc6 10. Qxc6+) 8. Bxd5+ Ke8 9. Bxc6+ Qxc6 10. Qxc6+ bxc6 { And this is just a great position for me. Up 1 pawn plus doubled pawns on the c file. } { [%csl Bc6,Bc7] } 11. d3 { Thought about castling but since there is no rush I felt like this move made sense to allow my bishop to come out if needed. } 11... h6 { This seemed slow. Very slow. I already had a better position and if he let's me get free moves everything will start falling. } 12. O-O Bc5 13. Nd2?? { Here I consider this move a blunder. The reason why is that I wanted to play Re1 but I thought that after 13. ... O-O black would get his king out of the way and create an attack on my f2 pawn. So to avoid this I went for Nd2 with the intention of blocking the rook's view with Nf3. Only problem being that black can't castle! If I had played Re1 then black playing ... Rf8 would simply lose him another pawn. } 13... Rf8 14. Nf3 Bd6 { Only sensible move in my opinion but that pawn was going to fall at some point. } 15. Re1 Kf7 { This was a surprise. I had calculated 15. ... Rf5 } (15... Rf5 16. Nd4 Rh5 17. Nxc6) 16. Nxe5+ Bxe5 17. Rxe5 Kg8 18. Bd2 Rb8 19. Bc3 Rf7 20. Rae1 Bd7 21. h3 { Wanted to avoid any back rank problems. } 21... Rb5 22. Re7 Rbf5 23. Rxf7 { I thought trading was only going to help me because I had a clear static advantage. } 23... Rxf7 24. Be5 Re7 { I saw this and thought that after Kf1 it's not a problem and the c7 pawn is threatened again. } 25. Kf1 Be6 26. Bxc7 Kf7 (26... Rxc7 27. Rxe6) 27. Bd6 { Now I had to move my bishop and I couldn't see why anything else was better than Bd6. } 27... Rd7 28. Bc5 Bxa2 { I thought this wasn't a threat from a distance because of b3 and then Ra1. } 29. b3 Rd5 { This was the only move I thought gave him a chance. But instead of defending my bishop in any way I just opted for the trade of bishops with Ra1 right away. I think in hindsight this was the move I would most want to change. The rook endgame ended up being much harder than I thought it would. } 30. Ra1 Rxc5 31. Rxa2 a5 32. g4 g5 33. Kg2 Kf6 34. Kg3 Ke5 35. h4 gxh4+ 36. Kxh4 { Here I thought I was still doing great. } 36... Kf4 { This move I missed tho and it definitely seemed a bit scary. } 37. d4 Rg5 38. c4 Rxg4+ 39. Kh5 Kf3 40. Kxh6 Rxd4 { At this point I was very scared. I thought this might very well be a draw. } 41. Kg5 Rd3 42. Rb2 c5 43. Kf5 Rc3 44. Ke5 Rd3 45. Ke6 { Him repeating moves didn't seem right tho because like this I can slowly bring my king closer. I was looking at Ra2 followed by trading the a pawn for the b pawn but then winning the c pawn. And by first going Ke6 I force him to move his rook off the 3rd rank which buys me a tempo. } 45... Rd4 46. Ra2 Rd3 { Now I can go for the same idea and black is a move behind. } 47. Rxa5 Rxb3 48. Rxc5 Kxf2 49. Rd5 Rb4 50. c5 Rc4 51. Kd6 Ke3 52. c6 Ke4 { After this move by him I regretted not playing Kd7 instead of Kd6. I thought this might be a draw since I can't advance my pawn: } 53. Rh5 Kf4 54. Rh6 Kg5 55. Re6 Kf5 56. Kd7 { This whole rook reroute allowed me to advance my king as I didn't see a way to make that happen with the rook on e5. } 56... Rc5 57. Rd6 Ke5 { Here I finally felt like I could actually see the win. } 58. Rd1 { With this move his king will never get close to the pawn and his rook will never check my king. I definitely wondered if I could have reached something similar earlier... } 58... Rb5 59. c7 Rb7 { This also seemed like it was doing nothing for him. } 60. Kd8 { After this move he can't stop the promotion. } 60... Rxc7 { GG } (60... Rb8+ 61. cxb8=Q+) 61. Kxc7 Ke6 62. Rd2 Ke5 63. Kc6 Ke6 64. Re2+ Kf5 65. Kd6 Kf4 66. Kd5 Kf3 67. Re8 Kf4 68. Re7 Kf5 69. Rf7+ Kg4 70. Ke5 Kg3 71. Ke4 Kg4 72. Rg7+ Kh3 73. Kf4 Kh2 74. Kf3 Kh1 75. Kf2 Kh2 76. Rh7# 1-0
 
 
-[Event "2nd Annual Thanksgiving Open (U1600)"]
-[Site "Dulles"]
-[Date "2025.11.01"]
+[Event "Cedar Open"]
+[Site "Fairhaven"]
+[Date "2025.01.22"]
 [Round "3"]
 [White "Casey Carter"]
 [Black "Daniel Gentile"]
@@ -737,9 +737,9 @@
 1. Nf3 e6 { With the goal of playing d5 next. } 2. g3 d5 3. Bg2 Nf6 4. b3 Be7 5. Bb2 O-O 6. O-O b6 7. d3 Bb7 8. Nbd2 Nbd7 9. Re1 c5 10. c4 $146 { First novel move } 10... Qc7 $14 { The idea was to connect my rooks and allow cxd5 as that would only help me keep my control of the center. } (10... d4 11. e3 dxe3 12. Rxe3 Qc7 $10 { This would have been better. The semi-open d file would have allowed me to add pressure on the now backwards d3 pawn. } { [%csl Bd3][%cal Bd8d3] }) 11. e3 Rad8 { Because of the unprotected pawn on d3 I placed my rook on the d-file eyeing it in case things ever opened up. } 12. Rc1 { Placing his rook in front of my queen. } 12... Rfe8 { Another slight improvement in case white ever took on d5, I would have the semi-open file after exd5. } 13. Qe2 (13. cxd5 exd5 { [%cal Be8e3] }) 13... Qb8 { Wanted to get my queen off the file where his rook is. } 14. d4 { Taking more space in the center. I was still no worried as him taking either my d or c pawn would only help me. } 14... h6 { A waiting move since I had no idea what to do. } 15. Ba1 { An interesting way to defend the bishop as it was his only loose piece in the position. } (15. dxc5 bxc5 16. cxd5 exd5 $15 { This would have been great for me in my opinion so I felt like leaving the tension in the center was fine. }) 15... Rc8 { Still didn't have a plan so I just copied his rook placement in case things ever opened up. } 16. a4 a5 { Didn't want to give him a chance to create any threats on the queenside. } 17. Red1 Qc7 18. Ne5 { The first interesting move. } 18... Nxe5 { I felt like since he would have to recapture with his d pawn this wasn't too bad and would result in him doubling his pawns and giving me a target to play against. } 19. dxe5 Nd7 { As mentioned his pawn is now a target. } 20. f4 { Defending his pawn. This seemed like he was starting to maybe weaken his kingside a little. Also his e3 pawn is now a weakness. } 20... f6 { Wanted to attack the e5 pawn further and had he taken (exf6) I would have been able to mobilize my pieces. I did feel quite crammed at this point so I wanted to maybe trade off the bishops and get some space back. } 21. Nf3 { He quite logically decided to defend his pawn instead of taking on f6. } (21. exf6 Bxf6 22. Bxf6 Nxf6 { This seemed like a pleasant position to end up in. }) 21... fxe5 { Here I took because I thought taking back with the f pawn would have left him with two weak doubled pawns on the e file and taking with the knight allowed me to develop my bishop to f6. Taking with the bishop seemed the worst of all since it's one of his best pieces. } 22. Nxe5 (22. Bxe5 Nxe5 23. Nxe5 Bf6 { This seemed great for me. }) (22. fxe5 { This seemed very poor for him. }) 22... Bf6 { As mentioned, this allows me to develop my bishop onto a better diagonal. } 23. Qh5 { This took me by surprise but I didn't really see the idea. I felt like his queen didn't really attack much here. } 23... Nxe5 { Since I felt quite crammed I thought trading pieces would give me some more space. In hindsight his pawn landing on e5 was quite annoying. } 24. fxe5 (24. Bxe5 Bxe5 25. fxe5 { This is what I was mostly hoping for but he obviously didn't want to trade his bishop. }) 24... Bg5 { I liked my position here since the attack on the e4 pawn seemed very strong and most options to defend it seemed poor. } 25. Rd3 Rcd8 { I regretted this move as soon as I played it. I only thought for 2 minutes and I feel like I could have easily found d4 or dxc4. } (25... d4 { The e3 pawn is pinned but if white doesn't take on d4 I will win a pawn and have a passed pawn on e3. There is also the threat of taking with the bishop and forking the king and the rook. } 26. Qe2 (26. exd4 Bxc1) (26. Bxb7 Qxb7 27. Rf1 Bxe3+ { Also winning an exchange. }) 26... Bxe3+ 27. Kh1 Bxc1 $19) 26. Rf1 Rf8 { Here again I missed d pawn related tactics. } (26... dxc4 { Not super clear to me why this is very strong. }) 27. h4 Rxf1+ 28. Bxf1 Be7 29. Bh3 d4 { Here I finally played d4. I liked that it opened up the diagonal for my bishop and allowed a simple move like Qc6 threatening a very strong attack. } 30. Bxe6+ { I saw that this pawn was hanging but after moving my king I didn't see any problems. } 30... Kh8 31. exd4 cxd4 32. Qe2 { This I felt was a mistake. } 32... Qc6 { With the threat of Qh1! } 33. Bd5 Rxd5 { I was very proud when I played this move. } 34. cxd5 Qxd5 { And the Qh1 threat is renewed. } 35. Kf2 Qg2+ { Here I knew I had a very strong attack and it was just a matter of finding the right moves. } 36. Ke1 Qg1+ { Obviously I didn't find the right moves. } (36... Bb4+ { I had considered this. But I thought that after: } 37. Kd1 Qg1+ 38. Qe1 { White was fine. Obviously when I look at it now I can see a slight problem in my visualization :) } 38... Qxe1+) 37. Qf1 Bb4+ 38. Ke2 Qxf1+ { Here I was getting low on time so I decided to go for what I thought was a draw... } 39. Kxf1 Ba6 40. Ke2 Bc3 { No need to rush in taking the rook since it can't move. } 41. e6 Kg8 { Ensuring I can stop the pawn. } 42. Bxc3 dxc3 43. Ke3 Bxd3 { Now I have to take before the rook moves. } 44. Kxd3 c2 { Thought this would help get his king further away from all the action... } 45. Kxc2 Kf8 46. Kc3 Ke7 47. Kc4 Kxe6 { And this is where my evaluation of the position was incorrect. I thought equals pawn, both kings in the middle = draw. } 48. Kb5 { This move obviously proved me wrong. } 48... g5 { Here I started realizing my mistake and I tried to go create a passed pawn of my own hoping we would both take equally as much time. } 49. Kxb6 Kf5 50. Kxa5 Kg4 51. b4 Kxg3 52. hxg5 hxg5 53. b5 Kh2 (53... Kf2 54. b6 g4 55. b7 g3 56. b8=Q g2 { Still lost but at least I could have advanced my pawn. }) 54. b6 { By this point I had realized I was completely lost. } 54... g4 55. b7 g3 56. b8=Q { And I can't even move my pawn. } 56... Kg2 57. Qxg3+ { A great move to simplify the endgame as much as possible. We were both low on time but with the 5 second delay there was no hope for me here. } 1-0
 
 
-[Event "2nd Annual Thanksgiving Open (U1600)"]
-[Site "Dulles"]
-[Date "2025.11.02"]
+[Event "Cedar Open"]
+[Site "Fairhaven"]
+[Date "2025.01.23"]
 [Round "4"]
 [White "Daniel Gentile"]
 [Black "Devon Carter"]
@@ -762,9 +762,9 @@
 1. e4 1-0
 
 
-[Event "2nd Annual Thanksgiving Open (U1600)"]
-[Site "Dulles"]
-[Date "2025.11.02"]
+[Event "Cedar Open"]
+[Site "Fairhaven"]
+[Date "2025.01.23"]
 [Round "5"]
 [White "Daniel Gentile"]
 [Black "Emerson Carter"]
@@ -787,9 +787,9 @@
 1. e4 e5 2. Nf3 Nf6 3. Nxe5 d6 4. Nf3 Nxe4 5. Nc3 Nxc3 6. dxc3 Be7 7. Bf4 { First move out of theory. Should have played Be3 instead. That said I struggle to see a big difference. } 7... O-O 8. Qd2 Nd7 9. O-O-O { This is all going according to plan. } 9... Nf6 10. Bd3 d5 11. h3 { I thought I was going to get yelled at for playing this move. But I really didn't see the urgency in playing anything else and preventing Bg4 seemed really nice. } 11... Ne4 { This I didn't understand. } 12. Bxe4 dxe4 { After this trade that pawn is very weak. } 13. Qxd8 { I decided to trade the queens off so I could make space for my knight to go to d2. Also since I was expecting to win a pawn I felt that trading queens was not a bad choice allowing me to enter an endgame up a pawn quite soon. } 13... Bxd8 14. Nd2 Bf5 15. Rhe1 { Increasing the number of attackers on the e4 pawn. } 15... Re8 16. f3 { And now this move secures that pawn for me since black can't take my f3 pawn: } 16... e3 { This I had actually failed to consider but when it happened I didn't really see the idea. The pawn is still lost. } (16... exf3 17. Rxe8#) 17. Bxe3 Bh4 { I had seen this move coming but Re2 seemed to completely avoid any danger. } 18. Re2 Bg5 19. Rde1 { Adding defenders was the only option since the bishop was pinned to the rook. } 19... Bh4 20. Bf2 { Here I was quite happy. I had looked at the few options black had and they all seemed better for me. Taking the bishops allows M2, moving the bishop from h4 allows M2 and taking my rook seemed fine. } 20... Rxe2 { Only move. } (20... Bxf2 21. Rxe8+ Rxe8 22. Rxe8#) (20... Bf6 21. Rxe8+ Rxe8 22. Rxe8#) 21. Rxe2 Bg5 22. Be3 { Here I went with this move because I was scared of the pressure black could create with Rd8 attacking my pinned knight. With this move Rd8 wasn't possible anymore but it did allow Re8. } 22... Re8 23. Nf1 { Here I felt like I was forced to play this move to defend my pinned bishop. } (23. Nc4 b5 { I thought this was completely losing. }) 23... Bd7 24. Kd1? { And here came my first big mistake. 23. ... Bd7 seemed like a move without a point to it. Bus obviously I missed the idea of going Bb5. } (24. b3 Bb5 25. c4) (24. c4 Bb5) 24... Bb5 { This hurt because it could have been so easily avoided with something like b3 and c4 or even c4 right away. } 25. Rd2 { Here I thought I was losing but not by a lot. } 25... Bf6 { Bf6 caught me off guard since now some threats are renewed by black and I couldn't find a great way to deal with everyone of them. } (25... Bxe3 26. Nxe3 Rxe3 27. Rd8+ Re8 28. Rxe8+ { This obviously wouldn't have worked out for black. }) (25... Bxf1 26. Bxg5 { This seemed great too as I was still up a pawn. }) 26. Re2 Bxe2+ 27. Kxe2 { Losing the exchange but I thought I had decent chances of holding this position. } 27... Bg5 28. Kd3 Bxe3 29. Nxe3 Rd8+ 30. Ke2 { Here I was quite unhappy but as I already mentioned definitely some hopes of holding this endgame. } 30... Kf8 31. b4 g6 32. a4 { Taking space on the queenside, I didn't see what else I could play for. } 32... h5 { And after this move my opponent offered a draw. There was no way I was going to win this and even trying to draw it would have been quite difficult in my opoinion. } 1/2-1/2
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.11.07"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.01.28"]
 [Round "10"]
 [White "Daniel Gentile"]
 [Black "Finley Carter"]
@@ -811,9 +811,9 @@
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Na5 6. Bb5+ c6 7. dxc6 bxc6 8. Qf3 e4 9. Nxe4 Bg4 10. Nxf6+ Qxf6 11. Qxg4 cxb5 12. Qe4+ Qe7 13. Nc3 Qxe4+ 14. Nxe4 Be7 15. O-O O-O 16. d4 Rac8 17. c3 h6 18. Re1 g5 19. Bd2 f5 20. Ng3 Bd6 21. Re6 Nc4 22. Rd1 Nxb2 23. Rde1 Nc4 24. Bc1 Bxg3 25. hxg3 Nb6 26. Rxh6 Kg7 27. Bxg5 Rxc3 28. Re7+ Rf7 29. Rxf7+ Kxf7 30. Rf6+ Ke8 31. Rxf5 a6 32. Re5+ Kd7 33. Re3 Rc1+ 34. Kh2 Ra1 35. a3 Nc4 36. Re7+ Kd6 37. Bf6 Rxa3 38. Ra7 b4 39. Be7+ Kc6 40. Bxb4 Ra4 41. Bc5 a5 42. g4 Ra2 43. Rf7 a4 44. g5 a3 45. Kh3 Rd2 46. Bxa3 Nxa3 47. Rf4 Re2 48. g6 Re8 49. Rg4 Rh8+ 50. Kg3 Nc4 51. f4 Nd6 52. Kf3 Rg8 53. Rg5 Kd7 54. f5 Ke7 55. Kf4 Kf6 56. g7 (56. g4 Nf7 57. gxf7 Rxg5 (57... Kxf7 58. Rxg8 Kxg8) 58. f8=Q#) (56. Rh5 Re8 57. g4 Re4+ 58. Kf3 (58. Kg3 Rxd4 59. g5+ Kxf5 60. g7 Ne4+ 61. Kh4)) 56... Rxg7 57. Rxg7 Kxg7 58. Ke5 Nf7+ 59. Ke6 Kf8 60. d5 Ng5+ 61. Kd7 Kf7 62. d6 Kf6 63. g4 Nf7 64. Kc7 Kg5 65. Kd7 Kxg4 66. f6 Kf5 67. Ke7 Nxd6 1/2-1/2
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.11.14"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.02.04"]
 [Round "11"]
 [White "Harper Carter"]
 [Black "Daniel Gentile"]
@@ -835,9 +835,9 @@
 1. d4 d5 2. Nc3 e6 3. Bf4 Nf6 4. Nf3 Bd6 5. Be5 O-O 6. e3 b6 7. Bd3 Ba6 8. O-O Bxd3 9. Qxd3 c5 10. dxc5 bxc5 11. Qb5 Bxe5 12. Nxe5 Qd6 13. f4 Nbd7 14. Nxd7 Nxd7 15. Qd3 Rab8 16. Rab1 Rfe8 17. a4 Nf8 18. b3 Ng6 19. Rbd1 Qc7 20. Nb5 Qb6 21. Rf3 e5 22. Qxd5 Rbd8 23. Nd6 Re6 24. fxe5 Nxe5 25. Rxf7 Rdxd6 26. Qa8+ Kxf7 27. Rf1+ Rf6 28. Re1 Rd8 29. Qe4 Qb4 30. Qxb4 cxb4 31. h3 Rd2 32. Rc1 Rff2 33. g4 Nf3+ 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.12.05"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.02.25"]
 [Round "12"]
 [White "Jordan Carter"]
 [Black "Daniel Gentile"]
@@ -859,9 +859,9 @@
 1. e4 c6 2. d4 d5 3. f3 Qb6 4. Nc3 dxe4 5. fxe4 e5 6. dxe5 h5 7. Qd3 Be7 8. Nf3 Bg4 9. Na4 Qa5+ 10. Nc3 Nd7 11. Bf4 O-O-O 12. Qc4 Bxf3 13. gxf3 Nxe5 14. Bxe5 Qxe5 15. Qxf7 Bh4+ 16. Ke2 Qd4 17. Qf5+ Kb8 18. Qf4+ Ka8 19. Nd1 Nf6 20. Bg2 Rhf8 21. Qxh4 Nxe4 22. fxe4 (22. Qxe4 Rfe8 23. Qxe8 (23. Nc3 Qd2+ 24. Kf1 Rxe4 25. Nxe4 Qxc2 { I don't know if I would have won this... }) 23... Rxe8+ 24. Ne3 Qxe3+ 25. Kf1 Qd2 26. h4 Re2 27. Rh2 Qe3 28. Bh3 Rxh2 29. Bg2 Qd2 30. a3 Qxg2+ 31. Ke1 Qe2#) (22. Kf1 { Opponent said he should have played this. } 22... Nd2+ 23. Ke2 Qxh4) 22... Qd2# { 0-1 } 0-1
 
 
-[Event "1st Annual Oak Grove Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.12.12"]
+[Event "Granite Open"]
+[Site "Fairhaven"]
+[Date "2025.03.04"]
 [Round "1"]
 [White "Kai Carter"]
 [Black "Daniel Gentile"]
@@ -884,9 +884,9 @@
 1. d4 d5 2. c4 e6 3. Nf3 Nf6 4. Nc3 a6 5. Bg5 dxc4 6. e3 b5 7. a4 Bb7 8. axb5 axb5 9. Rxa8 Bxa8 10. Nxb5 Bd5 11. Bxf6 Bb4+ 12. Nc3 Qxf6 13. Qa4+ Nc6 14. Be2 O-O 15. O-O Bd6 16. Nxd5 exd5 17. Qxc6 Bxh2+ 18. Kxh2 Qxc6 19. Ne5 Qd6 20. Kg1 c5 21. Rc1 cxd4 22. exd4 Re8 23. Bg4 Qb6 24. Rb1 Qxd4 { 0-1 Black wins. } 0-1
 
 
-[Event "1st Annual Oak Grove Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.12.13"]
+[Event "Granite Open"]
+[Site "Fairhaven"]
+[Date "2025.03.05"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Logan Carter"]
@@ -909,9 +909,9 @@
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d4 exd4 6. O-O O-O 7. cxd4 Bb6 8. d5 Ne7 9. e5 Ne4 10. d6 Ng6 11. Qd5 Nc5 12. Bg5 Qe8 13. Nc3 Qe6 14. Rac1 c6 15. Qxc5 Bxc5 16. Bxe6 fxe6 17. Nd5 Bb6 18. Ne7+ Nxe7 19. Bxe7 Re8 20. Rfd1 Bd8 21. Bg5 Bxg5 22. Nxg5 b6 23. Rc3 Ba6 24. Rxc6 h6 (24... dxc6 25. d7 Red8 26. Nxe6 Kf7 27. Nxd8+ Rxd8 28. Rd6 c5 29. e6+ Ke7) 25. Rc7 hxg5 26. Rxd7 Bb5 27. Rc7 Red8 28. Re7 Rac8 29. Rxe6 Be2 30. Re1 Rc2 31. Re7 Rd2 32. f3 Rxb2 33. Rxa7 Bc4 34. e6 Bxe6 (34... Rxd6 35. e7 Bf7 36. e8=Q+ Bxe8 37. Rxe8+ Kh7) 35. Rxe6 Rd2 36. Ree7 R2xd6 37. Rxg7+ Kf8 38. Rxg5 Rb8 39. Rh5 Rg6 40. Rh8+ Rg8 41. Rxg8+ Kxg8 42. Kf2 b5 43. g4 b4 44. h4 Rc8 45. Kg3 Rc2 46. Rb7 Rb2 47. g5 Kf8 48. h5 Ke8 49. Kg4 Kd8 50. g6 Kc8 51. Rb5 Kc7 52. Kf5 Kc6 53. Ra5 Rh2 54. Kf6 Rf2 55. Rf5 Rxa2 56. g7 Ra8 57. Rg5 b3 58. g8=Q Rxg8 59. Rxg8 Kc7 60. Rg2 Kd8 61. h6 Ke8 62. h7 b2 63. Rxb2 Kd7 64. h8=Q Kd6 65. Qd8+ Kc5 66. Rc2+ Kb4 67. Qb6+ Ka3 68. Rc7 Ka2 69. Ra7# { 1-0 White wins. } 1-0
 
 
-[Event "1st Annual Oak Grove Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.12.13"]
+[Event "Granite Open"]
+[Site "Fairhaven"]
+[Date "2025.03.05"]
 [Round "3"]
 [White "Morgan Carter"]
 [Black "Daniel Gentile"]
@@ -934,9 +934,9 @@
 1. e4 c6 2. Nf3 d5 3. e5 c5 4. c3 Nc6 5. d4 cxd4 6. cxd4 Bg4 7. Be2 e6 8. Nbd2 Nge7 9. h3 Bxf3 10. Nxf3 Nf5 11. Be3 Bb4+ 12. Bd2 Qb6 13. Bc3 Nfxd4 14. Nxd4 Nxd4 15. Qa4+ Nc6 16. O-O Bxc3 17. bxc3 O-O 18. Rfb1 Qc7 19. f4 a6 20. c4 Nd4 (20... b5 21. cxb5 axb5 22. Qb4 (22. Qxb5 Rfb8 (22... Nd4 23. Qd3 Nxe2+))) 21. Bd3 dxc4 22. Rc1 b5 23. Qd1 Qb6 24. Be4 Nb3+ 25. Kh1 Nxa1 26. Bxa8 Rxa8 27. Rxa1 Rd8 28. Qc2 Qd4 29. Qc1 Qd2 30. a4 Qxc1+ 31. Rxc1 Rc8 32. axb5 axb5 33. Kg1 b4 34. Kf2 c3 35. Ke2 b3 36. Kd3 b2 { 0-1 Black wins. } 0-1
 
 
-[Event "1st Annual Oak Grove Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.12.14"]
+[Event "Granite Open"]
+[Site "Fairhaven"]
+[Date "2025.03.06"]
 [Round "4"]
 [White "Daniel Gentile"]
 [Black "Quinn Carter"]
@@ -959,9 +959,9 @@
 1. e4 e6 2. d4 d5 3. Bd3 c5 4. exd5 exd5 5. Nf3 cxd4 6. O-O Be7 7. Re1 Nc6 8. Bg5 Bg4 9. Nbd2 Qd6 10. Nb3 Ne5 11. Bb5+ Kd8 12. Bxe7+ Nxe7 13. Nxe5 Be6 14. Nxd4 Rf8 15. Nxe6+ fxe6 16. Qh5 Qc5 17. Qe2 Nf5 18. Nd7 Qe7 19. Nxf8 Qxf8 20. Qxe6 Ne7 21. Qd7# { 1-0 White wins. } 1-0
 
 
-[Event "1st Annual Oak Grove Open (U1400)"]
-[Site "Dulles"]
-[Date "2025.12.14"]
+[Event "Granite Open"]
+[Site "Fairhaven"]
+[Date "2025.03.06"]
 [Round "5"]
 [White "Alex Carter"]
 [Black "Daniel Gentile"]
@@ -984,9 +984,9 @@
 1. e4 c6 2. d4 d5 3. exd5 cxd5 4. Bd3 Nc6 5. c3 Nf6 6. Nf3 Bg4 7. Bf4 e6 8. O-O Bd6 9. Bxd6 Qxd6 10. h3 Bxf3 11. Qxf3 O-O 12. Nd2 a6 13. Qe2 Rfc8 14. Nf3 b5 15. a3 Nh5 16. Ne5 Nf4 17. Qe3 Nxd3 18. Nxd3 a5 19. Qd2 Rab8 20. b4 axb4 21. axb4 Ra8 22. Qb2 Ne7 23. Rxa8 Rxa8 24. Ra1 Qc6 25. Nc5 Nc8 26. Ra5 Nb6 27. Qa1 h6 28. f4 g5 29. fxg5 hxg5 30. Kf2 Kg7 31. Kf3 Kg6 32. Rxa8 Nxa8 33. Qa6 Qxa6 34. Nxa6 f5 35. Nc5 Nc7 { 1/2-1/2  wins. } 1/2-1/2
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.12.19"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.03.11"]
 [Round "13"]
 [White "Alex Dalton"]
 [Black "Daniel Gentile"]
@@ -1008,9 +1008,9 @@
 1. d4 d5 2. c4 e6 3. Nf3 Nf6 4. g3 dxc4 5. Bg2 c5 6. Qa4+ Nc6 { First move out of theory. I should have played Bd7. } 7. Ne5 Qa5+ 8. Nc3 Qxa4 9. Bxc6+ bxc6 10. Nxa4 cxd4 11. O-O Ba6 12. Rd1 Bb5 13. b3 cxb3 14. axb3 Bxa4 15. Rxa4 c5 16. Ba3 Be7 17. Nd3 c4 18. bxc4 Bxa3 19. Rxa3 Ke7 20. Rda1 Rhc8 21. Rxa7+ Rxa7 22. Rxa7+ Ke8 23. c5 Nd7 24. Ra1 e5 25. Rc1 e4 26. c6 { [%csl Gd7] } (26. Nf4 Rxc5 27. Rxc5 Nxc5) 26... exd3 27. cxd7+ Kxd7 28. Rd1 (28. Rxc8 Kxc8 (28... d2 29. Rc1 dxc1=Q+) 29. exd3) 28... Rc1 (28... dxe2 29. Rxd4+ Ke6 30. Re4+ Kf6 31. Rxe2) 29. Rxc1 dxe2 30. Re1 (30. Kg2 d3 { [%csl Ge2] } (30... e1=Q 31. Rxe1) 31. Kf3 d2 32. Rc7+!! (32. Kxe2 dxc1=Q (32... d1=Q+)) 32... Kxc7 33. Kxe2 d1=Q+ 34. Kxd1) 30... d3 31. f4 d2 32. Rxe2 d1=Q+ 33. Kf2 Qh1 34. Ke3 Ke6 35. h4 Kf5 36. Kd3 Kg4 37. Re3 g6 38. Re5 f6 39. Re3 h5 40. Kd4 Qg1 41. Ke4 Qxe3+ 42. Kxe3 Kxg3 { 0-1 Black wins. } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2025.12.26"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.03.18"]
 [Round "14"]
 [White "Daniel Gentile"]
 [Black "Jordan Carter"]
@@ -1032,9 +1032,9 @@
 1. e4 e5 2. Nf3 d6 3. d4 exd4 4. Nxd4 Nf6 5. Nc3 c5?! $146 { First move out of theory. Moving pawns instead of developing and creating a weakness in the backwards pawn on d6. } (5... Be7 { Only other move in my repertoire. }) 6. Bb5+! { I wanted my knight on f5 but I didn't want his bishop taking my knight right away. Also blocking with the knight seemed incorrect so the only move I thought made sense for him was Bd7. } 6... Bd7 { Only move in my opinion. } (6... Nc6 7. Bxc6+ (7. Nxc6 { This I thought would be better because I can't lose my bishop the same way I was losing my knight in the other line and also discovered check threat is almost always good. } 7... bxc6 8. Bxc6+ { Also this would have been great. }) 7... bxc6 8. Nxc6 { Winning a pawn but I thought I would lose my knight. } 8... Qb6 { Pretty sure knight is lost. }) 7. Nf5 { I quite liked this idea. My knight is much more of a threat on f5 than it would have been if I retreated to f3 for example. Also the bishop can't take the knight as it is pinned. } 7... Be7 (7... Bxb5 8. Nxb5 { I was keeping an eye on this potential trade but it seemed to only benefit me as I added an attacker on the d6 pawn and also created some threats on c7. } 8... Nxe4 9. Bf4 { Adding pressure on d6 } (9. Qe2 { Looking at it now this seems better since I don't think black can save the knight. })) 8. Bf4 { Developing and adding pressure on d6 } 8... O-O 9. Nxe7+?! { Here I think I tried to cash out too fast. I think castling would have been better as I then ended up having problems caused by my king still being in the middle. FIRST THING HIDE THE KING!!! } 9... Qxe7 10. Bxd6 { This was the idea. A skewer of the queen and bishop but my king still being in the middle of the board made this seem much less effective than I thought it would be. } 10... Qe6 11. O-O { I gave up on winning the exchange but I wanted to make sure black had little to no counterplay. } (11. Bxf8 Nxe4 { I saw this and didn't like it one bit. Hence why I chose to castle instead. } 12. Nxe4 Qxe4+ 13. Be2 Kxf8 (13... Qxg2 { I also saw this and thought I was not doing good here. } 14. Rf1 Kxf8)) 11... Rc8 12. e5 { Push knight win space. Also saw a potential for winning the d7 bishop. } 12... Ne8 13. Bxb8 Bxb5 { This saved his bishop and I had seen that this was his only hope of saving it but I thought my knight landing on b5 would benefit me. } 14. Nxb5 Rcxb8 { Only move as Raxb8 would have lost him the a7 pawn. } (14... Raxb8 15. Nxa7 Rd8 16. Qe2 $16) 15. Re1 { Defending the e5 pawn as it was the only advantage I had left. I was not very happy here. I felt like I had gone from having a strong dynamic advantage to only the static advantage of being a pawn up. } 15... Qb6 16. Nd6? { Thought moving my knight forward would give me some attacking ideas while retreating would have just lost me the b2 pawn. That said, for some reason, I missed Rd8. } 16... Rd8! { Initially once this move landed I thought I was just losing. So I decided to look for some dynamic moves that might give me some compensation. } 17. Qf3 { With the obvious threat of Qxf6. Also removing my queen from the pin of the rook. } 17... Nxd6 { I saw this as black's only move and I was quite happy with the resource I had found. } 18. exd6 Rxd6 19. Re7 { This again created a threat on f7 this time an even bigger threat. } 19... Rf6 { Here my plan was to play Qxb7. But I thought for a little longer and found Rae1. } (19... Re6 20. Qxf7+ Kh8 21. Rxe6 Qd8 22. Rae1 { This looked great, obviously. }) 20. Rae1 { This move threatened checkmate if black didn't defend the back rank. Or potentially a Queen vs 2 rooks endgame. } 20... Kf8 { A move I didn't see coming since I thought Qd8 was black's only move but it luckily didn't affect my plan. } (20... Qd8 21. Re8+ (21. Qxb7 { This is the move I would have chosen instead. }) 21... Qxe8 22. Rxe8+ Rxe8 { Normally I would have been happy with going into this but with the current threat of back rank mate and the attack on the queen I would have had to play some passive move and I didn't know if that would have been great. } 23. Qd1 { This would have been my move. } 23... Rfe6 { But this here looked very scary. I don't think I can save my queen. }) 21. Qxb7! { Protecting my pawn on b2 but more importantly threatening checkmate after Qxa8. } 21... Qxb7 { Only move I considered. } 22. Rxb7 Rb6 23. Ree7 { Doubled rooks on the 7th rank. I felt like I had misplayed the middle game but this endgame still felt very comfortable. } 23... Rxb7 24. Rxb7 Rd8 { Only move I really considered. } 25. Kf1 Rd2 26. c3 { Now the goal was to not blunder a single pawn and ideally win one or more of black's pawns. } 26... c4 27. a4 { Calculated some possible variations and it felt like having my pawn on a4 ensured its survival. } (27. h3) (27. b4 Rxa2 { This looked worse than if I'd have included a4 first. }) 27... Rd1+ { Didn't see this coming. } (27... Ke8 28. b4 cxb3 29. Rxb3) 28. Ke2 Ra1 { Here I considered Rb4 and Rxa7 only. } 29. Rxa7 (29. Rb4 Ra2 30. Kd2 a5! { This move was the reason I didn't choose Rb4. Where can my rook go now without black winning a pawn. }) 29... Ra2 30. Rb7 Rxa4 31. Rb4 { Offering the trade of rooks as I thought that would have been an easily winning king and pawn endgame. Also this created an attack on the c4 pawn. } 31... Ra2 32. Kd2 { Couldn't take c4 without losing b2. } (32. Rxc4 Rxb2+ { Was not sure this would have been a win. }) 32... Ke7 33. Kc2 Ke6 34. Rxc4 { And now two pawns up I didn't see a way to draw or lose. } 34... f5 35. Rb4 g5 { With the idea of getting my rook on a3. } 36. Rb3 h5 37. Ra3 { He allowed this but from here the game was won in my mind. } 37... Rxa3 38. bxa3 { Two isolated and passed pawns. Had they not been isolated I would have been happier but still great. } 38... Kd5 39. Kd3 { Get my king closer to his pawns just to be safe. } 39... g4 40. a4 h4 41. a5 f4 42. a6 { At some point he has to do something about my pawn... } 42... Kc6 43. Ke4 { And there it is. } 43... g3 44. hxg3 fxg3 45. fxg3 hxg3 46. Kf3 Kb6 47. Kxg3 Kxa6 48. Kf4 { An easily winning endgame as he can't stop both pawns. } 48... Kb5 49. g4 Kc4 50. g5 Kxc3 { And after this move he resigned. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.01.02"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.03.25"]
 [Round "15"]
 [White "Daniel Gentile"]
 [Black "Blair Dalton"]
@@ -1056,9 +1056,9 @@
 1. e4 c6 2. Nc3 d5 { Big think here to decide whether I should play Qf3 or Nf3. } 3. Nf3 $146 { Let's trust coach! } 3... dxe4 4. Nxe4 Nf6 5. Qe2 Nxe4 6. Qxe4 Nd7 7. Bc4 e6 { First move out of my new repertoire. The line I have goes as follows. } (7... Nf6 { [%cal Gf6e4] } 8. Ne5 e6 (8... Nxe4 9. Bxf7#) 9. Qe2) 8. d4 Nf6 9. Qe2 { Never studied this line but since I know it quite well as black I made it here. } 9... Bd6 10. O-O { Considered c3 but didn't see why I shouldn't castle first. } 10... O-O 11. c3 { c3 now made sense. I want to solidify my center. } 11... b5 { Expected this move as it's his only try to free up the c8 bishop. } 12. Bd3 { I was considering playing Bb3 to then go Bc2 and possibly bring my queen to d3 but I realized that on d3 the bishop is instantly better while going through b3 wastes a tempo. Also the bishop can get to c2 equally as fast from here. } 12... Bb7 { Here I saw a problem for black. } 13. Bg5 { If the knight gets traded I can play Qe4 with a double threat. } 13... h6 { I thought this was great for me as I would have most likely taken no matter what black played. This was just a loss of tempo. } (13... c5) 14. Bxf6 Qxf6 15. Qe4 { Double attack of checkmate on h7 and the b5 pawn. } { [%cal Gc6b5] } 15... g6 { [%csl Gb5] } (15... Rab8 16. Qh7#) 16. Bxb5 cxb5 (16... Rab8 17. Bxc6 Bxc6 18. Qxc6 Rxb2 { This would have been a problem if the bishop wasn't hanging. }) (16... Rac8 { This looked like black's best reply. }) 17. Qxb7 { Now I'm just up a pawn and I saw no good counterplay for black. } { [%csl Gb7] } 17... Qf4 { Here I got a little scared. I saw no threat and couldn't understand the idea. Black gives up another pawn but why. } 18. Qxb5 Rfb8 { Again I was confused. I wanted to bring my queen back to e2 and this just helped. } (18... g5 19. Qe2 (19. h3 { This would have saved my knight. }) 19... g4 20. g3 gxf3 21. gxf4 fxe2 22. Rfe1 Bxf4 { I thought this was the idea. }) 19. Qe2 Rb5 { I hadn't considered this move for black. } 20. Qd2 { When I played this move I was very happy. I felt like the Queen trade was forced. Also I saw the potential knight fork if after trading queens black took my b2 pawn. } { [%csl Gd2] } (20. Qxb5) 20... Qxd2 (20... Qh4 { Black can't defend h6 or attack h2 in any way }) (20... Qf6 21. Qxh6 { Here I would just be up 3 pawns. } 21... Rxb2 22. Ng5 { Pawn hunting wouldn't have helped him much. }) 21. Nxd2 Rxb2 22. Nc4 { :) } { [%cal Gd6a3] } 22... Bxh2+ { This hangs a whole bishop for 1 or 2 pawns. } { [%csl Gh2] } (22... Ba3 23. Nxa3 { This hangs a whole bishop. }) (22... Rb6 23. Nxb6 axb6 { This hangs an exchange. }) 23. Kxh2 Rc2 24. Kg1 { Wanted to defend my f2 pawn and free up my f1 rook. } 24... Rc8 25. Ne3 { I thought about playing Ne5 instead but I liked that with this move I forced black to take with the rook on c2 losing control of the 2nd rank. } 25... R8xc3 { My opponent didn't like that idea and wanted to maintain control of the 2nd rank... } 26. Nxc2 Rxc2 27. Rfd1 Kg7 28. d5 exd5 { [%csl Gd1] } 29. Rxd5 h5 30. Ra5 Rc7 { This made me with I had played 30. Rd7 } 31. Rd1 h4 32. Rd3 Rc1+ 33. Kh2 Rc2 34. Rf3 { With the threat on f7 if black allows me to take the a7 pawn. } 34... Rc7 35. Kh3 Kh6 36. Kxh4 f5 37. Rfa3 Rc4+ 38. Kg3 Kg5 39. Rxa7 { I was a little scared to play this move but I saw no threats on my king. } 39... Rg4+ 40. Kh2 f4 41. R7a5+ Kf6 42. Rf3 { Pinning the pawn with the idea of playing g3. } 42... g5 43. g3 Kg6 44. Kh3 Kh5 { Forced as the rook is trapped. } 45. Rxf4 { The pawn is pinned so black is forced to take with the rook, leaving me with a rook and some pawns vs just a lone king. } 45... Rxf4 46. gxf4 (46. Rxg5+ Kxg5 47. gxf4+ Kxf4 { Considered this but I'm not cocky enough to trust my intuition or calculation this much. }) 46... Kg6 47. Rxg5+ { With the idea of playing Re5 after black moves his king to the f file. I would then have pushed my a pawn, made a queen and attempted a ladder mate but instead hung stalemate. Luckily he resigned. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.01.09"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.04.01"]
 [Round "16"]
 [White "Casey Dalton"]
 [Black "Daniel Gentile"]
@@ -1080,9 +1080,9 @@
 1. e4 c6 2. d4 d5 3. exd5 cxd5 4. Nc3 Nc6 5. Nf3 Nf6 6. Bg5 Bg4 7. Be2 e6 8. h3 Bxf3 9. Bxf3 Be7 10. Qd3 Qb6 11. O-O-O O-O (11... Ne4 12. Bxe7 (12. Nxe4 dxe4 13. Qxe4 Bxg5+) (12. Bxe4 Bxg5+) 12... Nxf2 13. Qf1 Nxd1 14. Bh5 g6) 12. h4 a5 13. h5 h6 14. Be3 Rfc8 15. Rh3 Nb4 16. Qd2 (16. Qe2 Rxc3 17. bxc3 Nxa2+ 18. Kd2 Nxc3 19. Kxc3 Qb4+ 20. Kd3 Qc4+ 21. Kd2 Bb4+ 22. Kc1 Qa2 23. c3 Ba3+ 24. Qb2 Qxb2#) (16. Qf1 Rxc3 17. bxc3 Nxa2+ 18. Kd2 Nxc3 19. Kxc3 Qb4+ 20. Kd3 Qc4+ 21. Kd2) 16... Rxc3 17. Bxh6 (17. Qxc3 Nxa2+) (17. bxc3 Nxa2#) 17... Rxc2+ (17... Nxa2+ 18. Kb1 Ba3) 18. Kb1 Rxd2 19. Bxd2 Nd3 20. Bc3 Nxf2 21. Rg1 Nxh3 22. gxh3 Rc8 23. Bd2 Qxd4 24. Rd1 Qd3+ 25. Ka1 Qxf3 { 0-1 Black wins. } 0-1
 
 
-[Event "4th Annual Newcomb Memorial (U1900)"]
-[Site "Dulles"]
-[Date "2026.01.23"]
+[Event "Harbor Open"]
+[Site "Fairhaven"]
+[Date "2025.04.15"]
 [Round "1"]
 [White "Devon Dalton"]
 [Black "Daniel Gentile"]
@@ -1105,9 +1105,9 @@
 1. Nf3 e6 2. c4 d5 3. g3 Nf6 4. Bg2 dxc4 5. Qa4+ Bd7 6. Qxc4 Be7 $146 { c5 is in my repertoire } 7. O-O O-O 8. d4 Bc6 9. Nbd2 Nbd7 10. Qc2 a6 11. e4 Bb5 12. Re1 c5 13. a4 Bc6 14. b3 Rc8 15. Qb1 h6 16. Bb2 b5 17. axb5 axb5 18. e5 Nd5 19. Ne4 Qb6 20. dxc5 Nxc5 21. Bd4 Nc7 22. b4 Bxe4 23. bxc5 Bxc5 24. Qxe4 Nd5 25. Bxc5 Rxc5 26. Rec1 Rfc8 27. Rxc5 Rxc5 28. Bf1 f5 29. exf6 Nxf6 30. Ra8+ Kf7 31. Ne5+ Ke7 32. Ng6+ Kf7 33. Rf8# { 1-0 White wins. } 1-0
 
 
-[Event "4th Annual Newcomb Memorial (U1900)"]
-[Site "Dulles"]
-[Date "2026.01.24"]
+[Event "Harbor Open"]
+[Site "Fairhaven"]
+[Date "2025.04.16"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Emerson Dalton"]
@@ -1130,9 +1130,9 @@
 1. e4 { [%eval 0.18] } 1... e5 { [%eval 0.22] } 2. Nf3 { [%eval 0.18] } 2... Nc6 { [%eval 0.22] } 3. Bc4 { [%eval 0.07] } 3... Bc5 { [%eval 0.2] } 4. c3 { [%eval 0.09] } 4... Nf6 { [%eval 0.13] } 5. d4 { [%eval 0.0] } 5... exd4 { [%eval 0.18] } 6. O-O { [%eval -0.22] } 6... dxc3 { [%eval 0.0] } 7. e5 { [%eval 0.0] } 7... d5 { [%eval 0.0] } 8. exf6 { [%eval 0.0] } 8... dxc4 { [%eval 0.07] } 9. fxg7 { [%eval 0.0] } 9... Rg8 { [%eval 0.05] } 10. Qxd8+ { [%eval 0.0] } 10... Nxd8?! { [%eval 0.57] } { Inaccuracy. Kxd8 was best. } { First move I didn't remember. } (10... Kxd8 11. Nxc3 Rxg7 12. Bg5+ Be7 13. Rad1+ Bd7 14. Bxe7+ Kxe7 15. Nh4 Rd8 16. Nd5+) 11. Nxc3 $14 { [%eval 0.56] } {  } 11... Rxg7 { [%eval 0.65] } { His king is stuck in the middle and his rook on g7 is quite useless. That said being down a pawn did put some pressure on me to either win one back or find some nice attack. } 12. Re1+ $146 { [%eval 0.18] } { Nd5 was the move in my repertoire. I considered it but couldn't see why giving a check first didn't help as it centralized my rook. } (12. Nd5 { This, I presume, puts more pressure faster as black has to respond to the Nxc7 threat. }) 12... Be6 { [%eval 0.23] } 13. Nd5 { [%eval -0.14] } { With the attack on c7 and the idea to get into f6 with a check. } 13... Bd6?! { [%eval 0.48] } { Inaccuracy. Kd7 was best. } (13... Kd7 14. Ne5+ Kc8 15. Nf4 b5 16. a4 Bb4 17. Nxe6 Nxe6 18. Rd1 Bd6 19. Rd5) 14. Bg5 { [%eval 0.1] } { Originally I wanted to play Nf6+ but saw that after Ke7 it doesn't work. } (14. Nf6+ { My original plan. } 14... Kf8 (14... Ke7 { More logical } 15. Bg5 { But I realized black can take the bishop and then the knight too. } (15. Nh5 Rg6 16. Nh4 { Stockfish really is weird... }) 15... Rxg5 16. Nxg5 Kxf6 { And this looked bad for me. }) 15. Bh6 { This would have been great. }) 14... Kd7 { [%eval 0.19] } { I thought this was her best move. Otherwise Nf6+ would have been my next move with a decent attack. } 15. Nf6+ { [%eval 0.08] } 15... Kc8 { [%eval 0.02] } 16. Rad1 { [%eval -0.03] } { I thought for a while here as I knew I would have to move a rook but I didn't know which one and where. Eventually I picked this move since I couldn't find a concrete advantage with the other two rook moves and this one is more principled. 2 rooks in the center open files. } (16. Red1 { Other candidate. }) (16. Rac1 { Other candidate. }) 16... Rg6?! { [%eval 0.73] } { Inaccuracy. Bb4 was best. } (16... Bb4 17. Re3 Nc6 18. Nh5 Rg8 19. Nf6 Rh8 20. Bh6 c3 21. bxc3 Bc5 22. Re2) 17. Ne8?? { [%eval -2.86] } { Blunder. Nxh7 was best. } { I really hate free pawns I guess... } (17. Nxh7 b5 18. Bxd8 Kxd8 19. Nhg5 Kc8 20. Nxe6 Rxe6 21. Rxe6 fxe6 22. g4 Kd7) 17... h6?? { [%eval 0.64] } { Blunder. Bg4 was best. } { This move surprised me but it seemed to not work that well for black. } (17... Bg4 18. Nxd6+ (18. h4 Bxf3 19. gxf3 h6 20. f4 hxg5 21. f5 Rg8 22. Nf6 Rf8 23. h5) 18... Rxd6 { Since black could now take back with the rook. }) 18. Nxd6+ { [%eval 0.68] } { My "attack" kind of failed. I didn't find anything winning and this seemed like a way to win back the pawn. While leaving black with a very uncoordinated position. } 18... cxd6 { [%eval 0.55] } 19. Bxd8?! { [%eval -0.27] } { Inaccuracy. Be7 was best. } { Wanted to remove the bishop from the attack of the pawn and I liked that I would then be taking the pawn back with check. } (19. Be7 Bg4 20. Rxd6 Rxd6 21. Bxd6 Kd7 22. Ne5+ Kxd6 23. Nxg4 h5 24. Ne3 b5) 19... Kxd8 { [%eval -0.24] } 20. Ne5 { [%eval -0.47] } { This looked better than Rxd6 right away. It forces black to move the rook and allows me to have a more active knight after I take on d6 which turned out to be very true as that knight was a beauty in the endgame. } (20. Rxd6+ { This was my original plan but then I stopped for a bit to see if I could find something better. }) 20... Rg8 { [%eval -0.46] } 21. Rxd6+ { [%eval -0.66] } 21... Kc7 { [%eval -0.76] } 22. Red1 { [%eval -0.69] } { Maybe should have retreated instead but I was hoping she would maybe blunder something. } 22... Rad8 { [%eval -0.69] } { That said this is the move she went for and I saw no way to avoid the trade of rooks. } (22... a6 { For example... } 23. Nxf7 Bxf7 24. Rd7+ Kb6 25. Rxf7 { I could win a pawn like this if black did nothing. }) 23. Rxd8 { [%eval -0.65] } (23. Nxc4 { I considered this. } 23... Bxc4 (23... Rxd6 24. Rxd6 { Here I lose everything } (24. Nxd6 Rd8 { And here I lose everything too })) 24. Rxd8 Rxd8 25. Rc1 { But here my rook is pinned to the back rank. }) 23... Rxd8 { [%eval -0.61] } { Last chance to keep a rook in the game but I didn't see anywhere it would be useful. } 24. Rxd8 { [%eval -0.58] } 24... Kxd8 { [%eval -0.49] } { Knight vs Bishop endgame. I have studied these 0. I had the feeling that her bishop should be better as it's a bishop and can move faster around the board. But I thought that if I think a lot I could find ways to make my knight annoying. } 25. a3 { [%eval -0.64] } { Only move I checked with engine before analyzing and was very happy to see it's the best move. } (25. h3 { for example... } 25... c3 { I thought this would be good for black. } 26. bxc3 Bxa2 { Now they have a protected outside passed pawn which would have sucked. }) 25... Kc7 { [%eval -0.73] } 26. f4 { [%eval -0.6] } { Lock the knight there and create a path for my king. The only issue being f6 but then I thought retreating my knight to f3 or advancing to g6 would be interesting. } 26... h5 { [%eval -0.13] } { This didn't make much sense to me and seemed like a loss of time. } 27. Kf2 { [%eval -0.12] } { Finally bringing the king. } 27... b5 { [%eval 0.0] } { Good move to defend the weak c4 pawn and potentially play a5 and b4 in the future. } 28. Ke3 { [%eval 0.16] } 28... Kd6 { [%eval 0.37] } 29. h3?! { [%eval -0.23] } { Inaccuracy. Kd4 was best. } { Wasn't super happy after I played this move. Felt like g2 was now weak should have maybe played g3. } (29. Kd4 Bd5 30. g3 a6 31. Nd7 f5 32. Ne5 a5 33. Ng6 Be6 34. Nh4 b4) 29... a5 { [%eval -0.21] } { She was obviously trying to push her majority and create a passer. } 30. Kd4 { [%eval -0.73] } { I wanted to play g4 but with her bishop there it didn't seem to work. } 30... Bd5?! { [%eval 0.0] } { Inaccuracy. f6 was best. } (30... f6 31. Nf3 Bd5 32. Nh4 b4 33. Nf5+ Ke6 34. axb4 axb4 35. Ne3 c3 36. bxc3) 31. g4 { [%eval 0.0] } { Now looked like the right moment to play g4 tho. I don't think her bishop move made much sense. That said Bg2 seemed like a decent threat. } 31... h4 { [%eval 0.11] } { I only considered this after I made my move but before she made hers. Didn't seem like a big problem as that pawn would be easy to pick off given it's on a dark square and she only has a light squared bishop. } 32. g5 { [%eval 0.0] } { 10 minute think. This seemed like a very critical moment as I knew she would play Bg2 soon and I needed my pawn to create a threat fast. } (32. f5 { I considered this too but I didn't really see a continuation after Bg2 } 32... Bg2 33. Nxf7+ Ke7 34. Ng5 { I had this which defended my pawn. Looking at it now it doesn't look too bad actually. But idk where I would go from here. }) 32... Be6 { [%eval 0.02] } { She decided to attack my h3 pawn this way instead of Bg2 which makes sense cause it defends f7 as well. } 33. g6 { [%eval 0.0] } { I liked this move. Finally breaking things up a bit. } 33... fxg6 { [%eval 0.0] } (33... Bxh3 34. g7 { This would have been lost for black. }) 34. Nxg6 { [%eval 0.0] } { And here I liked that both the h pawns trade off but I'm left with the passer on f4 } 34... Bxh3 { [%eval 0.05] } 35. Nxh4 { [%eval 0.07] } 35... Be6 { [%eval 0.12] } 36. f5 { [%eval 0.16] } { Push knight win space. Maybe it works with bishops too. } 36... Bf7 { [%eval 0.2] } 37. Ng6 { [%eval 0.16] } { Needed to bring my knight back somehow and I thought taking the knight would be catastrophic for black. } 37... b4?! { [%eval 0.75] } { Inaccuracy. Be8 was best. } { She had to try and create a passed pawn too at some point. } (37... Bxg6 38. fxg6 Ke7 39. Kc5 Kf6 40. Kxb5 Kxg6 41. Kxc4 Kf5 42. Kb5 { GGs }) (37... Be8 38. Ne5 Ke7 39. Ng4 Kd6 40. Nf2 Bc6 41. Nd1 Bd7 42. Ne3 Bc8 43. Nxc4+) 38. axb4 { [%eval 0.84] } 38... axb4 { [%eval 0.82] } 39. Ne5 { [%eval 0.95] } { This looked like a clear win for me. It wasn't clear at all but it looked like it :) } 39... c3?? { [%eval 7.65] } { Blunder. Bh5 was best. } {  } (39... Bh5 40. Nxc4+ Ke7 41. Ne3 Kf6 42. Ke4 b3 43. Nd5+ Kg7 44. Ke5 Kf7 45. Kd4) 40. Nxf7+ { [%eval 6.73] } { I thought this was very likely a win. If I managed to take her pawns and get back to mine in time. } (40. bxc3 { Saw that this would end in a draw. } 40... bxc3 41. Nxf7+ Ke7 42. Kxc3 (42. Ne5 { Completely missed this. Ouch. }) 42... Kxf7 43. Kd4 Kf6 44. Ke4 { Draw }) 40... Ke7 { [%eval 6.67] } 41. bxc3 { [%eval 5.36] } 41... b3 { [%eval 5.36] } { Completely missed this. } (41... bxc3 42. Ne5 { This move I had seen tho and I was very happy as I realized here I'm definitely winning. }) 42. Kd3 { [%eval 6.43] } { Only move } 42... Kxf7?! { [%eval 45.96] } { Inaccuracy. Kd7 was best. } (42... Kd7 43. Ng5 Kc6 44. f6 Kd6 45. Ne4+ Kc7 46. c4) 43. c4 { [%eval 10.75] } { Also felt like an only move because she can promote otherwise. } 43... b2 { [%eval 9.63] } 44. Kc2 { [%eval 5.64] } 44... b1=Q+? { [%eval 58.19] } { Mistake. Kf6 was best. } (44... Kf6 45. Kxb2 Kxf5 46. Kb3 Ke6 47. Kb4 Kd7 48. Kb5 Kd6 49. Kb6 Kd7 50. c5) 45. Kxb1 { [%eval 35.76] } 45... Kf6 { [%eval 27.88] } { I calculated quite a bit to figure out if this would simplify into a winning king and pawn endgame. That said I also know the only way it would be was if I brought my king back up the board so I didn't stop for too long. } 46. Kc2 { [%eval 8.81] } { My original plan was to go straight up the b file but going up the c file first allowed me the option to pass my pawn on the b or d files so I went for this. } 46... Kxf5 { [%eval 8.31] } 47. Kc3?! { [%eval 5.91] } { Inaccuracy. Kb3 was best. } (47. Kb3 Ke6 48. Ka4 Kd6 49. Kb5 Ke5 50. Kb6 Kd4 51. c5 Kc4 52. Kc6 Kd4) 47... Ke6 { [%eval 5.45] } { Here I thought for a minute because I was considering Kd4 but I didn't think that would win. } 48. Kb4 { [%eval 5.48] } { Happy I didn't go d4 } (48. Kd4 Kd6 49. c5+ Kc6 50. Kc4 $10 {  }) 48... Kd6 { [%eval 5.39] } 49. Kb5 { [%eval 5.21] } { By now I knew it was winning but I was sweating a little because I didn't want to mess it up. } 49... Kc7 { [%eval 81.15] } (49... Kd7 { I thought this might be better as I can't play Kc5 } 50. Kc5?? (50. Kb6 { This is what I would have played tho and been fine. }) 50... Kc7) 50. Kc5 { [%eval 81.15] } { This is the exampled used to first introduce the concept of opposition so I finally relaxed. } 50... Kd7 { [%eval 65.02] } 51. Kb6 { [%eval 64.4] } 51... Kc8 { [%eval 7.41] } 52. Kc6 { [%eval 79.01] } 52... Kd8 { [%eval 59.86] } 53. Kb7 { [%eval 81.15] } 53... Kd7 { [%eval 10.35] } 54. c5 { [%eval 5.19] } 1-0
 
 
-[Event "4th Annual Newcomb Memorial (U1900)"]
-[Site "Dulles"]
-[Date "2026.01.24"]
+[Event "Harbor Open"]
+[Site "Fairhaven"]
+[Date "2025.04.16"]
 [Round "3"]
 [White "Daniel Gentile"]
 [Black "Finley Dalton"]
@@ -1155,9 +1155,9 @@
 1. e4 { [%eval 0.18] } 1... c6 { [%eval 0.31] } 2. Nc3 { [%eval 0.21] } 2... d5 { [%eval 0.38] } 3. Nf3 { [%eval 0.2] } 3... Bg4 { [%eval 0.27] } 4. h3 { [%eval 0.17] } 4... Bh5?! { [%eval 0.76] } { Inaccuracy. Bxf3 was best. } (4... Bxf3 5. Qxf3 e6 6. g3 Bc5 7. d3 Nf6 8. Bg2 Nbd7 9. O-O) 5. g4 { [%eval 0.36] } { First mistake. IDK why I thought I had to play g4 before taking the d pawn. } 5... Bg6 { [%eval 0.55] } 6. exd5 { [%eval 0.7] } 6... cxd5 { [%eval 0.62] } 7. Bb5+ { [%eval 0.55] } 7... Nc6 { [%eval 0.45] } 8. Ne5 { [%eval 0.54] } 8... Qd6 { [%eval 0.77] } 9. d4 { [%eval 0.65] } { Up to here I thought I was playing all the right moves from my repertoire. } 9... a6?! { [%eval 1.72] } { Inaccuracy. f6 was best. } { This move I had never seen or didn't remember looking at. } (9... f6 10. Nxg6 hxg6 11. Qd3 O-O-O 12. Bxc6 Qxc6 13. Qxg6 e5 14. Bd2 e4 15. Ne2) 10. Bxc6+ { [%eval 1.41] } { Felt like the only reasonable option. } (10. Ba4 b5 11. Bb3 {  } 11... e6 { This seemed to make my bishop very very bad. }) (10. Bd3 { This was another move I briefly considered but it also didn't look too promising. } 10... Nxe5 11. dxe5 Qxe5+ 12. Be3 Bxd3 (12... d4 { I think trading on d3 first makes more sense for black }) 13. Qxd3 d4) 10... bxc6 { [%eval 1.67] } { Here we transposed into my repertoire and I should have played Bf4. } 11. Nxg6? { [%eval 0.05] } { Mistake. Bf4 was best. } { Here I took as I thought it was better to not leave black with the bishop pair. In hindsight I think my knight was very good on that square. } (11. Bf4 Qb4 12. O-O e6 13. a3 Qb7 14. Re1 Nf6 15. Na4 Qb5 16. b3 Be7) 11... hxg6 { [%eval -0.08] } 12. Qf3 { [%eval -0.27] } { Didn't really know how to develop my pieces here. I definitely wanted to castle queenside as I didn't like the structure I created on the kingside and I thought that by moving my queen first I could then develop my bishop to f4 with a tempo on the black queen. } 12... Nf6?! { [%eval 0.76] } { Inaccuracy. Qb4 was best. } (12... Qb4 13. Qd3 e6 14. Bd2 c5 15. dxc5 Bxc5 16. f3 Qd4 17. Qe2 Rb8 18. O-O-O) 13. Bf4 { [%eval 0.76] } 13... Qb4 { [%eval 0.85] } { I had failed to consider this move. I luckily realized that long castling would protect both attacked pawns but also place my king right in the line of fire of the queen and an eventual rook on b8. } 14. O-O-O { [%eval 0.69] } { Defends pawns but this is where I started getting a bit scared. Rb8 would be really bad for me so that made my bishop on f4 one of the most important pieces I had. } 14... e6 { [%eval 0.78] } 15. h4 { [%eval 0.82] } { IDK what the real idea with this move was. I felt like I was in trouble on the queenside but I couldn't really see what I should do about that so I thought slowly starting a bit of an attack on the kingside might work. } 15... Bd6 { [%eval 0.98] } { Quite logical move from black. My bishop on f4 was very important and trading it off could only really help black. } 16. Bxd6 { [%eval 0.59] } { That said by taking myself I force black to take back with the queen and waste a tempo in the future if he ever wanted to bring her back to b4. } (16. h5 { I also realized that if I wasted time and let black take my bishop my queen would stop defending my knight. } 16... Bxf4+ 17. Qxf4 Rb8 18. b3 Qxc3 { Since b3 felt like a necessary option to keep for myself I didn't feel comfortable letting black take my bishop. }) 16... Qxd6 { [%eval 0.59] } 17. g5 { [%eval 0.42] } { My plan was to play Na4 and then bring my queen to the queenside to help defend. I realized that this would leave my g4 pawn hanging so I thought this was a logical in between move. } 17... Nd7 { [%eval 0.58] } 18. Na4 { [%eval 0.12] } 18... Rb8 { [%eval 0.4] } 19. Qc3 { [%eval 0.26] } 19... Rb4 { [%eval 0.62] } { This move I hadn't seen. It looked pretty annoying but I felt I could still continue with my plan of Nc5 to try and trade down some pieces. } 20. Nc5? { [%eval -0.83] } { Mistake. b3 was best. } (20. b3 Rb5 21. Kb1 Kf8 22. Rh3 c5 23. dxc5 Nxc5 24. Nb2 Kg8 25. Qd4 Qb6) 20... Rc4 { [%eval -0.91] } { Obviously another move I didn't see coming. Now I'd at least losing a pawn. } 21. Qa5?! { [%eval -1.9] } { Inaccuracy. Qe3 was best. } (21. Qa3 { Considered this too but I thought it was just worse as with Qa5 I threaten some kind of invasion with my queen if black doesn't start trading down pieces. }) (21. Qe3 Nxc5 22. b3 Nxb3+ 23. axb3 Rb4 24. Kb2 a5 25. Ra1 Rb5 26. Ra4 Ke7) 21... Nxc5 { [%eval -1.8] } 22. dxc5 { [%eval -1.85] } 22... Qxc5 { [%eval -1.86] } { Took a decent think here. Trading seemed like a sad prospect as I would just be a pawn down in a rook endgame where black has very few weaknesses for me to attack. } 23. Qxc5 { [%eval -1.74] } { In the end I went with this because I felt that defending a rook endgame down a pawn was my best hope. Very possible to draw this imo. } (23. Qxa6 Rxc2+ 24. Kb1 { Thought this might be decent as I am threatening to win the h8 rook } 24... O-O { But after O-O by black I couldn't really see anything good about my position. } (24... Rxf2 { Even here this idea might work } 25. Qc8+ Ke7 26. Qxh8 Qc2+ { Yep I can't win the rook on h8 as I get mated. }) 25. h5 gxh5 26. Rxh5 Rxf2 27. Rdh1 { Here I am too slow as black gets to play Qc2+ and mate. }) (23. Qd2 { This felt like an option too. Trying to defend c2. } 23... Rcxh4 24. Rxh4 Rxh4 { That said black is up two pawns here so I decided against it. }) 23... Rxc5 { [%eval -1.74] } 24. Rh3 { [%eval -1.63] } 24... Rc4 { [%eval -1.16] } { Thought he was going to play this which is why I played Rh3 before. } 25. Rdh1 { [%eval -1.72] } 25... Rg4? { [%eval -0.26] } { Mistake. Ke7 was best. } (25... Ke7 26. Ra3 Ra8 27. Rhh3 Kd6 28. Rab3 e5 29. Kd2 Rf4 30. Ke2 Re4+ 31. Kd2) 26. f3?? { [%eval -2.7] } { Blunder. Rb3 was best. } { Here I saw his rook threatened nothing so I thought I would just kick it out. } (26. Rb3 Rhxh4 27. Rb8+ Kd7 28. Rxh4 Rxh4 29. Rb7+ Kd6 30. Rxf7 Rg4 31. f4 c5) 26... Rg2 { [%eval -2.17] } 27. b4?! { [%eval -3.3] } { Inaccuracy. f4 was best. } { Wanted to advance my king on the queenside and this seemed best as it allowed me to play Kb2 and Kb3 without having to move the pawn again later. } (27. f4 Kd7 28. Rb3 Kc7 29. Ra3 Ra8 30. h5 gxh5 31. Rxh5 Rf2 32. Rh7 Rxf4) 27... Kd7 { [%eval -3.34] } 28. Kb2 { [%eval -3.3] } 28... Kd6 { [%eval -3.16] } 29. R1h2 { [%eval -3.25] } { This I wasn't sure about. I have a vague memory of having heard that trading one rook (when you both have two) favors the winning side so not me in this case. That said, his rook on g2 created some problems for me so trading it off felt like a small win. } 29... Rxh2 { [%eval -3.44] } 30. Rxh2 { [%eval -3.33] } 30... c5 { [%eval -2.93] } 31. c3 { [%eval -3.17] } { Only move that made sense to me. Taking worsens my pawn structure and allows him to bring his king even closer. I also like the prospect of having an a and b pawn against his lone a pawn potentially creating a passer in the future. Slight foreshadowing. } 31... cxb4 { [%eval -2.94] } 32. cxb4 { [%eval -3.31] } { Exactly as I had hoped. Now I might create a passed pawn in the future. } 32... e5 { [%eval -3.19] } 33. Kc3 { [%eval -3.84] } { I realized that his two pawns coming down the center were a more imminent threat than my b pawn trading its way thru so I decided to bring my king closer. } 33... Rc8+ { [%eval -3.84] } { Completely forgetting that this allows him to bring his rook with a tempo. } 34. Kb3 { [%eval -3.85] } 34... Rc4 { [%eval -3.12] } 35. h5 { [%eval -2.81] } { Only move that seemed logical to me. I have to try and open up something somewhere to create some potential for a blunder for black. } (35. a4 { This with the intention of playing b4 made sense too but with his rook on c4 my king would never be able to come help that pawn. }) 35... Rf4?? { [%eval 3.67] } { Blunder. gxh5 was best. } { And here I almost played hxg6. Luckily I thought for a second and realized I can squeeze a pawn thru. } (35... gxh5 36. Rxh5 Rc8 37. a4 d4 38. b5 axb5 39. axb5 Rc3+ 40. Kb4 Rxf3 41. Rh8) 36. h6! { [%eval 4.13] } { My opponent was a child (surprise surprise) and he spent the whole game walking around the room and our table and blitzing out each move. After I played h6 he finally sat down. :) } 36... Rxf3+ { [%eval 3.78] } 37. Ka4 { [%eval 4.32] } { In hindsight this was a loss of time. I should have calculated better and seen that after he goes Rc3 and Rc8 my king would be better on b2 where it doesn't block the a pawn. } 37... gxh6 { [%eval 4.16] } 38. gxh6 { [%eval 4.15] } 38... Rc3 { [%eval 4.0] } 39. h7 { [%eval 3.71] } 39... Rc8 { [%eval 4.48] } 40. h8=Q { [%eval 4.38] } 40... Rxh8 { [%eval 4.15] } 41. Rxh8 { [%eval 4.07] } 41... e4 { [%eval 3.94] } { Still pretty scary. I was very uncertain about what to do here. I considered all kinds of rook moves but they all felt like relative wastes of time. } 42. Kb3 { [%eval 4.14] } { I decided to bring my king backwards to add an eventual defender for all those damn pawns he had and also to open up the idea of playing a4 and b5 and creating another threat in the position. } 42... Ke5?! { [%eval 5.3] } { Inaccuracy. d4 was best. } (42... d4 43. Rd8+ Ke5 44. a4 e3 45. b5 axb5 46. axb5 Kf4 47. Rxd4+ Kg3 48. Re4) 43. a4 { [%eval 5.27] } { This felt so good to play. Completely ignoring his pawns and just pushing mine to create the obvious but unstoppable threat of making a queen. } 43... d4 { [%eval 6.56] } 44. b5 { [%eval 6.43] } { If he kept pushing his pawns on the d, e, f, and g files I would have all the time in the world to make a queen on b8 and I still always had the option to bring my rook down to the 1st rank to defend a promotion. On the other hand if he went for my pawn on the b file I would go eat all of his pawns with my king and rook and then we would be left with no pawns but I would have a rook. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.01.30"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.04.22"]
 [Round "17"]
 [White "Harper Dalton"]
 [Black "Daniel Gentile"]
@@ -1179,9 +1179,9 @@
 1. d4 { [%eval 0.15] } 1... d5 { [%eval 0.27] } 2. c4 { [%eval 0.22] } 2... e6 { [%eval 0.17] } 3. Nc3 { [%eval 0.22] } 3... Nf6 { [%eval 0.24] } 4. Bg5 { [%eval 0.0] } 4... dxc4 { [%eval 0.12] } 5. e4 { [%eval 0.0] } 5... c5 { [%eval 0.02] } 6. dxc5 { [%eval -0.03] } 6... Qxd1+ { [%eval -0.08] } 7. Rxd1 { [%eval -0.05] } 7... Bxc5 { [%eval -0.04] } 8. e5 { [%eval -0.17] } 8... Nfd7 { [%eval -0.12] } 9. Bxc4 { [%eval -0.16] } 9... O-O { [%eval -0.17] } 10. Nf3 { [%eval -0.16] [%cal Gd7e5] } 10... Bb4 { [%eval 0.0] } (10... Nxe5 11. Nxe5 f6 12. Nd3 { [%csl Gc5] } 12... fxg5 13. Nxc5) 11. O-O { [%eval -0.05] } 11... Bxc3 { [%eval 0.1] } (11... Nxe5 12. Nxe5 f6 13. Nd3 Bxc3 14. bxc3 fxg5) 12. bxc3 { [%eval 0.16] } 12... Nc6 { [%eval 0.48] } (12... Nxe5 13. Nxe5 f6 14. Nf3 fxg5 15. Nxg5 { [%csl Gg5,Ge6] } 15... Re8 16. Rfe1 { [%csl Ge6] } 16... Nc6 17. Nxe6 a6 (17... Bxe6 18. Bxe6+ Kh8 19. Bd7) 18. Nc7+ Kh8 19. Nxe8) 13. Bb5 { [%eval 0.56] } 13... Ndxe5?? { [%eval 3.26] } { Blunder. Nb6 was best. } (13... Nb6 14. a4 Bd7 15. a5 Nb8 16. Nd4 Nd5 17. c4 Nc3 18. Rd3 Ne4 19. Be7) 14. Nxe5 { [%eval 3.49] } 14... Nxe5 { [%eval 3.33] } 15. Be7 { [%eval 3.22] } 15... b6?! { [%eval 4.25] } { Inaccuracy. a6 was best. } (15... a6 16. Bxf8 axb5 17. Rd8 Nc6 18. Re8 h5 19. Bd6+ Kh7 20. h4 Kg6 21. Rd1) 16. Bxf8 { [%eval 4.15] } 16... Kxf8 { [%eval 4.18] } 17. Rd8+ { [%eval 4.06] } 17... Ke7 { [%eval 4.05] } 18. Rfd1 { [%eval 4.01] } 18... a6 { [%eval 4.08] } 19. Re8+ { [%eval 3.93] } 19... Kf6 { [%eval 3.98] } 20. Bxa6?? { [%eval 0.39] } { Blunder. Be2 was best. } (20. Be2 Nc6 21. Bf3 Bb7 22. Rxa8 Bxa8 23. c4 Ke7 24. Rb1 b5 25. cxb5 axb5) 20... Rxa6 { [%eval 0.34] } 21. Rxc8 { [%eval 0.36] } 21... Rxa2 { [%eval 0.37] } 22. f4 { [%eval 0.15] } 22... Ng4 { [%eval 0.21] } 23. Re1 { [%eval 0.24] } 23... g6?! { [%eval 1.25] } { Inaccuracy. h5 was best. } (23... h5 24. Rd8 Rc2 25. Rd3 Kf5 26. Rf3 h4 27. Rh3 Nf6 28. Rxh4 Nd5 29. Rh5+) 24. h3 { [%eval 1.22] } 24... Nf2 { [%eval 1.08] } 25. Rb8?! { [%eval 0.0] } { Inaccuracy. Re3 was best. } (25. Re3 Rd2 26. c4 Nd1 27. Ra3 Rd4 28. Rc7 Rxf4 29. Rb3 g5 30. Rd7 Nf2) 25... Nd3 { [%eval 0.14] } 26. Rd1 { [%eval -0.09] } 26... Nxf4 { [%eval -0.12] } 27. Rf1 { [%eval -0.15] } 27... Kg5 { [%eval -0.1] } 28. Rf2 { [%eval -0.16] } 28... Ne2+ { [%eval 0.0] } 29. Kh2 { [%eval 0.0] } 29... Nxc3 { [%eval 0.0] } 30. Rxa2 { [%eval 0.0] } 30... Nxa2 { [%eval 0.0] } 31. Rxb6 { [%eval -0.06] } 31... Nc3 { [%eval 0.0] } 32. Rb7 { [%eval 0.0] } 32... Kf6 { [%eval 0.0] } 33. g4 { [%eval -0.09] } 33... Ne4 { [%eval 0.0] } 34. Kg2 { [%eval -0.07] } 34... h6 { [%eval 0.0] } 35. Kf3 { [%eval -0.08] } 35... Ng5+ { [%eval 0.0] } 36. Kg3 { [%eval -0.12] } 36... Ke5 { [%eval 0.0] } 37. h4 { [%eval 0.0] } 37... Ne4+ { [%eval 0.0] } 38. Kf3 { [%eval -0.03] } 38... Nd6 { [%eval -0.02] } 39. Rd7 { [%eval -0.23] } 39... f5 { [%eval -0.38] } 40. g5?? { [%eval -3.54] } { Blunder. gxf5 was best. } (40. gxf5 Nxf5 41. h5 gxh5 42. Rd1 Kf6 43. Rg1 h4 44. Kg4 h3 45. Ra1 h2) 40... hxg5 { [%eval -3.15] } 41. hxg5 { [%eval -2.93] } 41... Ne4 { [%eval -3.57] } 42. Rg7 { [%eval -3.83] } 42... Nxg5+ { [%eval -3.76] } 43. Ke3 { [%eval -4.35] } 43... Kf6?! { [%eval -2.9] } { Inaccuracy. f4+ was best. } { 0-1 Black wins. } (43... f4+ 44. Kd3 Kf5 45. Rg8 Ne4 46. Rf8+ Nf6 47. Ke2 e5 48. Ra8 g5 49. Ra5) 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.02.20"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.05.13"]
 [Round "18"]
 [White "Jordan Dalton"]
 [Black "Daniel Gentile"]
@@ -1203,9 +1203,9 @@
 1. e4 { [%eval 0.18] } 1... c6 { [%eval 0.31] } 2. c3 { [%eval 0.28] } { First new move for me. } 2... d5 { [%eval 0.26] } 3. e5 { [%eval 0.25] } 3... c5 { [%eval 0.23] } 4. d4 { [%eval 0.25] } { Here it transposed into the c3 line of the advanced caro which I am very comfortable with. } 4... Nc6 { [%eval 0.15] } 5. Nf3 { [%eval 0.0] } 5... cxd4 { [%eval 0.0] } 6. cxd4 { [%eval 0.0] } 6... Bg4 { [%eval 0.0] } 7. Be2 { [%eval 0.0] } 7... e6 { [%eval 0.0] } 8. O-O { [%eval 0.11] } 8... Nge7 { [%eval 0.05] } 9. Nc3 { [%eval 0.0] } 9... Nf5 { [%eval 0.04] } 10. Be3 $146 { [%eval -0.27] } { First move out of my repertoire. } 10... Bxf3 { [%eval 0.18] } { This move is fine but as always I'm overthinking the opening. Instead of the simple developing move Be7 I start trying to win the d4 pawn. } 11. Bxf3 { [%eval 0.19] } 11... Qb6 { [%eval 0.38] } 12. Na4 { [%eval 0.23] } 12... Qb4 { [%eval 0.47] } { I had seen all of this leading up to this moment but that's why I'm disappointed I played Bxf3 and went for this whole try. My bishop is still not developed and I'm at least two moves away from castling but I'm sending my queen out to try and maybe win a pawn if my opponent makes a mistake. Be7 would have been much better in my opinion. } 13. a3 { [%eval 0.46] } { This I hadn't predicted. I believe it goes to show why this whole line was a mistake by me. Now my queen is kicked around and I will not win the d4 pawn but white will get to develop and maybe fix all his problems. I need to get more comfortable with letting the pressure build slowly instead of trying to cash out right away. } 13... Nxe3 { [%eval 0.72] } { This move I thought was interesting as white can't take my queen. } 14. fxe3 { [%eval 0.73] } { But obviously white doesn't take my queen and ignoring the slightly awkward pawn structure in the center has a very fine position. } (14. axb4 Nxd1 15. Rfxd1 Bxb4 { I win a pawn. }) 14... Qa5 { [%eval 0.82] } 15. Qb3 { [%eval 0.55] } { Another move I didn't see coming and again an example of white developing with initiative white I am still at least two moves away from castling. } 15... b5?? { [%eval 3.35] } { Blunder. Rb8 was best. } { I thought this was my best hope for saving the pawn and creating some problems for white. Maybe hopefully... } (15... Rb8 16. Qc2 Be7 17. Bg4 Qc7 18. b4 Qd7 19. Be2 O-O 20. Rf3 Rbc8) 16. Nc3 { [%eval 3.13] } 16... b4?! { [%eval 4.74] } { Inaccuracy. Rc8 was best. } (16... Rc8 17. Nxd5 Nd8 18. Nf4 Be7 19. Rfc1 Rxc1+ 20. Rxc1 O-O 21. Qc3 Qa4 22. Qc2) 17. axb4 { [%eval 4.54] } 17... Qxb4 { [%eval 4.41] } 18. Qxb4?? { [%eval 0.98] } { Blunder. Bxd5 was best. } (18. Bxd5 Qxb3 19. Bxb3 Nxe5 20. Nb5 Rb8 21. dxe5 Bc5 22. Nd6+ Kd8 23. Ba4 Rf8) 18... Bxb4 { [%eval 0.97] } { And with the queens off the board my uncastled king and lack of space in the center should be less of a problem. } 19. Rfc1 { [%eval 0.5] } 19... Kd7?? { [%eval 2.64] } { Blunder. Ne7 was best. } { I thought this move was best. Bringing my king into the action while still safely hidden away and connecting my rooks. } (19... Ne7 20. e4 dxe4 21. Bxe4 Rd8 22. Rxa7 O-O 23. Rd1 Rb8 24. Kf1 Nc8 25. Rc7) 20. Ne2?? { [%eval -2.63] } { Blunder. Nxd5 was best. } { This looked like a clean blunder of a pawn by white. } (20. Nxd5 exd5 21. Bg4+ Kc7 22. Ra6 Rhb8 23. Rcxc6+ Kb7 24. Bf3 Rd8 25. Kf2 Rab8) 20... Bd2 { [%eval -2.53] } 21. Rd1 { [%eval -2.83] } 21... Bxe3+ { [%eval -2.85] } 22. Kh1 { [%eval -2.79] } 22... Rhb8 { [%eval -2.99] } { Bringing a rook into the game seemed important. From b2 my rook attacks a pawn and leaving the a8 rook in place felt necessary as I didn't want the c6 knight to be the sole defender of the a7 pawn. } 23. Rd3 { [%eval -2.95] } 23... Bf2? { [%eval -1.24] } { Mistake. Bg5 was best. } { I played this move because I was hoping white would allow me to win the d4 pawn as well. I think Bd2 is fine in theory but I mishandled the situation. } (23... Bg5 24. b3 Rb4 25. Rf1 Rab8 26. Bxd5 exd5 27. Rxf7+ Be7 28. Rxg7 Rxb3 29. Rxb3) 24. g3 { [%eval -1.38] } { g2 I had seen but I thought it was pretty harmless as it let me take the pawn on b2. Once g3 was played however I realized that if I took the pawn on b2 my bishop would be stuck. } (24. Rf1 Bh4 { Here my plan would have been to bring the bishop back and eventually play f6. }) 24... Rxb2?! { [%eval -0.64] } { Inaccuracy. Rb4 was best. } { So instead I went with Rxb2. My bishop is lost but I saw that if white attacks it with the king he looses another pawn. } (24... Rb4 25. Rad1 a5 26. Kg2 Bxd4 27. Nxd4 Nxe5 28. Ra3 Nc4 29. Rc3 Rxb2+ 30. Kg1) 25. Rf1 { [%eval -0.76] } { While if white attacks with the rook I found this exchange sacrifice that left me up three pawns and a knight for a rook. } (25. Kg2 Bxd4 { As the knight can't take due to the pin. }) 25... Rxe2?? { [%eval 3.75] } { Blunder. Bxd4 was best. } (25... Bxd4 26. Nxd4 Nxe5 27. Re3 f6 28. Ra1 Rb4 29. Nc2 Rc4 30. Bd1 a5 31. Rea3) 26. Bxe2 { [%eval 3.67] } { Only move I considered. } (26. Rxf2 Rxf2 { White obviously can't take. }) 26... Bxd4?! { [%eval 4.81] } { Inaccuracy. f6 was best. } { And this was the position I saw before playing 24... Rxb2. I have three pawns and a knight for a rook. With the a7 pawn being a passer and a 2 pawn majority on the kingside I thought I was definitely not losing and probably winning. } (26... f6 27. Rxf2 fxe5 28. dxe5 Nxe5 29. Ra3 a5 30. Rf1 Kd6 31. Rfa1 Nc6 32. Bb5) 27. Rxf7+ { [%eval 4.84] } { Then my opponent played this move... } 27... Ke8 { [%eval 4.7] } { At least I realized white was threatening to skewer my king and win the rook. } 28. Rxg7 { [%eval 4.15] } 28... Rd8 { [%eval 4.95] } { The skewer was threatened again so I had to bring my rook closer so my king could defend. I was debating between Rd8 and Rc8. Still don't know which is better. Rd8 places my rook behind the passed pawn on d5 and Rc8 places my rook on the open file allowing for checks and more mobility for the rook. } 29. Rxh7?! { [%eval 3.52] } { Inaccuracy. Bh5+ was best. } (29. Bh5+ Kf8 30. Rf7+ Kg8 31. Rc7 Nxe5 32. Rxd4 a5 33. Kg2 Rd7 34. Rxd7 Nxd7) 29... Bxe5 { [%eval 3.54] } { Here I was pretty annoyed with myself so I wasn't really calculating much. I thought that removing another pawn and being left with 3 passed pawns gave me the best odds. } 30. Bh5+ { [%eval 3.6] } 30... Kf8 { [%eval 3.49] } 31. Rf3+ { [%eval 3.51] } 31... Kg8 { [%eval 3.47] } 32. Rff7?! { [%eval 2.55] } { Inaccuracy. Rb7 was best. } { After this series of checks and Rff7 I felt like white wasn't playing this very well. His rooks here threaten very little. } (32. Rb7 Rf8 33. Rxf8+ Kxf8 34. Bg4 Nd4 35. Rxa7 Bf6 36. Kg2 e5 37. Rd7 Nc2) 32... d4?! { [%eval 3.57] } { Inaccuracy. a5 was best. } { As I mentioned before I was a little tilted so I wasn't calculating much at all. I saw white had no significant checks and just decided to push my pawn. } (32... a5 33. Bd1 Rb8 34. Kg2 Bd4 35. Rb7 Ra8 36. Ba4 Nb4 37. Rh4 Be5 38. Bd7) 33. Bg4 { [%eval 3.53] } 33... d3?? { [%eval #5] } { Checkmate is now unavoidable. Re8 was best. } { Here I was convinced that white would play Bxe6. } (33... Re8 34. Rd7 Kf8 35. Rh6 Rd8 36. Bxe6 d3 37. Rhh7 Bf6 38. Rxd8+ Bxd8 39. Rd7) 34. Rd7?? { [%eval 3.12] } { Lost forced checkmate sequence. Bxe6 was best. } { This looked pretty annoying but I didn't really see anything fatal. If at any point white takes my rook on d8 I can take back the rook on h7. } (34. Bxe6 d2 (34... Ne7 35. Rxe7+ Kf8 36. Rhf7+ Kg8 37. Rf5+ Kh8 38. Rh5#) 35. Rd7+ Kf8 36. Rhf7+ Ke8 { Looking at this now maybe I would have been fine. But in the moment I thought the capture on e6 would have been very bad news for me. } 37. Rxd8+ Nxd8) 34... Nd4 { [%eval 3.03] } { So I defended the pawn on e6 and blocked the rooks view of the d3 pawn. } 35. Rxd8+ { [%eval 3.1] } 35... Kxh7 { [%eval 3.04] } { As mentioned... } 36. Rd7+?! { [%eval 2.15] } { Inaccuracy. Rc8 was best. } (36. Rc8 Nc2 37. Bxe6 Kg7 38. Bb3 Ne1 39. Bd1 Kg6 40. h4 Kf5 41. h5 Bxg3) 36... Kg6 { [%eval 2.08] } 37. Rxa7 { [%eval 2.01] } 37... Kg5 { [%eval 2.17] } 38. Bd1 { [%eval 2.09] } { Here I got hopeful again. The position felt most definitely losing but it wasn't clear to me how white would have to go about it. } 38... Kf5 { [%eval 2.27] } 39. Kg2 { [%eval 2.03] } 39... Ke4 { [%eval 2.12] } { I have the most forward pushed pawn and the most active king. I also noticed that black's rook on a7 was a weakness. If black ever placed the king on the a7-g1 diagonal I might be able to fork it. } 40. Kf2 { [%eval 2.07] } 40... Ne2 { [%eval 2.52] } { Here I found this move and I was pretty happy with it. In my mind white had to move the rook as losing the exchange advantage would mean losing all his advantage. } 41. Bxe2?? { [%eval -0.06] } { Blunder. Ra6 was best. } { And here white fell right into my trap. } (41. Ra2 { White also would have had to be careful of where the rook went as there are potential tactics. } 41... Nc3 42. Ra1 Nxd1+ 43. Rxd1 Kd4 { Probably still losing for me but not super easy. }) (41. Ra6 Nc3 42. Bf3+ Kd4 43. Rxe6 d2 44. h4 d1=R 45. Bxd1 Nxd1+ 46. Kf3 Kd5) 41... Bd4+ { [%eval -0.33] } 42. Ke1 { [%eval -0.38] } 42... Bxa7 { [%eval -0.81] } 43. Bg4?? { [%eval -3.49] } { Blunder. Bf1 was best. } { Now we have an opposite colored bishop endgame with two pawns per side. I had a feeling this would be a draw but I knew that if it was winning for someone it was me as my pawns are much more advanced. I feel like there was a way for me to win this or at least try better for a win. } (43. Bf1 Bc5 44. g4 e5 45. h4 Kd4 46. g5 Be7 47. Kd1 e4 48. g6 Bf8) 43... e5 { [%eval -3.11] } 44. h4 { [%eval -2.53] } 44... Be3 { [%eval -1.72] } 45. h5 { [%eval -1.17] } 45... d2+? { [%eval 0.0] } { Mistake. Kd4 was best. } { This was the move I later regretted. IDK if it changed anything but it felt like putting all my pawns on dark squares meant that white could easily blockade with his king a bishop leaving me with no hopes for a win. } (45... Kd4 46. Kd1 Bh6 47. Bc8 e4 48. Bb7 e3 49. Bf3 Bg7 50. Ke1 Bf8 51. Bg4) 46. Ke2 { [%eval 0.0] } 46... Kd4 { [%eval 0.0] } 47. Bf3 { [%eval 0.0] } 47... Bg5 { [%eval 0.0] } 48. Bg4 { [%eval 0.0] } 48... e4 { [%eval 0.0] } 49. Kd1 { [%eval 0.0] } 49... e3 { [%eval 0.0] } 50. Bf3 { [%eval 0.0] } { And that's kind of what happened. } 50... Kd3 { [%eval 0.0] } 51. Be2+ { [%eval 0.0] } 51... Ke4 { [%eval 0.0] } 52. Bg4 { [%eval 0.0] } { Here I saw no way forward and offered a draw which my opponent obviously accepted. } 1/2-1/2
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.02.27"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.05.20"]
 [Round "19"]
 [White "Kai Dalton"]
 [Black "Daniel Gentile"]
@@ -1227,9 +1227,9 @@
 1. g3 { [%eval 0.1] } 1... d5 { [%eval 0.15] } 2. Bg2 { [%eval -0.12] } 2... e6 { [%eval 0.25] } 3. d3 { [%eval 0.0] } 3... Nf6 { [%eval 0.05] } 4. e3 { [%eval -0.2] } 4... Bd6 { [%eval -0.11] } 5. Ne2 { [%eval -0.27] } 5... c5 { [%eval -0.08] } 6. b3 { [%eval -0.24] } 6... O-O { [%eval -0.23] } 7. Bb2 { [%eval -0.4] } 7... Nbd7?! { [%eval 0.29] } { Inaccuracy. e5 was best. } (7... e5 8. Nd2 Nc6 9. O-O Re8 10. e4 d4 11. h3 Rb8 12. Bc1) 8. Nd2 { [%eval -0.02] } 8... Re8 { [%eval 0.11] } 9. h3 { [%eval -0.17] } 9... e5 { [%eval -0.15] } 10. c4 { [%eval -0.43] } 10... d4 { [%eval -0.41] } 11. e4?! { [%eval -1.0] } { Inaccuracy. g4 was best. } (11. g4 h6 12. Ng3 Nf8 13. Nde4 Be7 14. O-O Rb8 15. f4 exf4 16. exf4 b5) 11... Qc7 { [%eval -0.75] } 12. g4 { [%eval -1.12] } 12... Nf8 { [%eval -0.98] } 13. Ng3 { [%eval -1.39] } 13... Ng6 { [%eval -1.31] } 14. Nf3 { [%eval -1.3] } 14... Nf4 { [%eval -1.23] } 15. O-O { [%eval -1.71] } 15... h6 { [%eval -1.21] } 16. Bc1 { [%eval -1.21] } 16... h5 { [%eval -0.87] } 17. Bxf4 { [%eval -0.94] } 17... hxg4 { [%eval -0.63] } 18. Bg5 { [%eval -0.61] } 18... gxh3?? { [%eval 2.23] } { Blunder. gxf3 was best. } (18... gxf3 19. Qxf3 Nh7 20. Qh5 (20. Bd2 g6 21. Ne2 Kg7 22. Qg3 Nf6 23. f4 Nh5 24. Qf2) 20... Nxg5 21. Qxg5 Be7 22. Qd2 Bh4 23. Kh2 Bd7) 19. Bh1 { [%eval 1.85] } 19... Ng4?! { [%eval 3.06] } { Inaccuracy. Nh7 was best. } (19... Nh7 20. Bd2 g6 21. Nh2 Kh8 22. Bf3 f5 23. Kh1 f4 24. Rg1 Nf6 25. Ngf1) 20. Nh2 { [%eval 2.94] } 20... Nxh2 { [%eval 3.01] } 21. Kxh2 { [%eval 2.97] } 21... f5? { [%eval 5.1] } { Mistake. f6 was best. } (21... f6 22. Bd2 g6 23. Bf3 Kf7 24. Bg4 Rh8 25. a3 a5 26. Bxc8 Qxc8 27. f4) 22. Qh5 { [%eval 5.02] } 22... Rf8 { [%eval 5.54] } 23. exf5 { [%eval 5.46] } 23... Bxf5?! { [%eval 7.28] } { Inaccuracy. e4 was best. } (23... e4 24. dxe4 Bxg3+ 25. fxg3 Bd7 26. Bf4 Qd8 27. e5 Bxf5 28. Bd5+ Qxd5 29. cxd5) 24. Bd5+ { [%eval 6.85] } 24... Rf7 { [%eval 9.52] } 25. Nxf5 { [%eval 9.15] } 25... e4+ { [%eval 7.15] } 26. Nxd6 { [%eval 6.81] } 26... Qxd6+ { [%eval 7.62] } 27. Kxh3 { [%eval 7.15] } 27... Rf8 { [%eval 7.57] } 28. dxe4 { [%eval 7.58] } 28... b5 { [%eval 8.12] } 29. f4 { [%eval 7.5] } 29... Qd7+? { [%eval #12] } { Checkmate is now unavoidable. g6 was best. } (29... g6 30. Qh6 Qxd5 31. cxd5 Rh7 32. Qxh7+ Kxh7 33. d6 c4 34. Kg3 d3 35. Rh1+) 30. Kg3 { [%eval 11.08] } 30... bxc4?! { [%eval #3] } { Checkmate is now unavoidable. Qxd5 was best. } (30... Qxd5 31. cxd5 Re8 32. Rh1 Rff8 33. Qh7+ Kf7 34. e5 Re6 35. dxe6+ Kxe6 36. Qg6+) 31. Rh1 { [%eval #2] } { 1-0 White wins. } 1-0
 
 
-[Event "ACC vs ANC"]
-[Site "Army Navy Club, Washington DC"]
-[Date "2026.03.07"]
+[Event "Meadow Open"]
+[Site "Oakdale"]
+[Date "2025.05.28"]
 [Round "1"]
 [White "Daniel Gentile"]
 [Black "Logan Dalton"]
@@ -1254,9 +1254,9 @@
 1. e4 { [%eval 0.18] } 1... e6 { [%eval 0.22] } 2. d4 { [%eval 0.29] } 2... d5 { [%eval 0.31] } 3. Bd3 { [%eval -0.09] } 3... dxe4 { [%eval -0.13] } 4. Bxe4 { [%eval -0.21] } 4... Nf6 { [%eval -0.02] } 5. Bf3 { [%eval 0.0] } 5... Be7 { [%eval -0.05] } 6. Ne2 { [%eval 0.0] } 6... c5 { [%eval -0.07] } 7. O-O { [%eval -0.19] } 7... cxd4 { [%eval 0.0] } 8. Nxd4 { [%eval 0.0] } 8... O-O { [%eval 0.03] } 9. Bf4 { [%eval 0.05] } (9. Nc3 e5 10. Nb3) 9... Qb6 { [%eval 0.17] } 10. Nb3 { [%eval -0.16] } (10. Na3 Qxb2 11. Nab5) 10... a5 { [%eval 0.34] } 11. Nc3 { [%eval 0.2] } 11... a4 { [%eval 0.22] } 12. Nxa4 { [%eval 0.2] } 12... Rxa4 { [%eval 0.31] } 13. Bxb8 { [%eval 0.34] } 13... Bd7 { [%eval 0.38] } 14. Be5 { [%eval 0.45] } 14... Bb5 { [%eval 0.47] } 15. Re1 { [%eval 0.11] } 15... Rd8 { [%eval 0.05] } 16. Qc1 { [%eval 0.08] } 16... Rc4? { [%eval 1.27] } { Mistake. Ng4 was best. } (16... Ng4 17. Bxg4 Rxg4 18. Qe3 Qxe3 19. Rxe3 f6 20. Bc3 Kf7 21. Rae1 Bd7 22. Rd3) 17. Bc3? { [%eval 0.12] } { Mistake. c3 was best. } (17. c3 Rcc8 18. Nd4 Bc4 19. a4 Nd7 20. Bg3 Nc5 21. a5 Qa6 22. Qe3 h6) 17... Qc7?! { [%eval 1.21] } { Inaccuracy. Ng4 was best. } (17... Ng4 18. Bxg4 Rxg4 19. Qe3 Qa6 20. f3 Rg5 21. a4 Bc6 22. Kh1 Rgd5 23. Qe2) 18. Qe3?! { [%eval 0.19] } { Inaccuracy. Be5 was best. } (18. Be5 Qb6 19. c3 Rcc8 20. Nd4 Bc4 21. a4 h6 22. b3 Bd5 23. a5 Qa6) 18... Nd5 { [%eval 0.22] } 19. Bxd5 { [%eval 0.21] } 19... Rxd5 { [%eval 0.14] } 20. Nd4 { [%eval -0.12] } 20... Rh5?! { [%eval 0.58] } { Inaccuracy. Bd7 was best. } (20... Bd7 21. Rad1 Bc5 22. b3 Rxc3 23. Qxc3 Qd6 24. Nf5 exf5 25. Qf3 Rxd1 26. Rxd1) 21. Nxb5?? { [%eval -1.08] } { Blunder. h3 was best. } (21. h3 Bd7 22. Rad1 Bd6 23. a3 h6 24. Nf3 Bc6 25. Rd4 Bd5 26. Rxc4 Qxc4) 21... Qxh2+ { [%eval -1.1] } 22. Kf1 { [%eval -1.25] } 22... Rxb5 { [%eval -1.15] } 23. Rad1 { [%eval -1.33] } 23... h6 { [%eval -1.53] } 24. Rd4?! { [%eval -2.67] } { Inaccuracy. Qh3 was best. } (24. Qh3 Qc7 25. Rd3 Bb4 26. Bxb4 Rcxb4 27. Rc3 Rc5 28. Qe3 Rxc3 29. Qxc3 Qxc3) 24... Rcc5?? { [%eval -0.34] } { Blunder. Rxd4 was best. } (24... Rxd4 25. Bxd4 Qh1+ 26. Ke2 Qxg2 27. Kd3 Rf5 28. Qe4 Qh3+ 29. Be3 Rxf2 30. Qxb7) 25. f3?? { [%eval -2.4] } { Blunder. Rg4 was best. } (25. Rg4 Rg5 26. Qh3 Qd6 27. Rxg5 Rxg5 28. a3 h5 29. Qf3 Qc7 30. Qe4 Bxa3) 25... Bh4? { [%eval -0.93] } { Mistake. Bf6 was best. } (25... Bf6 26. Rd3 Bxc3 27. Rxc3 Rxc3 28. bxc3 Ra5 29. Rd1 Rxa2 30. Qd3 Qf4 31. Kg1) 26. Red1 { [%eval -0.83] } 26... Bg5 { [%eval -0.91] } 27. Qf2 { [%eval -0.9] } 27... Qh1+ { [%eval -0.74] } 28. Qg1?? { [%eval -3.59] } { Blunder. Ke2 was best. } (28. Ke2 Qh5 29. Re4 Rc6 30. Kf1 Rbc5 31. Rd7 b5 32. Kg1 Qg6 33. a3 Bc1) 28... Qxg1+ { [%eval -3.57] } 29. Kxg1 { [%eval -3.5] } 29... Be3+ { [%eval -3.41] } 30. Kf1 { [%eval -3.51] } 30... Bxd4 { [%eval -3.53] } 31. Rxd4 { [%eval -3.52] } 31... Rd5 { [%eval -3.09] } 32. Ke2?! { [%eval -3.95] } { Inaccuracy. Rg4 was best. } (32. Rg4 Rg5 33. Ra4 Rbc5 34. Ra8+ Kh7 35. a4 Rc7 36. a5 Rgc5 37. g4 e5) 32... Rxd4 { [%eval -4.0] } 33. Bxd4 { [%eval -3.87] } 33... e5 { [%eval -3.97] } 34. Bc3 { [%eval -3.89] } 34... f5 { [%eval -3.38] } 35. a4 { [%eval -3.75] } 35... Rc5 { [%eval -4.14] } 36. Kd3 { [%eval -4.29] } 36... Kf7 { [%eval -4.1] } 37. b4 { [%eval -4.39] } 37... e4+ { [%eval -4.28] } 38. fxe4 { [%eval -4.26] } 38... fxe4+ { [%eval -4.05] } 39. Kd4 { [%eval -4.02] } 39... Rc6 { [%eval -3.74] } 40. b5 { [%eval -3.49] } 40... Rc8 { [%eval -3.89] } 41. a5 { [%eval -3.74] } 41... Ke6 { [%eval -3.53] } 42. Bb4?! { [%eval -4.62] } { Inaccuracy. g4 was best. } (42. g4 e3 43. Kd3 e2 44. Bb4 Kd7 45. a6 bxa6 46. bxa6 Re8 47. a7 Kc6) 42... Rxc2 { [%eval -4.29] } 43. Kxe4? { [%eval -7.26] } { Mistake. g3 was best. } (43. g3 h5 44. Bc3 e3 45. Kd3 Ra2 46. Kxe3 g5 47. Be1 Kd5 48. Kf3 Ra1) 43... Rb2?! { [%eval -4.97] } { Inaccuracy. Rc4+ was best. } (43... Rc4+ 44. Kf3 Rxb4 45. b6 Rb5 46. Ke4 Re5+ 47. Kd4 Rxa5 48. Kc4 Kd6 49. Kd3) 44. Bf8 { [%eval -5.47] } 44... Kf7 { [%eval -5.41] } 45. Bc5 { [%eval -5.33] } 45... Rxb5 { [%eval -5.54] } 46. Bb6 { [%eval -5.34] } 46... Kg6 { [%eval -5.32] } 47. Kf4 { [%eval -5.15] } 47... Rb4+ { [%eval -4.73] } 48. Ke5 { [%eval -5.99] } 48... Rg4 { [%eval -5.92] } 49. Kd6 { [%eval -5.99] } 49... Rxg2 { [%eval -5.27] } 50. Kc7 { [%eval -5.29] } 50... Ra2 { [%eval -5.92] } 51. Kxb7 { [%eval -5.46] } 51... Kf5 { [%eval -5.29] } 52. a6 { [%eval -5.31] } 52... g5 { [%eval -5.13] } 53. a7 { [%eval -5.62] } 53... h5 { [%eval -5.46] } 54. a8=Q { [%eval -5.37] } 54... Rxa8 { [%eval -5.27] } 55. Kxa8 { [%eval -5.27] } 55... Ke4 { [%eval -5.62] } 56. Kb7 { [%eval -5.53] } 56... Kf3 { [%eval -5.45] } 57. Kc6 { [%eval -5.13] } 57... g4 { [%eval -5.3] } 58. Kd5?! { [%eval -7.83] } { Inaccuracy. Bd8 was best. } (58. Bd8 g3 59. Kd5 Kg4 60. Bc7 h4 61. Ke4 h3 62. Ke3 h2 63. Kd3 Kf3) 58... h4 { [%eval -7.2] } 59. Kd4 { [%eval -7.01] } 59... h3 { [%eval -6.17] } 60. Bc7 { [%eval -5.85] } 60... g3 { [%eval -7.98] } 61. Bxg3?! { [%eval -81.15] } { Inaccuracy. Bd6 was best. } (61. Bd6 h2 62. Kc3 h1=Q 63. Bc5 Qc1+ 64. Kb4 Qxc5+ 65. Kxc5 Kg2 66. Kc4 Kh3) 61... Kxg3 { [%eval -81.15] } 62. Ke3 { [%eval -9.71] } 62... Kg2 { [%eval -5.58] } { 0-1 Black wins. } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.03.20"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.06.10"]
 [Round "20"]
 [White "Blair Dalton"]
 [Black "Daniel Gentile"]
@@ -1278,9 +1278,9 @@
 1. c4 { [%eval 0.11] } 1... e6 { [%eval 0.25] } 2. e4 { [%eval -0.13] } 2... d5 { [%eval -0.04] } 3. cxd5 { [%eval -0.09] } 3... exd5 { [%eval 0.0] } 4. exd5 { [%eval -0.04] } 4... Qxd5 { [%eval 0.25] } 5. Nc3 { [%eval 0.1] } 5... Qe5+ { [%eval 0.5] } 6. Nge2 { [%eval 0.28] } 6... Nc6 { [%eval 0.57] } 7. g3? { [%eval -0.73] } { Mistake. d4 was best. } (7. d4 Qh5 8. d5 Ne5 9. f4 Nd7 10. Be3 Bd6 11. Qd2 Ne7) 7... Bc5 { [%eval -0.27] } 8. Bg2 { [%eval -0.23] } 8... Nge7 { [%eval -0.25] } 9. O-O { [%eval -0.38] } 9... Bg4 { [%eval -0.18] } 10. Re1?! { [%eval -1.0] } { Inaccuracy. Qa4 was best. } (10. Qa4 Bxe2 11. Re1 b5 12. Qh4 Nd4 13. Nxe2 O-O-O 14. Kf1 Nef5 15. Qe4 Qxe4) 10... O-O-O { [%eval -1.02] } 11. Qa4?! { [%eval -2.09] } { Inaccuracy. h3 was best. } (11. h3 Bxe2 12. Nxe2 Rhe8 13. d4 Bxd4 14. Nxd4 Rxd4 15. Qe2 Nd5 16. Be3 Qd6) 11... h5? { [%eval -0.79] } { Mistake. Nd4 was best. } (11... Nd4 12. Kh1 Bd7 13. Qd1 Bc6 14. b4 Bxb4 15. Rb1 Nxe2 16. Rxe2 Bxg2+ 17. Kxg2) 12. Nf4?? { [%eval #-3] } { Checkmate is now unavoidable. d4 was best. } { 0-1 Black wins. } (12. d4 Rxd4 13. Bf4 Qxe2 14. Rxe2 Rxa4 15. Nxa4 Bxe2 16. Nxc5 Rd8 17. Re1 Bg4) 0-1
 
 
-[Event "2nd Annual Adults Only (U1800)"]
-[Site "Dulles"]
-[Date "2026.03.28"]
+[Event "Prairie Open"]
+[Site "Fairhaven"]
+[Date "2025.06.18"]
 [Round "1"]
 [White "Morgan Dalton"]
 [Black "Daniel Gentile"]
@@ -1303,9 +1303,9 @@
 1. d4 { [%eval 0.15] } 1... d5 { [%eval 0.27] } 2. c4 { [%eval 0.22] } 2... e6 { [%eval 0.17] } 3. Nc3 { [%eval 0.22] } 3... Nf6 { [%eval 0.24] } 4. Nf3 { [%eval 0.08] } 4... a6 { [%eval 0.29] } 5. e3 { [%eval 0.08] } 5... Be7 { [%eval 0.25] } 6. Bd3 { [%eval -0.15] } 6... dxc4 { [%eval -0.07] } 7. Bxc4 { [%eval -0.18] } 7... O-O { [%eval -0.01] } 8. O-O { [%eval -0.16] } 8... b5 { [%eval -0.11] } 9. Bd3 { [%eval -0.11] } 9... Bb7 { [%eval -0.12] } 10. a3 { [%eval -0.13] } 10... c5 { [%eval -0.18] } 11. dxc5 { [%eval -0.14] } 11... Bxc5 { [%eval -0.16] } 12. b4 { [%eval -0.18] } 12... Be7 { [%eval -0.24] } 13. Bb2 { [%eval -0.17] } 13... Nbd7 { [%eval -0.21] } 14. Qe2 { [%eval -0.18] } 14... Bxf3 { [%eval -0.08] } 15. gxf3 { [%eval -0.13] } 15... Qb6 { [%eval 0.28] } 16. Ne4 { [%eval 0.21] } 16... Rac8 { [%eval 0.2] } 17. Rac1 { [%eval 0.05] } 17... Nxe4 { [%eval 0.08] } 18. Bxe4 { [%eval 0.07] } 18... Nf6 { [%eval 0.09] } 19. Bd4 { [%eval 0.06] } 19... Qb8 { [%eval 0.12] } 20. Bb1 { [%eval 0.05] } 20... Rxc1 { [%eval 0.14] } 21. Rxc1 { [%eval 0.07] } 21... Rc8 { [%eval 0.08] } 22. Rxc8+ { [%eval 0.08] } 22... Qxc8 { [%eval 0.08] } 23. Qd3 { [%eval 0.04] } 23... h6 { [%eval 0.0] } 24. Kg2 { [%eval 0.0] } 24... Qd7 { [%eval 0.02] } 25. Qc2 { [%eval 0.05] } 25... g6 { [%eval 0.0] } 26. Qb2 { [%eval 0.0] } 26... Qd8 { [%eval 0.01] } 27. Ba2 { [%eval 0.0] } 27... Nh7 { [%eval 0.06] } 28. Qc2 { [%eval -0.05] } 28... Ng5?? { [%eval 2.6] } { Blunder. Bf6 was best. } (28... Bf6 29. Bxf6) 29. h4 { [%eval 2.54] } 29... Nh7 { [%eval 2.57] } 30. Bxe6 { [%eval 2.54] } 30... Nf8 { [%eval 2.63] } 31. Ba2 { [%eval 2.4] } 31... Bxh4 { [%eval 2.3] } 32. Qe4? { [%eval 0.85] } { Mistake. Qc6 was best. } (32. Qc6 h5 33. Qxa6 Qg5+ 34. Kf1 Qf5 35. Qb7 Bxf2 36. Qd5 Bh4 37. Qxf5 gxf5) 32... Bf6 { [%eval 0.95] } 33. Bc5?! { [%eval 0.3] } { Inaccuracy. Qf4 was best. } (33. Qf4 Kg7) 33... Kg7?! { [%eval 1.06] } { Inaccuracy. Qc8 was best. } (33... Qc8) 34. Qb7 { [%eval 1.12] } 34... Qe8? { [%eval 2.46] } { Mistake. Nd7 was best. } (34... Nd7) 35. Qxa6 { [%eval 2.58] } 35... Bb2 { [%eval 2.45] } 36. Bd4+?? { [%eval 0.0] } { Blunder. Bd5 was best. } (36. Bd5) 36... Bxd4 { [%eval 0.0] } 37. exd4 { [%eval 0.0] } 37... Qe2 { [%eval 0.04] } 38. Bd5 { [%eval 0.44] } 38... Nd7?? { [%eval 2.68] } { Blunder. Qd2 was best. } (38... Qd2 39. Qc6 Qxd4 40. Qxb5 g5 41. Qc4 Qf6 42. Qc6 Qd4 43. Qb7 Qf4 44. b5) 39. Qd6?? { [%eval 0.85] } { Blunder. Bc6 was best. } (39. Bc6) 39... Nf6 { [%eval 0.79] } 40. Bc6 { [%eval 0.93] } 40... Qd3 { [%eval 1.03] } 41. Qc5 { [%eval 1.05] } 41... Qxa3?! { [%eval 1.74] } { Inaccuracy. h5 was best. } (41... h5 42. Bxb5) 42. Bxb5?! { [%eval 0.95] } { Inaccuracy. d5 was best. } (42. d5) 42... Nh5 { [%eval 1.41] } 43. Qd6? { [%eval 0.0] } { Mistake. Qe5+ was best. } (43. Qe5+ Kh7) 43... Nf6?! { [%eval 0.94] } { Inaccuracy. g5 was best. } (43... g5 44. Qe5+ Kg6 45. Qe4+ Kg7) 44. Bc6?! { [%eval 0.15] } { Inaccuracy. Qc5 was best. } (44. Qc5) 44... h5 { [%eval 0.23] } 45. Be4 { [%eval 0.09] } 45... Ne8?? { [%eval 2.14] } { Blunder. h4 was best. } (45... h4 46. Bb7 Qb2 47. Bc8 Qd2 48. Bg4 Qb2 49. Bh3 Qd2 50. Qc5 Nh5 51. d5) 46. Qe5+ { [%eval 2.5] } 46... Nf6 { [%eval 2.47] } 47. b5 { [%eval 2.19] } 47... Qb4?? { [%eval 4.68] } { Blunder. h4 was best. } (47... h4 48. d5 Qc1 49. f4 h3+ 50. Kxh3 Qf1+ 51. Bg2 Qxb5 52. Kh4 Qd7 53. Bf3) 48. Bc6 { [%eval 4.31] } 48... Qb2 { [%eval 4.63] } 49. f4 { [%eval 4.57] } 49... Qc3 { [%eval 5.59] } 50. d5 { [%eval 5.36] } 50... Qd3 { [%eval 5.88] } 51. b6?! { [%eval 4.1] } { Inaccuracy. d6 was best. } (51. d6 h4 52. d7 h3+ 53. Kh2 Qd2 54. Kxh3 Qd1 55. Kh2 Qd2 56. Kg2 Qd1) 51... Qd1?! { [%eval 5.34] } { Inaccuracy. h4 was best. } (51... h4 52. Qe3) 52. b7 { [%eval 5.18] } 52... Qg4+ { [%eval 4.57] } 53. Kf1 { [%eval 4.67] } 53... Qh3+?! { [%eval 7.73] } { Inaccuracy. Qd1+ was best. } (53... Qd1+ 54. Qe1) 54. Ke1 { [%eval 7.33] } 54... Qh1+ { [%eval 8.41] } 55. Kd2 { [%eval 8.09] } 55... Qf3 { [%eval 7.7] } 56. Qe3 { [%eval 8.01] } 56... Ne4+ { [%eval 8.6] } 57. Kc2 { [%eval 8.31] } 57... Qxf2+? { [%eval #11] } { Checkmate is now unavoidable. Qxe3 was best. } (57... Qxe3 58. fxe3 Nc5 59. b8=Q g5 60. Qe5+ Kg8 61. d6 Ne6 62. d7 g4 63. f5) 58. Qxf2 { [%eval 14.61] } 58... Nxf2 { [%eval #10] } 59. b8=Q { [%eval 13.05] } 59... h4?! { [%eval #7] } { Checkmate is now unavoidable. Nh3 was best. } (59... Nh3 60. d6 Nxf4 61. d7 Ne6 62. Qe5+ Kh7 63. Bd5 Nd8 64. Qe8 Kg7 65. Qxd8) 60. Qe5+ { [%eval #8] } 60... Kg8 { [%eval #7] } 61. d6 { [%eval #6] } 61... h3 { [%eval #4] } 62. d7 { [%eval #3] } 62... h2 { [%eval #2] } 63. d8=Q+ { [%eval #1] } { 1-0 White wins. } 1-0
 
 
-[Event "2nd Annual Adults Only (U1800)"]
-[Site "Dulles"]
-[Date "2026.03.28"]
+[Event "Prairie Open"]
+[Site "Fairhaven"]
+[Date "2025.06.18"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Quinn Dalton"]
@@ -1328,9 +1328,9 @@
 1. e4 { [%eval 0.18] } 1... e6 { [%eval 0.22] } 2. d4 { [%eval 0.29] } 2... d5 { [%eval 0.31] } 3. Bd3 { [%eval -0.09] } 3... dxe4 { [%eval -0.13] } 4. Bxe4 { [%eval -0.21] } 4... Nf6 { [%eval -0.02] } 5. Bf3 { [%eval 0.0] } 5... c5 { [%eval 0.0] } 6. Ne2 { [%eval -0.11] } 6... Be7 { [%eval -0.07] } 7. O-O { [%eval -0.19] } 7... O-O { [%eval -0.08] } 8. Nbc3 { [%eval -0.18] } 8... Nc6 { [%eval -0.19] } 9. dxc5 { [%eval -0.21] } 9... Ne5 { [%eval 0.0] } 10. b4?! { [%eval -0.88] } { Inaccuracy. Nf4 was best. } (10. Nf4 Qxd1 11. Bxd1 Bxc5 12. Re1 Nfd7 13. Nd3 Nxd3 14. cxd3 Rd8 15. Be3 Bb6) 10... a5 { [%eval -0.55] } 11. b5?! { [%eval -1.3] } { Inaccuracy. Qxd8 was best. } (11. Qxd8 Rxd8 12. b5 Nxf3+ 13. gxf3 Bd7 14. Be3 Rac8 15. c6 bxc6 16. b6 c5) 11... Nxf3+ { [%eval -1.47] } 12. gxf3 { [%eval -1.26] } 12... Qc7 { [%eval -1.3] } 13. Kh1?! { [%eval -2.46] } { Inaccuracy. Ba3 was best. } (13. Ba3 Bxc5 14. Bxc5 Qxc5 15. Qd3 b6 16. Qd4 Qc7 17. Rfd1 Bb7 18. Qd6 Rfc8) 13... Rd8 { [%eval -2.52] } 14. Qe1 { [%eval -2.47] } 14... Qxc5 { [%eval -2.49] } 15. a4?! { [%eval -3.36] } { Inaccuracy. Ng3 was best. } (15. Ng3 b6 16. Be3 Qc7 17. Nce4 Bb7 18. Rg1 g6 19. Rc1 Nxe4 20. Nxe4 f5) 15... Qh5 { [%eval -3.25] } 16. f4?? { [%eval -8.2] } { Blunder. Rg1 was best. } (16. Rg1 Qxf3+ 17. Rg2 b6 18. Ng1 Qf5 19. f3 Bb7 20. Be3 Bc5 21. Qe2 Nd5) 16... Ng4 { [%eval -7.57] } 17. Kg2 { [%eval -7.77] } 17... Qxh2+ { [%eval -8.44] } 18. Kf3 { [%eval -8.36] } 18... Qh3+ { [%eval -8.14] } 19. Ng3 { [%eval -8.07] } 19... Nh2+ { [%eval -7.79] } 20. Ke2 { [%eval -7.22] } 20... e5 { [%eval -6.66] } 21. Rh1?? { [%eval #-2] } { Checkmate is now unavoidable. f3 was best. } (21. f3 Nxf1 22. Qxf1 Qxg3 23. Ne4 Qh2+ 24. Qf2 Qxf2+ 25. Nxf2 Be6 26. fxe5 Rac8) 21... Bg4+ { [%eval #-3] } 22. Ke3 { [%eval #-3] } 22... Bc5+ { [%eval #-2] } 23. Ke4 { [%eval #-2] } 23... f5+ { [%eval #-3] } 24. Nxf5 { [%eval #-2] } 24... Bxf5+ { [%eval #-1] } { 0-1 Black wins. } 0-1
 
 
-[Event "2nd Annual Adults Only (U1800)"]
-[Site "Dulles"]
-[Date "2026.03.29"]
+[Event "Prairie Open"]
+[Site "Fairhaven"]
+[Date "2025.06.19"]
 [Round "3"]
 [White "Alex Ellis"]
 [Black "Daniel Gentile"]
@@ -1353,9 +1353,9 @@
 1. e4 { [%eval 0.18] } 1... c6 { [%eval 0.31] } 2. Nc3 { [%eval 0.21] } 2... d5 { [%eval 0.38] } 3. d3?! { [%eval -0.17] } { Inaccuracy. d4 was best. } (3. d4 dxe4 4. Nxe4 Nf6 5. Nxf6+ exf6 6. c3 Bd6 7. Bd3 O-O) 3... dxe4 { [%eval 0.17] } 4. Nxe4 { [%eval 0.13] } 4... Nf6 { [%eval 0.09] } 5. Nxf6+ { [%eval 0.08] } 5... exf6 { [%eval 0.06] } 6. Nf3 { [%eval 0.02] } 6... Bg4 { [%eval 0.29] } 7. Be2 { [%eval 0.14] } 7... Bd6 { [%eval 0.15] } 8. O-O { [%eval 0.09] } 8... O-O { [%eval 0.14] } 9. Be3 { [%eval -0.05] } 9... Nd7 { [%eval 0.03] } 10. Nd4 { [%eval -0.15] } 10... Bxe2 { [%eval -0.14] } 11. Nxe2 { [%eval -0.28] } 11... Qc7 { [%eval -0.15] } 12. Ng3 { [%eval -0.18] } 12... Rfe8 { [%eval -0.25] } 13. Qd2 { [%eval -0.48] } 13... Nf8 { [%eval -0.41] } 14. c4 { [%eval -0.69] } 14... Rad8 { [%eval -0.62] } 15. Rac1 { [%eval -1.08] } 15... g5? { [%eval 0.54] } { Mistake. h5 was best. } (15... h5 16. c5 Bxg3 17. hxg3 Qd7 18. Rfd1 Ng6 19. Rc4 Qf5 20. Qc2 Re6 21. d4) 16. Bd4?? { [%eval -4.38] } { Blunder. Nh5 was best. } (16. Nh5 Bxh2+ 17. Kh1 Be5 18. f4 gxf4 19. Bxf4 Re6 20. Bxe5 fxe5 21. Nf6+ Kg7) 16... Bxg3 { [%eval -4.5] } 17. fxg3 { [%eval -4.48] } 17... Rxd4 { [%eval -4.41] } 18. Rxf6 { [%eval -4.51] } 18... Qe5 { [%eval -4.39] } 19. Rf3 { [%eval -4.7] } 19... Ne6 { [%eval -3.98] } 20. Re1 { [%eval -3.99] } 20... Qc5 { [%eval -3.93] } 21. Rfe3 { [%eval -4.08] } 21... Red8 { [%eval -4.63] } 22. b3 { [%eval -5.45] } 22... Rxd3 { [%eval -5.36] } 23. Qf2 { [%eval -5.46] } 23... Rxe3 { [%eval -5.38] } 24. Qxe3 { [%eval -5.41] } 24... Rd1 { [%eval -5.13] } 0-1
 
 
-[Event "2nd Annual DMV Adults-Only (U1800)"]
-[Site "Sterling, VA"]
-[Date "2026.03.29"]
+[Event "Sunset Open"]
+[Site "Millbrook"]
+[Date "2025.06.19"]
 [Round "4"]
 [White "Blair Ellis"]
 [Black "Daniel Gentile"]
@@ -1378,9 +1378,9 @@
 1. e4 { [%eval 0.18] } 1... c6 { [%eval 0.31] } 2. d4 { [%eval 0.24] } 2... d5 { [%eval 0.24] } 3. Nc3 { [%eval 0.34] } 3... dxe4 { [%eval 0.18] } 4. Bc4?! { [%eval -0.39] } { Inaccuracy. Nxe4 was best. } (4. Nxe4 Bf5 5. Ng3 Bg6 6. h4 h6 7. Nf3 Nd7 8. h5 Bh7) 4... Nf6 { [%eval -0.33] } 5. f3 { [%eval -0.66] } 5... exf3 { [%eval -0.8] } 6. Nxf3 { [%eval -0.73] } 6... e6?! { [%eval 0.0] } { Inaccuracy. Bf5 was best. } (6... Bf5 7. Ne5 e6 8. g4 Nfd7 9. Nd3 Bg6 10. h4 Nb6 11. h5) 7. O-O { [%eval 0.0] } 7... Bd6 { [%eval 0.26] } 8. Bg5 { [%eval 0.39] } 8... h6 { [%eval 0.36] } 9. Bxf6 { [%eval 0.17] } 9... gxf6 { [%eval 0.06] } 10. Qe2 { [%eval 0.14] } 10... Nd7 { [%eval 0.21] } 11. d5? { [%eval -1.21] } { Mistake. Rae1 was best. } (11. Rae1 Be7 12. Kh1 Nf8 13. Qf2 Ng6 14. Ne5 Nxe5 15. Rxe5) 11... Ne5? { [%eval 0.23] } { Mistake. cxd5 was best. } (11... cxd5 12. Bxd5 Ne5 13. Be4 Bd7 14. Kh1 Qb6 15. a4 Rc8 16. Nb5 Bb8 17. Nxe5) 12. Nxe5 { [%eval 0.05] } 12... Bxe5 { [%eval 0.08] } 13. dxe6 { [%eval 0.0] } 13... Bxe6 { [%eval 0.12] } 14. Bxe6 { [%eval 0.16] } 14... fxe6 { [%eval 0.04] } 15. Rad1 { [%eval 0.06] } 15... Qb6+ { [%eval 0.5] } 16. Kh1 { [%eval 0.55] } 16... Ke7 { [%eval 0.5] } 17. Qc4?! { [%eval -0.56] } { Inaccuracy. Ne4 was best. } (17. Ne4 Rad8 18. Rde1 Qb5 19. Qf2 Rhf8 20. Qe3 h5 21. b3 Qd5 22. Qh6 b6) 17... Rad8 { [%eval -0.71] } 18. Na4? { [%eval -2.32] } { Mistake. Rde1 was best. } (18. Rde1 h5 19. h3 h4 20. Qg4 Rdg8 21. Qe2 Rg6 22. Ne4 Qb5 23. Qe3 Rhg8) 18... Qb5 { [%eval -2.27] } 19. Qe4?! { [%eval -3.54] } { Inaccuracy. Qg4 was best. } (19. Qg4 Rhg8 20. Qe4 f5 21. Qe3 Bd4 22. Qa3+ c5 23. Rde1 Qc6 24. Qh3 Qxa4) 19... Rdg8?? { [%eval -0.02] } { Blunder. Rd4 was best. } (19... Rd4 20. Qg6 f5 21. Rde1 Rg4 22. Qh5 Rxa4 23. Rf2 Qd5 24. b4 Rxb4 25. Rfe2) 20. Rfe1 { [%eval -0.48] } 20... h5 { [%eval -0.49] } 21. Rd4?? { [%eval -5.65] } { Blunder. Nc3 was best. } (21. Nc3 Qb6 22. Qd3 Qc7 23. h3 h4 24. Ne4 b6 25. Qe2 c5 26. Rd3 Qc6) 21... Rg4 { [%eval -5.58] } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.04.03"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.06.24"]
 [Round "21"]
 [White "Daniel Gentile"]
 [Black "Casey Ellis"]
@@ -1402,9 +1402,9 @@
 1. e4 { [%eval 0.18] } 1... c5 { [%eval 0.32] } 2. d4 { [%eval 0.05] } 2... cxd4 { [%eval 0.04] } 3. c3 { [%eval -0.09] } 3... dxc3 { [%eval -0.13] } 4. Nxc3 { [%eval -0.22] } 4... Nc6 { [%eval -0.07] } 5. Nf3 { [%eval -0.17] } 5... d6 { [%eval -0.12] } 6. Bc4 { [%eval -0.08] } 6... a6 { [%eval -0.14] } 7. O-O { [%eval -0.17] } 7... e6 { [%eval -0.1] } 8. Qe2 { [%eval -0.16] } 8... Be7 { [%eval -0.15] } 9. Rd1 { [%eval -0.23] } 9... Bd7 { [%eval -0.18] } 10. e5 { [%eval -0.6] } 10... Qc7?? { [%eval 2.06] } { Blunder. Nxe5 was best. } (10... Nxe5 11. Nxe5 dxe5 12. Qxe5 Nf6 13. Qg3 Qb6 14. Rb1 Qc5 15. Be2 Bc6 16. Bf3) 11. Bf4 { [%eval 2.18] } 11... d5 { [%eval 2.02] } 12. Bb3? { [%eval 0.43] } { Mistake. Bxd5 was best. } (12. Bxd5 Bb4 13. Bxc6 Bxc6 14. Ne4 Qb6 15. a3 Be7 16. b4 Bxe4 17. Qxe4 Qc6) 12... Bc5? { [%eval 1.92] } { Mistake. Qc8 was best. } (12... Qc8 13. Rac1 Bd8 14. h4 Nge7 15. h5 h6 16. Bc2 Bc7 17. a3 Qb8 18. Na4) 13. Rac1?! { [%eval 0.82] } { Inaccuracy. Nxd5 was best. } (13. Nxd5 exd5 14. Rxd5 Be6 15. Rxc5 Bxb3 16. axb3 Nge7 17. Qc4 Qd8 18. e6 f6) 13... Ba7?? { [%eval 3.31] } { Blunder. Nge7 was best. } (13... Nge7 14. Nxd5 Nxd5 15. Bxd5 exd5 16. e6 Qxf4 17. exd7+ Kxd7 18. Rxc5 Kc7 19. Qd3) 14. Nxd5 { [%eval 3.22] } 14... exd5 { [%eval 3.86] } 15. e6 { [%eval 3.84] } 15... Qxf4 { [%eval 3.57] } 16. exd7+ { [%eval 3.58] } 16... Kxd7 { [%eval 3.34] } 17. Ne5+?? { [%eval 0.52] } { Blunder. Bxd5 was best. } (17. Bxd5 Kc7 18. Bxc6 bxc6 19. Rxc6+ Kxc6 20. Qxa6+ Kc7 21. Qa5+ Bb6 22. Qxa8 Bxf2+) 17... Kc7?! { [%eval 1.2] } { Inaccuracy. Nxe5 was best. } (17... Nxe5 18. Rxd5+ Ke7 19. Rxe5+ Kf8 20. Rc4 Bxf2+ 21. Qxf2 Qxf2+ 22. Kxf2 h5 23. Rc7) 18. Bxd5 { [%eval 1.12] } 18... Re8? { [%eval 2.48] } { Mistake. Qxf2+ was best. } (18... Qxf2+ 19. Qxf2 Bxf2+ 20. Kxf2 Ne7 21. Bxc6 Nxc6 22. Rd7+ Kb6 23. Nc4+ Ka7 24. Nd6) 19. Bxc6 { [%eval 1.95] } 19... Rxe5 { [%eval 2.03] } 20. Rd7+?? { [%eval -3.39] } { Blunder. Bf3+ was best. } (20. Bf3+ Bc5 21. Qd3 Kb8 22. Qd8+ Ka7 23. Qc8 Qb4 24. a3 Nf6 25. Qxh8 Bxf2+) 20... Kb6?? { [%eval #3] } { Checkmate is now unavoidable. Kc8 was best. } (20... Kc8 21. Rd2 Nf6 22. Bf3+ Kb8 23. Qd1 Bb6 24. g3 Qb4 25. Kg2 Rc8 26. Rxc8+) 21. Rxb7+ { [%eval #2] } 21... Ka5 { [%eval #2] } 22. Qxe5+ { [%eval #1] } 22... Qxe5 { [%eval #1] } 23. b4# { 1-0 White wins. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.04.17"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.07.08"]
 [Round "22"]
 [White "Daniel Gentile"]
 [Black "Kai Dalton"]
@@ -1424,9 +1424,9 @@
 1. e4 { [%eval 0.18] } 1... g6 { [%eval 0.55] } 2. d4 { [%eval 0.48] } 2... Bg7 { [%eval 0.48] } 3. Nf3 { [%eval 0.32] } 3... d6 { [%eval 0.43] } 4. Bd3 { [%eval 0.29] } 4... e6 { [%eval 0.64] } 5. O-O { [%eval 0.84] } 5... Ne7 { [%eval 0.68] } 6. c3 { [%eval 0.75] } 6... b6 { [%eval 0.66] } 7. Be3 { [%eval 0.5] } 7... Bb7 { [%eval 0.55] } 8. Nbd2 { [%eval 0.73] } 8... Nd7 { [%eval 0.81] } 9. Qc2 { [%eval 0.53] } 9... h6 { [%eval 0.5] } 10. Rad1 { [%eval 0.47] } 10... g5 { [%eval 0.89] } 11. h3 { [%eval 0.83] } 11... a6 { [%eval 1.18] } 12. Nh2 { [%eval 1.1] } 12... e5?! { [%eval 1.71] } { Inaccuracy. Ng6 was best. } (12... Ng6 13. e5 Nh4 14. Be4 Bxe4 15. Nxe4 dxe5 16. dxe5 Qe7 17. Ng4 O-O-O 18. b4) 13. b4?! { [%eval 1.03] } { Inaccuracy. Rfe1 was best. } (13. Rfe1 Ng6 14. Ndf1 O-O 15. Ng3 Nh4 16. b3 a5 17. Be2 d5 18. exd5) 13... Ng6 { [%eval 1.15] } 14. a4 { [%eval 1.06] } 14... O-O { [%eval 1.14] } 15. Ndf3 { [%eval 1.06] } 15... Nf6 { [%eval 1.1] } 16. dxe5 { [%eval 0.73] } 16... Nxe5 { [%eval 1.24] } 17. Nxe5 { [%eval 1.26] } 17... dxe5 { [%eval 1.29] } 18. Bxa6? { [%eval 0.18] } { Mistake. Rfe1 was best. } (18. Rfe1 Qd7 19. Nf1 Rfd8 20. Ng3 Qe8 21. a5 bxa5 22. bxa5 Bc8 23. c4 Qc6) 18... Bxe4 { [%eval 0.2] } 19. Rxd8 { [%eval -0.16] } 19... Bxc2 { [%eval -0.25] } 20. Rxf8+ { [%eval -0.21] } 20... Kxf8 { [%eval -0.04] } 21. Bb5 { [%eval 0.0] } 21... Rd8?! { [%eval 0.74] } { Inaccuracy. Nd5 was best. } (21... Nd5 22. Bc6 Nxe3 23. fxe3 Ra6 24. e4 Bxa4 25. b5 Ra5 26. c4 Bc2 27. Bd5) 22. Nf3?! { [%eval 0.08] } { Inaccuracy. Rc1 was best. } (22. Rc1 Be4 23. a5 Nd5 24. Nf1 Nxe3 25. Nxe3 bxa5 26. bxa5 Bf6 27. Ng4 Kg7) 22... Ne4 { [%eval 0.08] } 23. c4 { [%eval -0.36] } 23... Nc3 { [%eval -0.37] } 24. c5?! { [%eval -0.99] } { Inaccuracy. a5 was best. } (24. a5 bxa5 25. bxa5 Bd3 26. Re1 Ne2+ 27. Kh1 e4 28. Ng1) 24... Nxb5?! { [%eval -0.07] } { Inaccuracy. Bxa4 was best. } (24... Bxa4 25. Bxa4 Nxa4 26. cxb6 Nxb6 27. Nd2 Nd5 28. Bc5+ Ke8 29. Ne4 Rb8 30. Ng3) 25. axb5 { [%eval -0.12] } 25... e4 { [%eval 0.04] } 26. cxb6 { [%eval 0.06] } 26... cxb6 { [%eval 0.0] } 27. Bxb6 { [%eval 0.0] } 27... Rb8 { [%eval 0.03] } 28. Bc5+ { [%eval 0.0] } 28... Kg8 { [%eval 0.05] } 29. Ne1 { [%eval 0.14] } 29... Bd3?? { [%eval 1.97] } { Blunder. Ba4 was best. } (29... Ba4 30. b6 f5 31. f4 Bc3 32. fxg5 hxg5 33. Nc2 Bxc2 34. Rc1 Bxb4 35. Rxc2) 30. Nxd3 { [%eval 2.03] } 30... exd3 { [%eval 1.75] } 31. Rd1 { [%eval 1.78] } 31... Rxb5?! { [%eval 2.6] } { Inaccuracy. Rd8 was best. } (31... Rd8 32. g4 f5 33. Kg2 Bc3 34. b6 Kf7 35. Kf3 Ke6 36. Ke3 d2 37. b7) 32. Rxd3 { [%eval 2.58] } 32... Rb8 { [%eval 2.64] } 33. Rb3 { [%eval 2.37] } 33... Be5 { [%eval 2.76] } 34. g3 { [%eval 2.59] } 34... f6 { [%eval 2.81] } 35. b5 { [%eval 2.76] } 35... Kf7 { [%eval 2.91] } 36. Ba7 { [%eval 2.33] } 36... Rb7 { [%eval 2.11] } 37. b6? { [%eval 0.67] } { Mistake. Be3 was best. } (37. Be3 f5 38. f4 gxf4 39. gxf4 Bb8 40. b6 Ke6 41. Kf2 h5 42. Kf3 Rd7) 37... Ke7 { [%eval 0.84] } 38. Kg2 { [%eval 0.49] } 38... Kd7?! { [%eval 1.13] } { Inaccuracy. Bd4 was best. } (38... Bd4 39. f4 Bc5 40. Kf3 f5 41. fxg5 hxg5 42. g4 f4 43. Ke4 Ke6 44. Rc3) 39. Kf3 { [%eval 1.2] } 39... h5?! { [%eval 2.33] } { Inaccuracy. Kc6 was best. } (39... Kc6 40. Kg4 Bd4 41. f4 gxf4 42. gxf4 Rg7+ 43. Kf5 Kb7 44. Rd3 Bb2 45. Ke6) 40. Ke4 { [%eval 1.98] } 40... Ke6 { [%eval 1.9] } 41. Kd3? { [%eval 0.63] } { Mistake. Rb5 was best. } (41. Rb5 g4 42. h4 Kd6 43. Rb4 Ke6 44. Rb3 f5+ 45. Kd3 f4 46. Kc4 fxg3) 41... Bb8?? { [%eval 5.29] } { Blunder. Kd5 was best. } (41... Kd5 42. Rb4 Kc5 43. Rb1 f5 44. Rc1+ Kb5 45. Rc8 Rd7+ 46. Ke2 Ka6 47. Rf8) 42. Bxb8 { [%eval 5.26] } 42... Rxb8 { [%eval 5.17] } 43. b7 { [%eval 5.06] } 43... Kd5 { [%eval 5.07] } 44. Rb5+ { [%eval 4.91] } 44... Ke6 { [%eval 5.48] } 45. Kd4 { [%eval 5.26] } 45... Kd6 { [%eval 6.22] } 46. Ke4 { [%eval 6.09] } 46... Kc6 { [%eval 6.24] } 47. Rb2 { [%eval 6.24] } 47... Kd6 { [%eval 6.23] } 48. Kf5 { [%eval 6.09] } 48... Ke7 { [%eval 5.93] } 49. Kg6 { [%eval 6.0] } 49... h4 { [%eval 6.08] } 50. gxh4 { [%eval 6.0] } 50... gxh4 { [%eval 5.99] } 51. Kh5 { [%eval 5.71] } 51... Kf7 { [%eval 6.52] } 52. Kxh4 { [%eval 6.34] } 52... Rh8+ { [%eval 7.07] } 53. Kg4 { [%eval 6.99] } 53... Rb8 { [%eval 6.28] } 54. Kf5 { [%eval 7.31] } 54... Kg7 { [%eval 7.95] } 55. h4 { [%eval 7.56] } 55... Kf7 { [%eval 8.42] } 56. h5 { [%eval 7.49] } 56... Kg7 { [%eval 8.97] } 57. h6+ { [%eval 7.59] } 57... Kf7?! { [%eval 81.15] } { Inaccuracy. Kh7 was best. } (57... Kh7 58. Kxf6 Kxh6 59. f4 Kh5 60. f5 Kg4 61. Rb4+ Kf3 62. Ke7 Kf2 63. f6) 58. h7 { [%eval 12.06] } 58... Kg7 { [%eval 11.91] } 59. h8=Q+ { [%eval 11.07] } 59... Kxh8 { [%eval 13.43] } 60. Kxf6 { [%eval 11.65] } 60... Kg8 { [%eval 12.03] } 61. Ke7 { [%eval 13.39] } { 1-0 White wins. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.04.24"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.07.15"]
 [Round "23"]
 [White "Devon Ellis"]
 [Black "Daniel Gentile"]
@@ -1446,9 +1446,9 @@
 1. d4 { [%eval 0.15] } 1... d5 { [%eval 0.27] } 2. c4 { [%eval 0.22] } 2... e6 { [%eval 0.17] } 3. Nc3 { [%eval 0.22] } 3... Nf6 { [%eval 0.24] } 4. c5?! { [%eval -0.34] } { Inaccuracy. cxd5 was best. } (4. cxd5 exd5 5. Bg5 Be7 6. e3 h6 7. Bh4 c6 8. Bd3 O-O) 4... b6 { [%eval -0.35] } 5. b4?! { [%eval -1.35] } { Inaccuracy. cxb6 was best. } (5. cxb6 axb6 6. e3 Bb4 7. Bd2 Bd6 8. Nf3 O-O 9. Be2 c5) 5... a5 { [%eval -1.26] } 6. Qa4+?! { [%eval -1.86] } { Inaccuracy. cxb6 was best. } (6. cxb6 Bxb4 7. Bd2 cxb6 8. e3 Qe7 9. Bb5+ Bd7 10. Bd3 O-O) 6... Bd7 { [%eval -2.17] } 7. b5 { [%eval -1.8] } 7... bxc5 { [%eval -1.81] } 8. dxc5 { [%eval -2.22] } 8... Bxc5 { [%eval -2.25] } 9. e3 { [%eval -2.1] } 9... O-O { [%eval -2.04] } 10. Nf3 { [%eval -2.12] } 10... Bb4 { [%eval -2.24] } 11. Bd2 { [%eval -2.16] } 11... Na6? { [%eval -0.88] } { Mistake. c6 was best. } (11... c6 12. a3 Bd6 13. Be2 cxb5 14. Nxb5 Ne4 15. Qd1 Be7 16. O-O Nxd2 17. Qxd2) 12. Qc2 { [%eval -0.75] } 12... Nc5 { [%eval -0.75] } 13. a4?? { [%eval -2.85] } { Blunder. a3 was best. } (13. a3 Bxc3) 13... c6 { [%eval -2.56] } 14. Be2 { [%eval -2.73] } 14... cxb5 { [%eval -2.85] } 15. Nxb5 { [%eval -3.57] } 15... Bxd2+?? { [%eval -1.47] } { Blunder. Nfe4 was best. } (15... Nfe4 16. Bxb4 axb4 17. O-O b3 18. Qb2 Qf6 19. Nfd4 Nxa4 20. Qxb3 Nd2 21. Qb4) 16. Nxd2 { [%eval -1.69] } 16... Nfe4 { [%eval -1.5] } 17. O-O?? { [%eval -4.17] } { Blunder. Nxe4 was best. } (17. Nxe4) 17... Nxd2 { [%eval -4.23] } 18. Qxc5 { [%eval -4.15] } 18... Nxf1 { [%eval -4.21] } 19. Bxf1 { [%eval -4.29] } 19... Qf6 { [%eval -4.39] } 20. Qa3 { [%eval -4.45] } 20... Rfc8 { [%eval -4.34] } 21. g3?! { [%eval -5.56] } { Inaccuracy. Rb1 was best. } (21. Rb1 Rc2 22. Nd4 Qxf2+ 23. Kh1 Rc7 24. Bd3 Qf6 25. h3 Be8 26. Qd6 Rc3) 21... Rc2 { [%eval -5.44] } 22. f4 { [%eval -5.01] } 22... Qb2 { [%eval -5.06] } 23. Qxb2 { [%eval -4.97] } 23... Rxb2 { [%eval -4.97] } 24. Nd4 { [%eval -5.07] } 24... Rab8 { [%eval -5.17] } 25. Bb5 { [%eval -5.51] } 25... Bxb5 { [%eval -5.35] } 26. Nxb5 { [%eval -5.41] } 26... R2xb5?! { [%eval -3.99] } { Inaccuracy. Rc8 was best. } (26... Rc8 27. Nd4 h5 28. h3 Rc4 29. f5 e5 30. Nf3 f6 31. Nh4 Kf7 32. Ng6) 27. axb5 { [%eval -3.79] } 27... Rxb5 { [%eval -3.75] } 28. Rc1 { [%eval -4.58] } 28... Rb8 { [%eval -4.36] } 29. Rc5 { [%eval -4.91] } 29... Ra8 { [%eval -4.92] } 30. Rc3 { [%eval -4.83] } 30... a4 { [%eval -4.58] } 31. Ra3 { [%eval -4.8] } 31... f6 { [%eval -4.85] } 32. Kf2 { [%eval -4.83] } 32... Kf7 { [%eval -4.74] } 33. h4 { [%eval -4.92] } 33... h5 { [%eval -5.16] } 34. Ke2 { [%eval -5.72] } 34... Kg6 { [%eval -5.54] } 35. Kd3 { [%eval -5.46] } 35... Kf5 { [%eval -5.11] } 36. Ke2 { [%eval -5.36] } 36... g5 { [%eval -5.05] } 37. hxg5 { [%eval -5.02] } 37... fxg5 { [%eval -5.09] } 38. Kf2 { [%eval -5.25] } 38... gxf4 { [%eval -5.02] } 39. exf4 { [%eval -5.09] } 39... e5 { [%eval -5.27] } 40. fxe5 { [%eval -5.35] } 40... Kxe5 { [%eval -5.23] } 41. Ke3 { [%eval -5.46] } 41... Ra5 { [%eval -5.47] } 42. Kd3 { [%eval -5.36] } 42... d4 { [%eval -5.29] } 43. Kc4 { [%eval -5.95] } 43... Ke4 { [%eval -6.12] } 44. Kb4 { [%eval -6.75] } 44... Ra8 { [%eval -6.1] } 45. Kc4 { [%eval -6.98] } 45... Rc8+ { [%eval -6.15] } 46. Kb5 { [%eval -6.89] } 46... Rb8+ { [%eval -5.96] } 47. Kc4 { [%eval -6.84] } 47... Rb3 { [%eval -5.5] } 48. Rxa4 { [%eval -5.43] } 48... Rxg3 { [%eval -4.76] } 49. Kc5 { [%eval -5.4] } 49... Rc3+ { [%eval -5.52] } 50. Kd6 { [%eval -5.75] } 50... h4 { [%eval -5.8] } { 0-1 Black wins. } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.05.01"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.07.22"]
 [Round "24"]
 [White "Daniel Gentile"]
 [Black "Blair Ellis"]
@@ -1468,9 +1468,9 @@
 1. e4 { [%eval 0.18] } 1... e5 { [%eval 0.22] } 2. Nf3 { [%eval 0.18] } 2... Nf6 { [%eval 0.34] } 3. Nxe5 { [%eval 0.29] } 3... d6 { [%eval 0.3] } 4. Nf3 { [%eval 0.31] } 4... Nxe4 { [%eval 0.27] } 5. Nc3 { [%eval 0.17] } 5... Nxc3 { [%eval 0.24] } 6. dxc3 { [%eval 0.18] } 6... Be7 { [%eval 0.11] } 7. Be3 { [%eval 0.13] } 7... Nc6 { [%eval 0.21] } 8. Qd2 { [%eval 0.35] } 8... Be6 { [%eval 0.35] } 9. O-O-O { [%eval 0.47] } 9... O-O { [%eval 0.49] } 10. Bd3 { [%eval 0.44] } 10... Bf6 { [%eval 0.74] } 11. h4 { [%eval 0.68] } 11... Na5?? { [%eval 2.84] } { Blunder. Qd7 was best. } { [%cal Gb2b3] } (11... Bxa2 12. b3 a6 (12... Bxb3 13. cxb3) 13. Kb2 a5 14. Kxa2) (11... Qd7 12. Ng5 Bf5 13. g4 Bxd3 14. Qxd3 g6 15. h5 Ne5 16. Qd5 c6 17. Qd2) 12. Ng5 { [%eval 2.83] } 12... Bxa2 { [%eval 3.58] } 13. Nxh7 { [%eval 3.1] } (13. b3 Bxb3 14. cxb3 Nxb3+ 15. Kc2 Nxd2 16. Rxd2) 13... Nc4 { [%eval 3.34] } 14. Nxf6+ { [%eval 3.2] } (14. Bxc4 Kxh7) 14... Qxf6 { [%eval 3.19] } 15. Bxc4 { [%eval 3.24] } 15... Bxc4 { [%eval 2.64] } 16. Bd4?? { [%eval 0.67] } { Blunder. h5 was best. } (16. h5 Kh7 17. g4 c5 18. g5 Qe5 19. Rh4 Be6 20. Bf4 Qe4 21. Bg3 Qf3) 16... Qf5? { [%eval 2.07] } { Mistake. Qh6 was best. } (16... Qh6 17. Be3 Qh5 18. f3 Qa5 19. Qd4 Qe5 20. Qxc4 Qxe3+ 21. Kb1 Qc5 22. Qg4) 17. b3 { [%eval 1.89] } 17... Qa5?! { [%eval 3.22] } { Inaccuracy. c5 was best. } (17... c5 18. Bxg7 Kxg7 19. bxc4 Rfe8 20. Rh3 Re6 21. Rg3+ Kf8 22. Rf3 Qh5 23. Kb2) 18. Kb2 { [%eval 2.65] } (18. bxc4 Qa1#) 18... Qb5?! { [%eval 3.87] } { Inaccuracy. Be6 was best. } (18... Be6 19. h5 Kh7 20. g4 c5 21. Qg5 Rg8 22. Be3 d5 23. Qe5 Rac8 24. g5) 19. h5 { [%eval 3.27] } 19... Rfe8 { [%eval 3.88] } 20. h6 { [%eval 3.94] } 20... Re2? { [%eval 8.27] } { Mistake. f6 was best. } (20... f6 21. hxg7 Re2 22. Rh8+ Kf7 23. Rxa8 Kxg7 24. Bxf6+ Kf7 25. Bd8 Rxd2 26. Rxd2) 21. h7+ { [%eval 7.95] } (21. g3) (21. Qf4 Qxb3+ 22. Kc1 Qxc2#) 21... Kh8? { [%eval #3] } { Checkmate is now unavoidable. Kf8 was best. } (21... Kf8 22. h8=Q+ Ke7 23. Qxe2+ Bxe2 24. Qxa8 Bxd1 25. Rxd1 Qe2 26. Ra1 a5 27. Qc8) 22. Bxg7+ { [%eval #2] } 22... Kxg7 { [%eval #2] } 23. Qd4+?? { [%eval 0.02] } { Lost forced checkmate sequence. Qh6+ was best. } (23. Qh6+ Kh8 24. Qf6#) 23... Qe5?? { [%eval 4.8] } { Blunder. f6 was best. } (23... f6 24. Qxc4 Qxc4 25. bxc4 Rh8 26. c5 Rxh7 27. cxd6 cxd6 28. Rhf1 Rh5 29. Rxd6) 24. Qxc4?? { [%eval 2.09] } { Blunder. h8=Q+ was best. } (24. h8=Q+ Rxh8 25. Qg4+ Kf6 26. Rxh8 Qb5 27. Qxc4 Qxc4 28. bxc4 Rxf2 29. c5 Rf5) 24... Qe4 { [%eval 2.04] } 25. Qxe4 { [%eval 1.83] } 25... Rxe4 { [%eval 1.86] } 26. Rd4?? { [%eval 0.09] } { Blunder. Rd5 was best. } (26. Rd5 Rf4 27. f3 Kh8 28. Rb5 b6 29. Rb4 Rxb4 30. cxb4 Re8 31. Rh4 Re5) 26... f5?? { [%eval 2.81] } { Blunder. Rxd4 was best. } (26... Rxd4 27. cxd4 Rh8 28. Re1 Kf8 29. Ra1 a6 30. Rh1 Kg7 31. Kc3 Rxh7 32. Rxh7+) 27. Rxe4 { [%eval 2.67] } 27... fxe4 { [%eval 2.84] } 28. c4 { [%eval 2.49] } 28... Rh8?! { [%eval 3.22] } { Inaccuracy. Kh8 was best. } (28... Kh8 29. Re1 Re8 30. Kc3 c5 31. Kd2 Kxh7 32. Ke3 Kg6 33. Rh1 a5 34. Rh4) 29. Kc3 { [%eval 3.11] } 29... c5? { [%eval 4.94] } { Mistake. e3 was best. } (29... Rxh7 30. Rxh7+ Kxh7 31. Kd4 Kg6 32. Kxe4 Kf6) (29... e3 30. fxe3 Rxh7 31. Rxh7+ Kxh7 32. Kd4 Kg6 33. e4 Kf6 34. Kd5 Ke7 35. e5) 30. Kd2 { [%eval 5.11] } 30... Kf6 { [%eval 5.33] } 31. Ke3 { [%eval 5.19] } 31... Kf5 { [%eval 5.71] } 32. Rh5+ { [%eval 5.21] } 32... Kg6 { [%eval 5.52] [%csl Gh5][%cal Ge3e4] } 33. Rd5 { [%eval 4.51] } (33. Kxe4 Kxh5) 33... Rxh7 { [%eval 4.37] } 34. Rxd6+ { [%eval 4.36] } 34... Kf5 { [%eval 4.3] } 35. Rd5+ { [%eval 4.75] } 35... Ke6 { [%eval 4.65] } 36. Rxc5 { [%eval 4.46] } 36... Rh1 { [%eval 4.97] } 37. Kxe4 { [%eval 4.85] } 37... Re1+ { [%eval 4.83] } 38. Kd4 { [%eval 4.92] } 38... Re2 { [%eval 4.74] } 39. Kc3 { [%eval 4.64] } 39... Rxf2 { [%eval 4.7] } 40. Rg5?! { [%eval 3.52] } { Inaccuracy. Rc7 was best. } (40. Rc7 Rxg2 41. Rxb7 a5 42. Kb2 Rg3 43. Ra7 Ke5 44. Rxa5+ Kd6 45. b4 Rf3) 40... Kd6 { [%eval 3.68] } 41. g4 { [%eval 3.66] } 41... a6 { [%eval 4.2] } 42. Rg8 { [%eval 3.52] } 42... Kc6 { [%eval 3.98] } 43. g5 { [%eval 3.71] } 43... b5?! { [%eval 5.2] } { Inaccuracy. Kb6 was best. } (43... Kb6 44. Kd3 Rg2 45. b4 Rg3+ 46. Kd4 Rg4+ 47. Kd5 Rg2 48. Rg6+ Ka7 49. c3) 44. cxb5+ { [%eval 5.03] } 44... axb5 { [%eval 4.81] } 45. g6 { [%eval 5.07] } 45... Kd7?! { [%eval 8.04] } { Inaccuracy. Rg2 was best. } (45... Rg2 46. g7 Kb7 47. Kb4 Rg5 48. Ka5 Ka7 49. b4 Kb7 50. Rf8 Rxg7 51. Kxb5) 46. g7 { [%eval 7.29] } 46... Rg2 { [%eval 9.09] } 47. Rb8 { [%eval 8.96] } { 1-0 White wins. } 1-0
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.05.15"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.08.05"]
 [Round "25"]
 [White "Emerson Ellis"]
 [Black "Daniel Gentile"]
@@ -1490,9 +1490,9 @@
 1. d4 { [%eval 0.15] } 1... d5 { [%eval 0.27] } 2. Nf3 { [%eval 0.08] } 2... Nf6 { [%eval 0.11] } 3. Bf4 { [%eval 0.04] } 3... e6 { [%eval 0.1] } 4. e3 { [%eval 0.0] } 4... Bd6 { [%eval 0.07] } 5. Nbd2 { [%eval 0.1] } 5... Bxf4 { [%eval 0.18] } 6. exf4 { [%eval 0.03] } 6... O-O { [%eval 0.05] } 7. Bd3 { [%eval -0.04] } 7... b6 { [%eval 0.0] } 8. Ne5 { [%eval 0.07] } 8... Ba6 { [%eval 0.44] } 9. Bxa6 { [%eval 0.48] } 9... Nxa6 { [%eval 0.41] } 10. c3 { [%eval 0.05] } 10... c5 { [%eval 0.1] } 11. Qe2 { [%eval -0.18] } 11... Nc7 { [%eval -0.14] } 12. Ndf3 { [%eval -0.06] } 12... Nce8 { [%eval 0.07] } 13. dxc5 { [%eval -0.27] } 13... bxc5 { [%eval -0.28] } 14. Qb5?! { [%eval -1.27] } { Inaccuracy. O-O was best. } (14. O-O Nd6) 14... Qb6?! { [%eval -0.63] } { Inaccuracy. c4 was best. } (14... c4) 15. Qxb6 { [%eval -0.64] } 15... axb6 { [%eval -0.54] } 16. g4?! { [%eval -1.18] } { Inaccuracy. a3 was best. } (16. a3) 16... Nd6 { [%eval -1.27] } 17. g5?! { [%eval -2.37] } { Inaccuracy. Nh4 was best. } (17. Nh4) 17... Nh5 { [%eval -2.31] } 18. Nd7 { [%eval -2.54] } 18... Rfd8 { [%eval -2.33] } 19. Nfe5 { [%eval -2.5] } 19... f6?! { [%eval -1.66] } { Inaccuracy. Ra6 was best. } (19... Ra6 20. Rg1 Nxf4 21. Rg4 Ng6 22. Nxg6 hxg6 23. Ne5 b5 24. Kd1 Rda8 25. a3) 20. gxf6 { [%eval -1.6] } 20... gxf6 { [%eval -1.65] } 21. Rg1+ { [%eval -1.66] } 21... Kh8 { [%eval -1.74] } 22. Nxb6 { [%eval -1.68] } 22... fxe5?! { [%eval -1.08] } { Inaccuracy. Ra6 was best. } (22... Ra6 23. Ned7 Nc8 24. Rg4 Nxb6 25. Nxc5 Ra7 26. Nxe6 Re8 27. f5 Ng7 28. Rb4) 23. Nxa8 { [%eval -0.92] } 23... Rxa8 { [%eval -1.05] } 24. fxe5 { [%eval -0.94] } 24... Nc4 { [%eval -0.88] } 25. b3 { [%eval -0.96] } 25... Nxe5 { [%eval -0.89] } 26. O-O-O?? { [%eval -3.04] } { Blunder. Kd1 was best. } (26. Kd1) 26... Rxa2?? { [%eval 0.0] } { Blunder. Nf4 was best. } (26... Nf4 27. Kb2 Ned3+ 28. Kb1 Nxf2 29. Rde1 Ne4 30. a4 c4 31. bxc4 Nd2+ 32. Kc2) 27. Rg5 { [%eval 0.01] } 27... Nf4 { [%eval 0.06] } 28. Rxe5 { [%eval 0.04] } 28... Ne2+ { [%eval 0.0] } 29. Rxe2 { [%eval 0.0] } 29... Rxe2 { [%eval -0.04] } 30. Rd2 { [%eval 0.0] } 30... Rxd2 { [%eval 0.03] } 31. Kxd2 { [%eval 0.0] } 31... Kg7 { [%eval 0.0] } 32. b4 { [%eval 0.0] } 32... cxb4 { [%eval 0.0] } 33. cxb4 { [%eval 0.0] } 33... Kf7 { [%eval 0.0] } 34. Kd3 { [%eval 0.03] } 34... e5 { [%eval 0.0] } 35. h4 { [%eval 0.0] } 35... Ke6 { [%eval 0.0] } 36. h5 { [%eval 0.0] } 36... Kd6 { [%eval 0.0] } 37. h6 { [%eval 0.0] } 37... Kc6 { [%eval 0.0] } 38. Kc3 { [%eval 0.0] } 38... Kb5 { [%eval 0.0] } 39. f3?? { [%eval -83.08] } { Blunder. Kb3 was best. } (39. Kb3 Kc6 40. Kc3 Kb6 41. Kb2 Kc7 42. Kb3) 39... Ka4 { [%eval -83.08] } 40. b5 { [%eval -68.87] } 40... Kxb5 { [%eval -13.53] } 41. Kd3 { [%eval -12.02] } 41... Kb4 { [%eval -14.66] } 42. Kd2 { [%eval -26.8] } 42... Kc4 { [%eval -10.52] } 43. Kc2 { [%eval -12.3] } 43... d4 { [%eval -79.64] } 44. Kd2 { [%eval -11.99] } 44... Kd5 { [%eval -44.02] } 45. Kd3 { [%eval -15.25] } 45... Ke6?? { [%eval 0.0] } { Blunder. Kc5 was best. } (45... Kc5) 46. f4?? { [%eval -57.63] } { Blunder. Ke4 was best. } (46. Ke4 Ke7 47. f4 exf4 48. Kxf4 Kd6 49. Kf3 Ke5 50. Ke2 Ke4 51. Kd2 d3) 46... exf4 { [%eval -24.84] } 47. Kxd4 { [%eval -23.44] } 47... Kf5 { [%eval -23.13] } 48. Kd3 { [%eval -15.25] } 48... Kg4 { [%eval -13.09] } 49. Ke2 { [%eval -83.08] } 49... Kg3 { [%eval -43.77] } 50. Kf1 { [%eval -79.66] } 50... Kf3 { [%eval -55.48] } 51. Kg1?! { [%eval #-15] } { Checkmate is now unavoidable. Ke1 was best. } (51. Ke1 Kg2 52. Kd2 f3 53. Kc3 f2 54. Kd3 f1=Q+ 55. Ke4 Qf6 56. Ke3 Qe5+) 51... Ke2 { [%eval -45.89] } { 0-1 Black wins. } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.05.22"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.08.12"]
 [Round "26"]
 [White "Blair Archer"]
 [Black "Daniel Gentile"]
@@ -1512,9 +1512,9 @@
 1. c4 { [%eval 0.11] } 1... e6 { [%eval 0.25] } 2. d3 { [%eval -0.06] } 2... d5 { [%eval -0.12] } 3. cxd5 { [%eval -0.17] } 3... exd5 { [%eval -0.2] } 4. g3 { [%eval -0.16] } 4... Nf6 { [%eval -0.14] } 5. Bg2 { [%eval -0.18] } 5... c6 { [%eval 0.0] } 6. Nc3 { [%eval -0.29] } 6... Bb4 { [%eval 0.0] } 7. Bd2 { [%eval -0.2] } 7... O-O { [%eval -0.16] } 8. e3 { [%eval -0.46] } 8... d4 { [%eval -0.47] } 9. Ne4 { [%eval -0.72] } 9... Bxd2+ { [%eval -0.54] } 10. Qxd2 { [%eval -0.5] } 10... dxe3 { [%eval -0.47] } 11. Nxf6+ { [%eval -0.48] } 11... Qxf6 { [%eval -0.56] } 12. fxe3 { [%eval -0.5] } 12... Bf5 { [%eval -0.39] } 13. e4 { [%eval -0.44] } 13... Re8 { [%eval -0.35] } 14. Nf3 { [%eval -0.38] } 14... Nd7 { [%eval -0.23] } 15. O-O { [%eval -0.24] } 15... Bg6 { [%eval -0.26] } 16. Rae1 { [%eval -0.77] } 16... Rad8 { [%eval -0.25] } 17. e5 { [%eval -0.76] } 17... Qe7 { [%eval -0.75] } 18. d4 { [%eval -0.75] } 18... Nc5 { [%eval -0.67] } 19. Nh4 { [%eval -1.23] } 19... Ne6 { [%eval -1.12] } 20. Nxg6 { [%eval -1.16] } 20... hxg6 { [%eval -1.2] } 21. Re4 { [%eval -1.05] } 21... Rd7 { [%eval -0.56] } 22. Bh3 { [%eval -0.6] } 22... Red8 { [%eval -0.52] } 23. Bxe6 { [%eval -0.57] } 23... Qxe6 { [%eval -0.57] } 24. Qa5?! { [%eval -1.39] } { Inaccuracy. Qe3 was best. } (24. Qe3 a5 25. a3 b6 26. Qf4 a4 27. Rfe1 c5 28. dxc5 Rd1 29. Re2 R8d4) 24... Qd5?! { [%eval -0.35] } { Inaccuracy. f5 was best. } (24... f5 25. Ref4 Rxd4 26. Qxa7 R4d7 27. Re1 b5 28. Qe3 Rd2 29. Qb3 R8d5 30. Rf2) 25. Qxd5 { [%eval -0.34] } 25... Rxd5 { [%eval -0.3] } 26. Rff4 { [%eval -0.45] } 26... R8d7 { [%eval -0.1] } 27. h4 { [%eval -0.11] } 27... Kh7 { [%eval -0.14] } 28. Kf2 { [%eval -0.11] } 28... Kh6 { [%eval 0.0] } 29. Ke3 { [%eval 0.01] } 29... g5 { [%eval 0.03] } 30. hxg5+ { [%eval 0.06] } 30... Kg6 { [%eval 0.0] } 31. Rh4 { [%eval 0.0] } 31... Ra5 { [%eval 0.0] } 32. a3 { [%eval 0.0] } 32... Rb5 { [%eval -0.06] } 33. b4 { [%eval -0.05] } 33... a5 { [%eval 0.0] } 34. e6 { [%eval -0.03] } 34... Re7 { [%eval 0.0] } 35. exf7 { [%eval 0.0] } 35... Rxe4+ { [%eval 0.0] } 36. Rxe4 { [%eval 0.0] } 36... Kxf7 { [%eval 0.0] } 37. Re5 { [%eval 0.0] } 37... Rxe5+ { [%eval 0.0] } 38. dxe5 { [%eval 0.0] } 38... axb4 { [%eval 0.0] } 39. axb4 { [%eval 0.0] } 39... Ke6 { [%eval 0.0] } 40. Kd4 { [%eval 0.0] } 40... g6 { [%eval 0.0] } 41. Ke4 { [%eval 0.0] } 41... b6 { [%eval 0.0] } 42. g4 { [%eval 0.0] } 42... c5 { [%eval 0.0] } 43. b5 { [%eval 0.0] } 43... c4 { [%eval 0.0] } 44. Kd4 { [%eval 0.0] } 44... c3 { [%eval 0.0] } 45. Kxc3 { [%eval 0.0] } 45... Kxe5 { [%eval 0.0] } 46. Kc4 { [%eval 0.0] } 46... Ke4 { [%eval 0.0] } 47. Kc3 { [%eval 0.0] } 47... Kd5 { [%eval 0.0] } 48. Kd3 { [%eval 0.0] } 48... Kc5 { [%eval 0.0] } 49. Kc3?? { [%eval -6.42] } { Blunder. Ke4 was best. } (49. Ke4 Kd6 50. Kd4 Ke6 51. Kc4 Ke5 52. Kd3 Kd5 53. Ke3 Kc4 54. Ke4 Kxb5) 49... Kxb5 { [%eval -6.38] } 50. Kb3 { [%eval -5.95] } 50... Kc5 { [%eval -5.6] } 51. Kc3?! { [%eval -10.35] } { Inaccuracy. Ka2 was best. } (51. Ka2 Kd5 52. Kb3 Ke4 53. Kc4 Kf4 54. Kb5 Kxg5 55. Kxb6 Kxg4 56. Kc5 g5) 51... Kd5 { [%eval -10.11] } 52. Kd3 { [%eval -10.47] } 52... Ke5 { [%eval -7.91] } 53. Ke3 { [%eval -8.74] } 53... b5 { [%eval -5.52] } 54. Kd3 { [%eval -5.36] } 54... Kf4 { [%eval -5.68] } 55. Kd4 { [%eval -5.43] } 55... Kxg5 { [%eval -5.08] } 0-1
 
 
-[Event "ACC Friday Ladder"]
-[Site "Arlington"]
-[Date "2026.05.29"]
+[Event "Riverside Open"]
+[Site "Riverton"]
+[Date "2025.08.19"]
 [Round "27"]
 [White "Finley Ellis"]
 [Black "Daniel Gentile"]
