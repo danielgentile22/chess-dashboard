@@ -404,6 +404,8 @@ class TestFormIndicator:
         dots_wrap = next(c for c in children if "form-dots" in (c.className or ""))
         classes = [dot.className for dot in dots_wrap.children]
         assert classes == ["form-dot loss", "form-dot draw", "form-dot win"]
+        # Colourblind channel (issue #88): each dot carries its W/D/L letter.
+        assert [dot.children for dot in dots_wrap.children] == ["L", "D", "W"]
 
     def test_empty_form_renders_nothing(self):
         from components import form_indicator

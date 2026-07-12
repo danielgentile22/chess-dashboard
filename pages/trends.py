@@ -49,6 +49,7 @@ from styles import (
     DRAW_FILL,
     LOSS_FILL,
     WDL_COLOR_MAP,
+    WDL_HOVER_WORD,
     WIN_AREA,
     WIN_FILL,
     apply_dark_theme,
@@ -147,6 +148,9 @@ def layout(**kwargs) -> html.Div:
 # Cell color scale: losing days → red, winning days → green, mixed → gray.
 # Intensity follows |Net| (a 2-win day is brighter than a 1-win day).
 # Every stop derives from a theme token so the calendar can't drift.
+# Hue alone can't carry the win/loss meaning (Daniel is red-green colorblind),
+# so each played cell also shows a net-sign glyph (+ won on balance, − lost) —
+# a second, color-independent channel (issue #88).
 _NET_CLAMP = 3
 _CAL_COLORSCALE = [
     [0.0,  COLORS["loss"]],     # net −3 or worse: full loss-red
@@ -168,6 +172,7 @@ def _year_calendar_fig(year_daily: pd.DataFrame, year: int) -> go.Figure:
     by_day = year_daily.set_index("Date_dt")
     base_z: list[list] = [[None] * n_weeks for _ in range(7)]
     game_z: list[list] = [[None] * n_weeks for _ in range(7)]
+    glyph: list[list[str]] = [[""] * n_weeks for _ in range(7)]
     hover: list[list[str]] = [[""] * n_weeks for _ in range(7)]
 
     for day in days:
@@ -178,7 +183,10 @@ def _year_calendar_fig(year_daily: pd.DataFrame, year: int) -> go.Figure:
         day_label = f"{day:%a} {day:%b} {day.day}"
         if day in by_day.index:
             row = by_day.loc[day]
-            game_z[weekday][week] = max(-_NET_CLAMP, min(_NET_CLAMP, int(row["Net"])))
+            net = int(row["Net"])
+            game_z[weekday][week] = max(-_NET_CLAMP, min(_NET_CLAMP, net))
+            # Net-sign glyph: the color-independent win/loss channel (issue #88).
+            glyph[weekday][week] = "+" if net > 0 else "−" if net < 0 else ""
             games = int(row["Games"])
             plural = "s" if games != 1 else ""
             # "<b>3</b> games · Tue Mar 14", then that day's results beneath it.
@@ -204,9 +212,13 @@ def _year_calendar_fig(year_daily: pd.DataFrame, year: int) -> go.Figure:
         hoverinfo="skip",
         **common,
     ))
-    # Days with Games, colored by their results
+    # Days with Games, colored by their results.  `text` holds the net-sign
+    # glyph so `texttemplate` paints it in the cell (a dark glyph reads on both
+    # the green and red fills); the hover popup rides in `hovertext` (issue #88).
     fig.add_trace(go.Heatmap(
-        z=game_z, text=hover, hoverinfo="text",
+        z=game_z, hovertext=hover, hoverinfo="text",
+        text=glyph, texttemplate="%{text}",
+        textfont=dict(size=9, color=COLORS["bg"]),
         zmin=-_NET_CLAMP, zmax=_NET_CLAMP,
         colorscale=_CAL_COLORSCALE,
         **common,
@@ -449,6 +461,12 @@ def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=
     return fig
 
 
+# Hatch pattern per outcome — the color-independent channel on the overlaid
+# game-length histogram (issue #88).  Wins and losses get distinct, non-color
+# textures; draws stay solid (they aren't part of the red-green confusion).
+_LEN_HIST_PATTERN = {"Win": "/", "Draw": "", "Loss": "x"}
+
+
 @callback(Output("length-hist", "figure"), FILTER_INPUTS)
 def update_length_hist(colors, outcomes, terminations, start, end, events, moves, _sync=None, lens=None):
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
@@ -461,10 +479,16 @@ def update_length_hist(colors, outcomes, terminations, start, end, events, moves
         color_discrete_map=WDL_COLOR_MAP,
         opacity=0.75,
     )
-    # The bar color already says the outcome; the x-axis names the move count.
-    fig.update_traces(
-        hovertemplate="<b>%{y}</b> games · %{x} moves<extra></extra>",
-    )
+    # Overlay mode stacks the wins and losses at the same x, so hue is the only
+    # thing telling them apart — invisible to a red-green colorblind viewer.
+    # A per-outcome hatch pattern adds a color-independent channel, and the hover
+    # names the outcome so a hovered bar is never ambiguous either (issue #88).
+    for trace in fig.data:
+        word = WDL_HOVER_WORD.get(trace.name, str(trace.name).lower())
+        trace.marker.pattern.shape = _LEN_HIST_PATTERN.get(trace.name, "")
+        trace.marker.pattern.size = 6        # visible hatch even at 0.75 opacity
+        trace.marker.pattern.solidity = 0.35
+        trace.hovertemplate = f"<b>%{{y}}</b> {word} · %{{x}} moves<extra></extra>"
     apply_dark_theme(fig, xaxis_title="Moves", yaxis_title="Games", legend_title="Outcome")
     return fig
 

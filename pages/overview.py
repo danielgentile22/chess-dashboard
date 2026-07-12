@@ -185,8 +185,10 @@ def update_streak(colors, outcomes, terminations, start, end, events, moves, _sy
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
     s = streaks(df_f)
 
+    # The outcome letter (W/D/L) inside each badge is the non-color channel —
+    # colour alone can't carry win vs loss (issue #88).
     badges = [
-        html.Span(className=f"sbadge {o.lower()}", title=o)
+        html.Span(o[0], className=f"sbadge {o.lower()}", title=o)
         for o in s["last_20"]
     ]
     if not badges:
