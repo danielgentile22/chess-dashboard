@@ -664,6 +664,19 @@ def sync_coach(
     failure = "; ".join(f"{sid}: {why}" for sid, why in failures)
     if not parts:
         reason = failure or "unreachable"
+        # Legacy fallback: before per-Study caching everything lived in one merged
+        # coach.pgn.  On a full outage right after upgrading (no per-Study caches
+        # written yet), reuse it so coach content still survives (ADR 0003).  Only
+        # when nothing fetched — so it can never duplicate a freshly-fetched Study.
+        legacy = _read_text_cache(cache_path)
+        if legacy:
+            logger.info("Showing legacy cached coach content (coach Studies unreachable)")
+            return CoachSyncResult(
+                result=match_coach_study(games_df, legacy),
+                synced_at=_cache_mtime(cache_path),
+                failure=reason,
+                from_cache=True,
+            )
         logger.warning("Coach content unavailable and no cache (ADR 0003): %s", reason)
         return CoachSyncResult(failure=reason)
 

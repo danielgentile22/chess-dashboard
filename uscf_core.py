@@ -1093,9 +1093,13 @@ def _names_match_normalized(chapter_name: str, record_name: str) -> bool:
     if chapter_name == record_name:
         return True
 
-    # Spelling-variant tolerance: exact last name + same first initial
+    # Spelling-variant tolerance: exact surname + same first initial, and only a
+    # first-name variant ('Carter Clark' ↔ 'Carver Clark').  The surname is every
+    # token after the first, compared whole — so a compound surname split into
+    # tokens ('Smith Jones') can't collapse to its last piece and match a
+    # different person ('Alex Jones'); ADR 0007 never guesses.
     chapter_parts, record_parts = chapter_name.split(), record_name.split()
-    return (chapter_parts[-1] == record_parts[-1]
+    return (chapter_parts[1:] == record_parts[1:]
             and chapter_parts[0][0] == record_parts[0][0])
 
 
@@ -1113,8 +1117,8 @@ def _normalize_name(name: str) -> str:
 
 
 # Repeat-opponent groups are tiny (the same opponent, same result, a few times);
-# above this the assignment enumeration is factorial, so fall back to greedy —
-# at that size the optimal/greedy distinction is academic.
+# above this the optimal-assignment enumeration is factorial, so a larger group
+# is left unmatched rather than guessed (ADR 0007).  8! matchings is instant.
 _MAX_BRUTE_FORCE_GROUP = 8
 
 
@@ -1145,9 +1149,11 @@ def _pair_group(
 
     urls = [g["ChapterURL"] for g in games]
     if len(games) > _MAX_BRUTE_FORCE_GROUP or len(available) > _MAX_BRUTE_FORCE_GROUP:
-        # ponytail: greedy fallback (the pre-#92 behavior) only for groups too
-        # large to brute-force — never reached by real chess data.
-        return _pair_group_greedy(games, urls, available, records, used, matched_by)
+        # ponytail: a group this large to disambiguate is beyond real chess data
+        # (the same opponent, same result, 9+ times).  Rather than guess it
+        # greedily, leave it all unmatched — ADR 0007 prefers a missed match to
+        # an invented one, and every item surfaces in Reconciliation.
+        return []
 
     score = {(gi, ri): _tiebreak_score(games[gi], records[ri])
              for gi in range(len(games)) for ri in available}
@@ -1206,31 +1212,6 @@ def _record_identity(record: UscfGameRecord) -> tuple:
     duplicates — so it must not be resolved by an arbitrary pick."""
     return (record.event_id, record.section_name, record.opponent_id,
             record.player_color, record.player_outcome, record.rating_system)
-
-
-def _pair_group_greedy(
-    games: list[pd.Series],
-    urls: list[str],
-    available: list[int],
-    records: list[UscfGameRecord],
-    used: set[int],
-    matched_by: str,
-) -> list[GameMatch]:
-    """Greedy best-pair assignment — the pre-#92 fallback for oversized groups."""
-    scored = sorted(
-        (-_tiebreak_score(games[gi], records[ri]), gi, ro, ri)
-        for gi in range(len(games))
-        for ro, ri in enumerate(available)
-    )
-    matches: list[GameMatch] = []
-    taken_games: set[int] = set()
-    for _neg_score, gi, _ro, ri in scored:
-        if gi in taken_games or ri in used:
-            continue
-        matches.append(GameMatch(urls[gi], records[ri], matched_by))
-        taken_games.add(gi)
-        used.add(ri)
-    return matches
 
 
 def _tiebreak_score(game: pd.Series, record: UscfGameRecord) -> int:

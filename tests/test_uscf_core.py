@@ -905,6 +905,23 @@ class TestMatchGamesByName:
 
         assert len(result.matches) == 1
 
+    def test_compound_surname_does_not_match_a_different_person(self):
+        """'Ana Smith-Jones' must not collapse to 'Jones' and name-match a
+        different in-window 'Alex Jones' (same initial, same last token) — the
+        variant tolerance compares the whole surname (ADR 0007 never guesses)."""
+        df = games_df(chapter(opponent="Ana Smith-Jones", opponent_id="",
+                              color="White", result="1-0", date="2026.04.17"))
+        records = uscf_core.build_game_records([
+            uscf_game(opponent_id="20000079", opponent_first="Alex",
+                      opponent_last="Jones", player_color="White",
+                      player_outcome="Win", event="ACC APRIL 2026",
+                      start="2026-04-03", end="2026-04-24"),
+        ])
+
+        result = uscf_core.match_games(df, records)
+
+        assert result.matches == ()
+
 
 # ---------------------------------------------------------------------------
 # The matching engine against the real fixture pair: Daniel's full Study

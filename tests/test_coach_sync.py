@@ -141,3 +141,19 @@ class TestSyncCoach:
         assert result.failure                     # the failure is recorded
         assert coach2_cache.read_text() == SECOND_STUDY_PGN  # untouched
         assert len(result.result.comments_for(ALICE_URL)) == 7  # coach1 still fresh
+
+    def test_legacy_merged_cache_survives_a_full_outage_after_upgrade(
+        self, study_snapshot_df, tmp_path
+    ):
+        """Installs from before per-Study caching have one merged coach.pgn.  A
+        full outage right after upgrading (no per-Study caches yet) must still
+        serve it, not lose coach content (issue #92)."""
+        cache = tmp_path / "coach.pgn"
+        cache.write_text(COACH_PGN)   # the pre-upgrade merged cache
+
+        with _stub_fetch(coach1=StudyNotFoundError("down")):
+            result = sync.sync_coach(["coach1"], study_snapshot_df,
+                                     cache_path=str(cache))
+
+        assert result.from_cache is True
+        assert len(result.result.comments_for(ALICE_URL)) == 7
