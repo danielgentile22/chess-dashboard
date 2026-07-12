@@ -160,6 +160,29 @@ class TestInitialize:
         assert data.synced_at() is not None
 
 
+class TestRefreshAtomicity:
+    """The single-swap contract (ADR 0006, issue #87 [1]): the next state is
+    built off-store and committed once, so a failure never half-updates it."""
+
+    def test_enrichment_failure_leaves_current_data_untouched(self, sample_pgn_text):
+        """A refresh that reaches Lichess but blows up during enrichment must
+        keep the previous complete dataset — never a half-swapped store."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+        good_df = data.get_df()
+        assert not good_df.empty
+
+        with stub_studies(study1=sample_pgn_text), \
+             mock.patch("data.enrich_games_with_analysis",
+                        side_effect=RuntimeError("enrichment blew up")):
+            outcome = data.refresh()
+
+        assert outcome.status == "error"
+        # The store never rebound its df — same object, fully enriched as before.
+        assert data.get_df() is good_df
+        assert "UscfColorConflict" in data.get_df().columns
+
+
 # ---------------------------------------------------------------------------
 # USCF enrichment in the store (issue #25, ADR 0003)
 # ---------------------------------------------------------------------------
@@ -1002,27 +1025,21 @@ class TestCacheFallback:
 
 
 class TestReconciliationDuringSync:
-    def test_reconciliation_is_empty_not_crashing_before_enrichment_lands(
-        self, uscf_profile_json
-    ):
-        """Mid-Sync race (self-review finding): after the Lichess swap but
-        before USCF enrichment rebinds the df, the store briefly holds a raw
-        (un-enriched) DataFrame.  A concurrent page load calling
-        get_reconciliation() must get [] — never a KeyError."""
-        from pgn_stats_core import load_games_from_text
-
+    def test_snapshot_is_fully_enriched_never_half_swapped(self, uscf_profile_json):
+        """Atomic swap (ADR 0006, issue #87 [1]): the snapshot is built
+        off-store and committed exactly once, so the store never holds a raw,
+        un-enriched df while USCF is available.  The enrichment columns are
+        present the instant uscf.available is true — the mid-Sync half-swapped
+        window get_reconciliation used to guard no longer exists."""
         with stub_studies(study1=MATCHED_PGN), \
              stub_uscf(uscf_profile_json, games=[CONFLICTED_USCF_GAME]):
             data.initialize(
                 ["study1"], player_name="Test Player", uscf_member_id="12345678"
             )
+        store = data._current()
+        assert store.uscf.available
+        assert "UscfColorConflict" in store.df.columns
         assert len(data.get_reconciliation()) == 1
-
-        # Simulate the mid-Sync window: the df is raw parser output again
-        raw_df, _ = load_games_from_text(MATCHED_PGN, player_name="Test Player")
-        data._current().df = raw_df
-
-        assert data.get_reconciliation() == []
 
 
 class TestAnalysisSummaries:

@@ -13,7 +13,7 @@ from unittest import mock
 import pytest
 
 import sync
-from lichess_client import LichessUnreachableError
+from lichess_client import LichessRateLimitedError, LichessUnreachableError
 from uscf_client import UscfUnreachableError
 
 
@@ -178,6 +178,21 @@ class TestPartialFailure:
         assert "study1" in str(exc_info.value)
         assert "study2" in str(exc_info.value)
 
+    def test_rate_limit_aborts_the_remaining_studies(self, sample_pgn_text):
+        """A 429 stops the loop: the rest are marked skipped, never fired into
+        the same rate-limit window (issue #87 [5]).  study3 is deliberately
+        absent from the stub — fetching it after the 429 would KeyError."""
+        with stub_studies(study1=sample_pgn_text,
+                          study2=LichessRateLimitedError("HTTP 429")):
+            result = sync.sync_studies(
+                ["study1", "study2", "study3"], player_name="Test Player"
+            )
+
+        assert len(result.df) == 7  # study1's games; study2/study3 never contributed
+        reasons = dict(result.failures)
+        assert "429" in reasons.get("study2", "")
+        assert reasons.get("study3") == "skipped: rate-limited"
+
 
 class TestCache:
     """A successful Sync writes a disposable PGN cache (never a source of truth — ADR 0001)."""
@@ -213,6 +228,22 @@ class TestCache:
 
         _, _, cached_at = sync.load_from_cache(str(cache), player_name="Test Player")
         assert cached_at is not None  # a timestamp the UI can show
+
+    def test_gameless_sync_does_not_clobber_the_cache(self, sample_pgn_text, tmp_path):
+        """A reachable-but-gameless Sync keeps the last good cache — otherwise an
+        offline boot afterwards would fail with no games to load (issue #87 [3])."""
+        cache = tmp_path / "games.pgn"
+        with stub_studies(study1=sample_pgn_text):
+            sync.sync_studies(["study1"], player_name="Test Player", cache_path=str(cache))
+        # A later Sync reaches Lichess but the Study now has no parseable games.
+        with stub_studies(study1=""):
+            result = sync.sync_studies(
+                ["study1"], player_name="Test Player", cache_path=str(cache)
+            )
+
+        assert result.df.empty
+        cached_df, _, _ = sync.load_from_cache(str(cache), player_name="Test Player")
+        assert len(cached_df) == 7  # the previous good cache survived
 
     def test_load_from_missing_cache_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -383,6 +414,31 @@ class TestUscfCacheDismissals:
         cache.add_dismissal("conflict:url")  # must not raise
 
         assert cache.dismissals() == ["conflict:url"]
+
+    def test_concurrent_dismissal_survives_a_stale_writer(self, tmp_path):
+        """A dismissal made mid-Sync must not be clobbered when the Sync's stale
+        instance (which never saw it) writes afterwards (issue #87 [8])."""
+        path = str(tmp_path / "uscf_cache.json")
+        stale = sync.UscfCache(path)                        # instance from Sync start
+        sync.UscfCache(path).add_dismissal("conflict:url")  # user dismisses mid-Sync
+        stale.replace_current({"profile": {"id": "x"}})     # stale write lands after
+
+        assert sync.UscfCache(path).dismissals() == ["conflict:url"]
+
+
+class TestUscfCacheCorruptionDegrades:
+    """A right-top-level / wrong-nested-type file — what a truncated or
+    hand-edited JSON produces — must still degrade to 'no cache', never raise
+    from an accessor (issue #87 [7])."""
+
+    def test_wrong_typed_sections_degrade_to_no_cache(self, tmp_path):
+        path = tmp_path / "uscf_cache.json"
+        path.write_text('{"current": [], "immutable": 3, "dismissals": 5}')
+        cache = sync.UscfCache(str(path))
+
+        assert cache.get_current("profile") is None   # no AttributeError
+        assert cache.get_immutable("k") is None        # no AttributeError
+        assert cache.dismissals() == []                # no TypeError
 
 
 class TestUscfCacheAged:

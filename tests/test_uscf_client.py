@@ -233,6 +233,27 @@ class TestTypedErrors:
             with pytest.raises(uscf_client.UscfError):
                 uscf_client.fetch_member_profile("12345678")
 
+    def test_mid_body_transport_error_raises_unreachable(self):
+        """A connection dropped mid-download (ChunkedEncodingError) subclasses
+        RequestException, not ConnectionError — it must still stay typed so
+        sync_uscf's never-raises guarantee holds (issue #87 [2])."""
+        with mock.patch(
+            "uscf_client.requests.get",
+            side_effect=requests.exceptions.ChunkedEncodingError("connection reset"),
+        ):
+            with pytest.raises(uscf_client.UscfUnreachableError):
+                uscf_client.fetch_member_profile("12345678")
+
+    def test_non_json_200_body_raises_uscf_error(self):
+        """A 200 whose body isn't JSON (a Cloudflare interstitial/maintenance
+        page) is a typed UscfError, never a raw JSONDecodeError (issue #87 [2])."""
+        resp = mock.Mock()
+        resp.status_code = 200
+        resp.json.side_effect = requests.exceptions.JSONDecodeError("no json", "", 0)
+        with mock.patch("uscf_client.requests.get", return_value=resp):
+            with pytest.raises(uscf_client.UscfError):
+                uscf_client.fetch_member_profile("12345678")
+
     def test_every_error_is_a_uscf_error(self):
         """Sync needs exactly one exception type to catch for the whole client."""
         assert issubclass(uscf_client.UscfMemberNotFoundError, uscf_client.UscfError)

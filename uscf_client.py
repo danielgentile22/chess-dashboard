@@ -227,10 +227,13 @@ def _get_json(
     """GET one API path and return its JSON body, or raise a typed error."""
     url = f"{_API_BASE}{path}"
     try:
+        # RequestException covers Timeout/ConnectionError plus mid-body drops
+        # (ChunkedEncodingError, ContentDecodingError) — all must stay inside the
+        # typed contract so sync_uscf's never-raises guarantee holds (ADR 0003).
         response = requests.get(
             url, params=params, headers={"User-Agent": _USER_AGENT}, timeout=timeout
         )
-    except (requests.Timeout, requests.ConnectionError) as exc:
+    except requests.RequestException as exc:
         raise UscfUnreachableError(
             f"Could not reach USCF to fetch {what}: {exc}"
         ) from exc
@@ -241,4 +244,8 @@ def _get_json(
         )
     if response.status_code != 200:
         raise UscfError(f"USCF returned HTTP {response.status_code} for {what}.")
-    return response.json()
+    try:
+        return response.json()
+    except ValueError as exc:  # JSONDecodeError subclasses ValueError
+        # A 200 with a non-JSON body (Cloudflare interstitial/maintenance page).
+        raise UscfError(f"USCF returned a non-JSON body for {what}.") from exc

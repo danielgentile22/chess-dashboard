@@ -513,30 +513,32 @@ def apply_filters(
 
     All list parameters: empty list / None means keep all values.
     """
-    out = df.copy()
+    # One combined mask, indexed once — boolean indexing never mutates the
+    # source, so the upfront df.copy() was redundant on this hot per-callback path.
+    mask = pd.Series(True, index=df.index)
     if colors:
-        out = out[out["Color"].isin(colors)]
+        mask &= df["Color"].isin(colors)
     if outcomes:
-        out = out[out["Outcome"].isin(outcomes)]
+        mask &= df["Outcome"].isin(outcomes)
     if terminations:
-        out = out[out["Termination"].isin(terminations)]
+        mask &= df["Termination"].isin(terminations)
     if events:
-        out = out[out["Event"].isin(events)]
+        mask &= df["Event"].isin(events)
     if date_start or date_end:
-        out = out[out["Date_dt"].notna()]
+        mask &= df["Date_dt"].notna()
         if date_start:
-            out = out[out["Date_dt"] >= pd.to_datetime(date_start)]
+            mask &= df["Date_dt"] >= pd.to_datetime(date_start)
         if date_end:
-            out = out[out["Date_dt"] <= pd.to_datetime(date_end)]
+            mask &= df["Date_dt"] <= pd.to_datetime(date_end)
     if min_moves is not None:
-        out = out[out["FullMoves"] >= min_moves]
+        mask &= df["FullMoves"] >= min_moves
     if max_moves is not None:
-        out = out[out["FullMoves"] <= max_moves]
+        mask &= df["FullMoves"] <= max_moves
     if min_opp_rating is not None:
-        out = out[out["OpponentRatingNum"].notna() & (out["OpponentRatingNum"] >= min_opp_rating)]
+        mask &= df["OpponentRatingNum"].notna() & (df["OpponentRatingNum"] >= min_opp_rating)
     if max_opp_rating is not None:
-        out = out[out["OpponentRatingNum"].notna() & (out["OpponentRatingNum"] <= max_opp_rating)]
-    return out
+        mask &= df["OpponentRatingNum"].notna() & (df["OpponentRatingNum"] <= max_opp_rating)
+    return df[mask]
 
 
 # ---------------------------------------------------------------------------

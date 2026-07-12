@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 
 import requests
 
@@ -50,6 +51,10 @@ _API_URL = "https://api.anthropic.com/v1/messages"
 _API_VERSION = "2023-06-01"
 _MAX_TOKENS = 400
 _DEFAULT_TIMEOUT = 30.0
+# One bounded wait-and-retry on a rate-limit / overload before degrading to ""
+# (ADR 0004): enough to ride out a transient spike without stalling a Sync.
+_RETRY_STATUS = {429, 529}
+_MAX_RETRY_WAIT = 10.0
 
 # The hard boundary, stated to the model: restate the findings, never analyse.
 _SYSTEM = (
@@ -154,7 +159,19 @@ def _call_anthropic(prompt: str, *, api_key: str, model: str) -> str:
     Raises on any transport/HTTP/shape problem; ``summarize`` turns that into a
     silent ``""``.
     """
-    response = requests.post(
+    response = _post(prompt, api_key=api_key, model=model)
+    if response.status_code in _RETRY_STATUS:
+        # ponytail: one retry rides out a transient spike; a batch-wide stop is
+        # the upgrade if summaries are frequently blanked on first Syncs.
+        time.sleep(_retry_after(response))
+        response = _post(prompt, api_key=api_key, model=model)
+    response.raise_for_status()
+    blocks = response.json()["content"]
+    return "".join(b.get("text", "") for b in blocks).strip()
+
+
+def _post(prompt: str, *, api_key: str, model: str) -> requests.Response:
+    return requests.post(
         _API_URL,
         headers={
             "x-api-key": api_key,
@@ -169,6 +186,12 @@ def _call_anthropic(prompt: str, *, api_key: str, model: str) -> str:
         },
         timeout=_DEFAULT_TIMEOUT,
     )
-    response.raise_for_status()
-    blocks = response.json()["content"]
-    return "".join(b.get("text", "") for b in blocks).strip()
+
+
+def _retry_after(response: requests.Response) -> float:
+    """Seconds to wait before the single retry, honouring Retry-After (bounded)."""
+    try:
+        wait = float(response.headers.get("Retry-After", 1))
+    except (TypeError, ValueError):
+        wait = 1.0
+    return max(0.0, min(wait, _MAX_RETRY_WAIT))

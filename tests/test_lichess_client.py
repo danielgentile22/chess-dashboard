@@ -13,6 +13,7 @@ import pytest
 import requests
 
 from lichess_client import (
+    LichessRateLimitedError,
     LichessUnreachableError,
     StudyNotFoundError,
     fetch_study_pgn,
@@ -83,6 +84,25 @@ class TestFetchStudyPgn:
             side_effect=requests.ConnectionError("no route to host"),
         ):
             with pytest.raises(LichessUnreachableError):
+                fetch_study_pgn("abcdWXYZ")
+
+    def test_mid_download_error_raises_unreachable(self):
+        """A drop mid-download (ChunkedEncodingError) subclasses RequestException,
+        not ConnectionError — it must stay typed so sync_studies' per-Study
+        degrade survives a flaky download (issue #87 [4])."""
+        with mock.patch(
+            "lichess_client.requests.get",
+            side_effect=requests.exceptions.ChunkedEncodingError("reset"),
+        ):
+            with pytest.raises(LichessUnreachableError):
+                fetch_study_pgn("abcdWXYZ")
+
+    def test_rate_limited_raises_distinct_error(self):
+        """A 429 is its own error so callers can stop hammering (issue #87 [5])."""
+        with mock.patch(
+            "lichess_client.requests.get", return_value=_response(429, "")
+        ):
+            with pytest.raises(LichessRateLimitedError):
                 fetch_study_pgn("abcdWXYZ")
 
     def test_token_sent_as_bearer_auth_header(self):

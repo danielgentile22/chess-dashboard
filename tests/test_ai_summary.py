@@ -109,6 +109,24 @@ class TestSilentDegradation:
             assert summarize(_alice(), api_key="sk-test") == ""
 
 
+class TestRateLimitRetry:
+    """One bounded wait-and-retry rides out a transient 429/overload before
+    degrading to '' (issue #87 [9])."""
+
+    def test_retries_once_on_429_then_succeeds(self):
+        rate_limited = mock.Mock(status_code=429, headers={"Retry-After": "0"})
+        ok = mock.Mock(status_code=200, headers={})
+        ok.json.return_value = {"content": [{"text": "Recovered."}]}
+        with mock.patch.object(
+            ai_summary, "_post", side_effect=[rate_limited, ok]
+        ) as post, mock.patch.object(ai_summary.time, "sleep") as sleep:
+            result = summarize(_alice(), api_key="sk-test")
+
+        assert result == "Recovered."
+        assert post.call_count == 2   # one retry, not a give-up
+        sleep.assert_called_once()
+
+
 class _FakeCache:
     """A minimal summary cache (the protocol the real AnalysisCache exposes):
     keyed by Game identity + a fingerprint of the facts."""

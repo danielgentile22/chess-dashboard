@@ -75,11 +75,17 @@ class AnalysisCache:
         try:
             with open(self._path, encoding="utf-8") as f:
                 data = json.load(f)
-            return data if isinstance(data, dict) else {}
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Could not read analysis cache %r (starting empty): %s",
                            self._path, exc)
             return {}
+        if not isinstance(data, dict):
+            return {}
+        # Drop a wrong-typed "summaries" section so get_summary's nested .get
+        # never raises on a truncated / hand-edited file (issue #87 [7]).
+        if not isinstance(data.get("summaries"), dict):
+            data.pop("summaries", None)
+        return data
 
     def _write(self) -> None:
         if not self._path:
