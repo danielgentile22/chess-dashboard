@@ -26,7 +26,9 @@ Auth           The installed gate's handle (``enabled``, ``authenticate``).
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
+from datetime import timedelta
 
 from flask import (
     Flask,
@@ -36,8 +38,36 @@ from flask import (
     session,
 )
 from markupsafe import escape
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from user_config import UserRecord
+
+# A precomputed hash the authenticate() path checks against on a username miss,
+# so an unknown user costs the same scrypt work as a known one — no username
+# enumeration by response time (issue #89 [F7]).
+_DUMMY_HASH = generate_password_hash("*never-a-real-password*")
+
+# Login throttle (issue #89 [F8]): after this many failures for one
+# (IP, username) within the window, further attempts are refused until the
+# window elapses.  In-memory only — state resets on restart, which is fine for
+# a throttle and consistent with the no-database design.
+_THROTTLE_MAX_FAILS = 5
+_THROTTLE_WINDOW_S = 300.0
+# ponytail: unbounded dict of (ip, user) -> failure timestamps; fine for a
+# small allow-list, swap for an LRU/redis if the login surface ever grows.
+_login_fails: dict[tuple[str, str], list[float]] = {}
+
+
+def _throttled(key: tuple[str, str]) -> bool:
+    """True if *key* has too many recent failures — refuse the attempt."""
+    now = time.monotonic()
+    recent = [t for t in _login_fails.get(key, ()) if now - t < _THROTTLE_WINDOW_S]
+    _login_fails[key] = recent
+    return len(recent) >= _THROTTLE_MAX_FAILS
+
+
+def _record_failure(key: tuple[str, str]) -> None:
+    _login_fails.setdefault(key, []).append(time.monotonic())
 
 # Paths reachable without a session: the login/logout routes, static assets the
 # login page needs, Dash's vendored component bundles (static JS, never data),
@@ -68,11 +98,16 @@ class Auth:
         return bool(self.users)
 
     def authenticate(self, username: str, password: str) -> UserRecord | None:
-        """The record for *username* if *password* is correct, else None."""
+        """The record for *username* if *password* is correct, else None.
+
+        An unknown username still pays the full scrypt cost (against a dummy
+        hash) so presence/absence can't be told apart by response time (#89).
+        """
         record = self.users.get(username)
-        if record is not None and record.verify(password):
-            return record
-        return None
+        if record is None:
+            check_password_hash(_DUMMY_HASH, password)
+            return None
+        return record if record.verify(password) else None
 
 
 def current_user() -> str | None:
@@ -94,16 +129,27 @@ def install_auth(
     *,
     secret_key: str,
     login_path: str = "/login",
+    secure_cookies: bool = True,
 ) -> Auth:
     """
     Gate *server* behind a login, and register the login/logout routes.
 
     The session is signed with *secret_key*; set a stable, secret value in
     production (``SECRET_KEY``) so sessions survive restarts and cannot be
-    forged.  Returns the :class:`Auth` handle, also stored on
-    ``server.extensions['uscf_auth']``.
+    forged.  *secure_cookies* marks the session cookie ``Secure`` (HTTPS-only);
+    pass ``False`` only for local HTTP dev.  Returns the :class:`Auth` handle,
+    also stored on ``server.extensions['uscf_auth']``.
     """
     server.secret_key = secret_key
+    # Harden the session cookie (issue #89 [F3]): HTTPS-only in production, never
+    # readable from JS, SameSite=Lax against cross-site POSTs, and a bounded
+    # lifetime so a leaked cookie can't be replayed forever.
+    server.config.update(
+        SESSION_COOKIE_SECURE=secure_cookies,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+    )
     gate = Auth(users)
     server.extensions["uscf_auth"] = gate
 
@@ -121,10 +167,18 @@ def install_auth(
         if request.method == "POST":
             username = request.form.get("username", "")
             password = request.form.get("password", "")
+            throttle_key = (request.remote_addr or "?", username)
+            if _throttled(throttle_key):
+                return Response(
+                    _login_page(error="Too many attempts — wait a few minutes."),
+                    status=429, mimetype="text/html")
             if gate.authenticate(username, password) is not None:
+                _login_fails.pop(throttle_key, None)
+                session.permanent = True  # apply PERMANENT_SESSION_LIFETIME
                 session[_SESSION_KEY] = username
                 target = _safe_next(request.form.get("next", ""))
                 return redirect(target)
+            _record_failure(throttle_key)
             return Response(_login_page(error="Wrong username or password."),
                             status=401, mimetype="text/html")
         if session.get(_SESSION_KEY) in users:
@@ -132,7 +186,9 @@ def install_auth(
         return Response(_login_page(next_path=_safe_next(request.args.get("next", ""))),
                         mimetype="text/html")
 
-    @server.route("/logout")
+    # POST-only: a GET /logout is CSRF-able (`<img src=".../logout">` would log a
+    # user out from any page), so state change requires the shell's logout form.
+    @server.route("/logout", methods=["POST"])
     def logout():
         session.pop(_SESSION_KEY, None)
         return redirect(login_path)
@@ -142,8 +198,13 @@ def install_auth(
 
 def _safe_next(raw: str) -> str:
     """A post-login redirect target, restricted to a local path (no open
-    redirect to another host)."""
-    if raw.startswith("/") and not raw.startswith("//"):
+    redirect to another host).
+
+    Rejects both ``//host`` and the backslash form ``/\\host`` — browsers
+    normalise ``\\`` to ``/`` per the WHATWG URL spec, so ``/\\evil.com``
+    resolves off-site (issue #89 [F4]).
+    """
+    if raw.startswith("/") and not raw.startswith(("//", "/\\")):
         return raw
     return "/"
 

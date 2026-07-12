@@ -31,7 +31,9 @@ def _users() -> dict[str, UserRecord]:
 def app():
     """A minimal Flask server with the gate installed and one protected route."""
     server = flask.Flask(__name__)
-    auth.install_auth(server, _users(), secret_key="test-secret")
+    # secure_cookies=False so the HTTP test client keeps the session cookie
+    # (production sets it via secure_cookies=not DEBUG).
+    auth.install_auth(server, _users(), secret_key="test-secret", secure_cookies=False)
 
     @server.route("/")
     def home():
@@ -111,6 +113,14 @@ class TestLogin:
         assert client.get("/").status_code == 200
         assert client.get("/").status_code == 200
 
+    def test_repeated_failures_are_throttled(self, client):
+        auth._login_fails.clear()
+        for _ in range(auth._THROTTLE_MAX_FAILS):
+            assert _login(client, "daniel", "wrong").status_code == 401
+        # Next attempt is refused up-front (429), even with the right password
+        assert _login(client, "daniel", "hunter2").status_code == 429
+        auth._login_fails.clear()
+
 
 # ---------------------------------------------------------------------------
 # Logging out
@@ -120,8 +130,12 @@ class TestLogout:
     def test_logout_clears_the_session(self, client):
         _login(client, "daniel", "hunter2")
         assert client.get("/").status_code == 200
-        client.get("/logout")
+        client.post("/logout")  # POST-only: GET /logout is CSRF-able (#89)
         assert client.get("/").status_code == 302
+
+    def test_logout_get_is_rejected(self, client):
+        _login(client, "daniel", "hunter2")
+        assert client.get("/logout").status_code == 405  # no CSRF-able GET
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +167,7 @@ class TestBuildAppGate:
         )
 
         data.reset()
-        with stub_ui_sources(SAMPLE_PGN):
+        with stub_ui_sources(SAMPLE_PGN), mock.patch("data.sync_user"):
             from app import build_app
             _dash_app, server = build_app(
                 ["teststudy"], player_name="Test Player",
@@ -161,15 +175,19 @@ class TestBuildAppGate:
             )
         # build_app has populated Dash's global callback list; snapshot it now so
         # the requests below (which drain it) can't steal ui_app's callbacks.
-        with preserve_dash_callbacks():
+        # https base_url: build_app sets Secure cookies (not DEBUG), so the
+        # session only round-trips over HTTPS — the way Fly serves it.
+        https = {"base_url": "https://localhost"}
+        with preserve_dash_callbacks(), mock.patch("data.sync_user"):
             client = server.test_client()
             # Unauthenticated → bounced to login, never the page
-            assert client.get("/").status_code == 302
+            assert client.get("/", **https).status_code == 302
             # The login page itself is reachable pre-auth
-            assert client.get("/login").status_code == 200
+            assert client.get("/login", **https).status_code == 200
             # Valid login → the Dash index renders
-            client.post("/login", data={"username": "daniel", "password": "hunter2"})
-            assert client.get("/").status_code == 200
+            client.post("/login", data={"username": "daniel", "password": "hunter2"},
+                        **https)
+            assert client.get("/", **https).status_code == 200
         data.reset()
 
     def test_built_app_is_ungated_without_users(self):

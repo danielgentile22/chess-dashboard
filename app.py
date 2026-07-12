@@ -84,13 +84,22 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
     from dash import Dash
 
     if users and not demo_mode:
-        # Multi-user (issue #72): a store per user, Synced eagerly against each
-        # user's own config; the per-request hook below activates the right one.
+        # Multi-user auth signs session cookies with SECRET_KEY; refuse the
+        # public shipped default so cookies can't be forged (issue #89 [F1]).
+        # Only fires in multi-user mode — single-user stays ungated.
+        if (secret_key or config.SECRET_KEY) == config.DEFAULT_SECRET_KEY:
+            raise RuntimeError(
+                "Refusing to start multi-user auth with the default SECRET_KEY — "
+                "session cookies would be forgeable. Set SECRET_KEY to a stable "
+                "secret, e.g. python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+        # Multi-user (issue #72): a store per user.  Not Synced here — the
+        # per-request hook below activates the right store and Syncs it lazily
+        # on first use (issue #89 [F6]), so worker boot never blocks on the
+        # whole roster's external HTTP.
         data.register_users(
             users, data_dir=config.DATA_DIR, anthropic_api_key=anthropic_api_key,
         )
-        for username in users:
-            data.sync_user(username)
         detected = "Multi-user"
     else:
         _df, detected = data.initialize(
@@ -138,6 +147,7 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
         import auth
         auth.install_auth(
             dash_app.server, users, secret_key=secret_key or config.SECRET_KEY,
+            secure_cookies=not config.DEBUG,  # HTTPS-only off only for local dev
         )
 
         # Runs after the auth gate (registration order): once a request is past
@@ -188,8 +198,11 @@ if config.STUDY_IDS or config.USERS or config.DEMO_MODE:
             secret_key=config.SECRET_KEY,
             demo_mode=config.DEMO_MODE,
         )
-    except (SyncError, RuntimeError) as _exc:
+    except SyncError as _exc:
         _exit_with_sync_error(_exc, f"LICHESS_STUDY_IDS={config.STUDY_IDS!r}")
+    except RuntimeError as _exc:  # e.g. no games, or a refused default SECRET_KEY
+        logger.error("%s", _exc)
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -247,8 +260,11 @@ def main():
             analysis_cache_path=None if args.demo else args.analysis_cache_path,
             demo_mode=args.demo,
         )
-    except (SyncError, RuntimeError) as exc:
+    except SyncError as exc:
         _exit_with_sync_error(exc, f"--study {study_ids!r}")
+    except RuntimeError as exc:  # e.g. no games, or a refused default SECRET_KEY
+        logger.error("%s", exc)
+        sys.exit(1)
 
     logger.info("Dashboard ready at http://%s:%d/", args.host, args.port)
     dash_app.run(host=args.host, port=args.port, debug=args.debug)

@@ -27,6 +27,11 @@ def parse_bool(raw: str) -> bool:
 
 
 class Config:
+    # The shipped fallback session-signing key.  Fine for a private single-user
+    # laptop, but multi-user auth refuses to start on it (issue #89): it is
+    # public, so any cookie signed with it is forgeable.
+    DEFAULT_SECRET_KEY: str = "dev-insecure-change-me"
+
     # Lichess Study IDs forming the game archive (ADR 0001), comma-separated.
     # Required for gunicorn deployment; supplied via --study CLI flag(s) locally.
     STUDY_IDS: list[str] = parse_study_ids(os.environ.get("LICHESS_STUDY_IDS", ""))
@@ -82,7 +87,7 @@ class Config:
     # Signs the login session cookie (issue #71).  MUST be set to a stable,
     # secret value in any multi-user deployment so sessions survive restarts
     # and cannot be forged; the dev default is fine only for a private laptop.
-    SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-insecure-change-me").strip()
+    SECRET_KEY: str = os.environ.get("SECRET_KEY", DEFAULT_SECRET_KEY).strip()
 
     # Where each user's disposable caches live (issue #72 [G2]): one subdirectory
     # per user under here, so users' PGN/USCF/analysis caches never collide.

@@ -76,7 +76,7 @@ from uscf_core import (
     match_games,
     reconcile,
 )
-from user_config import UserRecord
+from user_config import UserConfigError, UserRecord
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +115,12 @@ class Store:
     study_ids: list[str] = field(default_factory=list)
     coach_study_ids: list[str] = field(default_factory=list)
     player_name: str | None = None
-    token: str | None = None
+    token: str | None = field(default=None, repr=False)  # secret — keep out of reprs (#89)
     cache_path: str | None = None
     uscf_member_id: str | None = None
     uscf_cache_path: str | None = None
     coach_cache_path: str | None = None
-    anthropic_api_key: str | None = None
+    anthropic_api_key: str | None = field(default=None, repr=False)  # secret (#89)
     analysis_cache_path: str | None = None
     demo_mode: bool = False
 
@@ -147,9 +147,11 @@ _active = threading.local()
 def activate(username: str | None) -> None:
     """Make *username*'s store the one accessors resolve, for this thread.
 
-    ``None`` (or an unknown user) falls back to the default store — the gated
-    app calls this with the request's authenticated user before any page
-    renders; everything else leaves it at the default.
+    ``None`` (or an empty username) selects the default single-user store.  A
+    non-empty username that was never registered gets its *own* fresh, empty,
+    isolated store (created lazily on first access) — never the default store's
+    data.  The gated app only ever activates an allow-listed user, so reaching
+    that lazy path means a caller bypassed the auth gate (``_current`` warns).
     """
     _active.user = username if username else _DEFAULT_USER
 
@@ -159,11 +161,18 @@ def _active_key() -> str:
 
 
 def _current() -> Store:
-    """The store for the active user — never None (unknown users get a fresh,
-    empty store so accessors degrade gracefully rather than KeyError)."""
+    """The store for the active user — never None (an unregistered user gets a
+    fresh, isolated empty store so accessors degrade gracefully rather than
+    KeyError)."""
     key = _active_key()
     store = _registry.get(key)
     if store is None:
+        # In the gated app the auth gate validates membership every request, so
+        # an unregistered key here means a caller activated an unvalidated user.
+        logger.warning(
+            "Materializing an isolated store for unregistered user %r — a caller "
+            "activated a user the auth gate never validated.", key,
+        )
         store = Store()
         _registry[key] = store
     return store
@@ -539,8 +548,20 @@ def register_users(
     lazily on first access).
     """
     base = data_dir or ".user-data"
+    # Distinct usernames must not collapse to the same cache dir (#89 [F2]) —
+    # else they'd silently share games.pgn/uscf_cache.json/etc.  Casefolded so
+    # 'Daniel' vs 'daniel' is caught on case-insensitive filesystems too.
+    claimed: dict[str, str] = {}  # casefolded dirname -> username that owns it
     for username, record in users.items():
-        user_dir = os.path.join(base, _safe_dirname(username))
+        safe = _safe_dirname(username)
+        if (owner := claimed.get(safe.casefold())) is not None:
+            raise UserConfigError(
+                f"Users {owner!r} and {username!r} map to the same cache "
+                f"directory {safe!r} — they would share private caches. Give "
+                "them usernames that differ by more than case or punctuation."
+            )
+        claimed[safe.casefold()] = username
+        user_dir = os.path.join(base, safe)
         # Best-effort: a host without a writable disk (Render free tier) just
         # goes without caches — the caches are disposable (ADR 0001/0003).
         try:

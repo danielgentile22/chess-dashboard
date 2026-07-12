@@ -982,6 +982,10 @@ class TestCacheFallback:
         # anonymization pass replaced.
         assert "32487228" not in text  # real member ID → 12345678
         assert "6jYtXHGp" not in text  # real study ID → abcdWXYZ
+        # Quasi-identifiers perturbed too (#89): real Event/Site names that would
+        # let a public USCF crosstable reverse the opponent pseudonyms are gone.
+        assert "ACC Friday Ladder" not in text
+        assert "Army Navy Club" not in text
 
         with mock.patch.object(sync, "fetch_study_pgn",
                                side_effect=AssertionError("no Lichess in demo")):
@@ -1182,6 +1186,15 @@ class TestPerUserRegistry:
         # Alice's private token was used to fetch her Study, not bob's
         assert captured["s-alice"]["token"] == "tok-alice"
         assert captured["s-bob"]["token"] is None
+
+    def test_case_only_username_difference_is_rejected(self, tmp_path):
+        """'Alice' and 'alice' map to the same dir on a case-insensitive FS —
+        registering both would silently share caches, so it's refused (#89)."""
+        from user_config import UserConfigError
+
+        users = {"Alice": _record("Alice"), "alice": _record("alice")}
+        with pytest.raises(UserConfigError, match="(?i)same cache directory"):
+            data.register_users(users, data_dir=str(tmp_path))
 
     def test_activate_unknown_user_is_empty_not_an_error(self, tmp_path):
         data.register_users({"alice": _record("alice")}, data_dir=str(tmp_path))
