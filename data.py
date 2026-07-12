@@ -874,6 +874,19 @@ def get_coach_chapter(chapter_url: str) -> CoachChapter | None:
     return _current().coach.result.chapter_for(chapter_url)
 
 
+def get_coach_ambiguities() -> list[dict]:
+    """Coach Chapters the matcher couldn't place unambiguously (issue #92): real
+    reviews rejected only because their moves fit more than one Game, or a Game
+    two Chapters both claimed.  Surfaced on Reconciliation so a review the user
+    paid for never silently vanishes.  Each carries the coach Study Chapter link.
+    [] when no coach Studies are configured or none were ambiguous.
+    """
+    return [
+        {"name": chapter.chapter_name, "url": chapter.chapter_url}
+        for chapter in _current().coach.result.ambiguous_chapters
+    ]
+
+
 def get_coach_notes() -> list[dict]:
     """
     The Coach's Notes feed (issue #75 [G5]): every prose comment the coach wrote

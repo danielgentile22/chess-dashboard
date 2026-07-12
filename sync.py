@@ -128,7 +128,9 @@ def sync_studies(
     SyncError : every Study failed to fetch (the per-Study reasons are in
                 the exception message).
     """
-    pgn_texts, failures = _fetch_all_pgns(study_ids, token, "Study")
+    fetched = _fetch_all_pgns(study_ids, token, "Study")
+    pgn_texts = [pgn for _, pgn, _ in fetched if pgn is not None]
+    failures = [(sid, reason) for sid, pgn, reason in fetched if pgn is None]
 
     if not pgn_texts:
         details = "; ".join(f"{sid}: {reason}" for sid, reason in failures)
@@ -157,25 +159,28 @@ def sync_studies(
 
 def _fetch_all_pgns(
     study_ids: list[str], token: str | None, what: str
-) -> tuple[list[str], list[tuple[str, str]]]:
+) -> list[tuple[str, str | None, str]]:
     """Fetch each Study's PGN, degrading per Study (one failure never loses the
-    rest).  A 429 aborts the loop: the remaining Studies are marked rate-limited
-    rather than fired into the same window (Lichess may block the token)."""
-    pgn_texts: list[str] = []
-    failures: list[tuple[str, str]] = []
+    rest).  Returns ``(study_id, pgn_or_None, reason)`` per Study in order —
+    reason is '' on success, and pgn is None on failure so callers can tell which
+    Study each result belongs to (issue #92).  A 429 aborts the loop: the
+    remaining Studies are marked rate-limited rather than fired into the same
+    window (Lichess may block the token)."""
+    results: list[tuple[str, str | None, str]] = []
     for i, study_id in enumerate(study_ids):
         try:
-            pgn_texts.append(fetch_study_pgn(study_id, token=token))
+            results.append((study_id, fetch_study_pgn(study_id, token=token), ""))
         except LichessRateLimitedError as exc:
             logger.warning("Rate-limited on %s %r — aborting remaining fetches: %s",
                            what, study_id, exc)
-            failures.append((study_id, str(exc)))
-            failures.extend((sid, "skipped: rate-limited") for sid in study_ids[i + 1:])
+            results.append((study_id, None, str(exc)))
+            results.extend((sid, None, "skipped: rate-limited")
+                           for sid in study_ids[i + 1:])
             break
         except LichessError as exc:
             logger.warning("Could not fetch %s %r: %s", what, study_id, exc)
-            failures.append((study_id, str(exc)))
-    return pgn_texts, failures
+            results.append((study_id, None, str(exc)))
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -624,42 +629,75 @@ def sync_coach(
     Fetch the designated coach Studies and match their Chapters to *games_df*
     (issue #74), the same disposable-cache lifecycle as USCF (ADR 0003).
 
-    Private coach Studies are read with the user's *token*.  A successful fetch
-    refreshes the local PGN cache at *cache_path*; if every coach Study is
-    unreachable, the cached coach PGN is used instead — coach content survives a
-    brief outage.  Never raises: a coach Study being down never fails the Sync.
-    The user's main Study stays the source of truth (ADR 0001) — an unmatched
-    coach Chapter never creates a Game.
+    Private coach Studies are read with the user's *token*.  Each Study is cached
+    on its own (``coach-<id>.pgn``): a successful fetch refreshes that Study's
+    cache, and a Study that is unreachable falls back to its own cached Chapters —
+    so a partial fetch never drops a Study's reviews nor shrinks the cache to the
+    Studies that happened to fetch (issue #92).  Never raises: a coach Study being
+    down never fails the Sync.  The user's main Study stays the source of truth
+    (ADR 0001) — an unmatched coach Chapter never creates a Game.
     """
     if not coach_study_ids:
         return CoachSyncResult()
 
-    pgn_texts, failures = _fetch_all_pgns(coach_study_ids, token, "coach Study")
+    parts: list[str] = []
+    failures: list[tuple[str, str]] = []
+    from_cache = False
+    any_fresh = False
+    for sid, pgn, reason in _fetch_all_pgns(coach_study_ids, token, "coach Study"):
+        study_cache = _coach_study_cache(cache_path, sid)
+        if pgn is not None:
+            if study_cache:
+                _write_cache(study_cache, pgn)  # refresh only this Study's cache
+            parts.append(pgn)
+            any_fresh = True
+            continue
+        # This Study failed — substitute its own cached Chapters (never touching
+        # its cache file), so a partial fetch keeps its reviews and leaves every
+        # other Study's cache intact (ADR 0003).
+        failures.append((sid, reason))
+        cached = _read_text_cache(study_cache)
+        if cached:
+            parts.append(cached)
+            from_cache = True
 
-    if pgn_texts:
-        merged = "\n\n".join(pgn_texts)
-        if cache_path:
-            _write_cache(cache_path, merged)
-        return CoachSyncResult(
-            result=match_coach_study(games_df, merged),
-            synced_at=datetime.now(timezone.utc),
-            failure="; ".join(f"{sid}: {why}" for sid, why in failures),
-        )
-
-    # Every coach Study was unreachable — fall back to the cached coach PGN.
-    reason = "; ".join(f"{sid}: {why}" for sid, why in failures) or "unreachable"
-    cached = _read_text_cache(cache_path)
-    if not cached:
+    failure = "; ".join(f"{sid}: {why}" for sid, why in failures)
+    if not parts:
+        reason = failure or "unreachable"
         logger.warning("Coach content unavailable and no cache (ADR 0003): %s", reason)
         return CoachSyncResult(failure=reason)
 
-    logger.info("Showing cached coach content (coach Studies unreachable)")
+    if from_cache and not any_fresh:
+        logger.info("Showing cached coach content (coach Studies unreachable)")
     return CoachSyncResult(
-        result=match_coach_study(games_df, cached),
-        synced_at=_cache_mtime(cache_path),
-        failure=reason,
-        from_cache=True,
+        result=match_coach_study(games_df, "\n\n".join(parts)),
+        synced_at=(datetime.now(timezone.utc) if any_fresh
+                   else _latest_coach_cache_mtime(cache_path, coach_study_ids)),
+        failure=failure,
+        from_cache=from_cache,
     )
+
+
+def _coach_study_cache(cache_path: str | None, study_id: str) -> str | None:
+    """Per-Study coach PGN cache path derived from the base *cache_path*
+    (``coach.pgn`` → ``coach-<id>.pgn``).  Per-Study so one Study's fetch failure
+    reuses its own cached Chapters without a partial fetch clobbering or shrinking
+    another Study's cache (issue #92)."""
+    if not cache_path:
+        return None
+    base, ext = os.path.splitext(cache_path)
+    return f"{base}-{study_id}{ext}"
+
+
+def _latest_coach_cache_mtime(
+    cache_path: str | None, study_ids: list[str]
+) -> datetime | None:
+    """The newest per-Study coach cache write time (fully-degraded synced_at)."""
+    mtimes = [
+        m for sid in study_ids
+        if (m := _cache_mtime(_coach_study_cache(cache_path, sid))) is not None
+    ]
+    return max(mtimes) if mtimes else None
 
 
 def _read_text_cache(cache_path: str | None) -> str:

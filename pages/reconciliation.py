@@ -43,8 +43,8 @@ _KINDS = [
      "Chapters without the opponent's USCF member ID typed in. Matching found "
      "them by name this time; type the ID in to make it robust."),
     ("rating_mismatch", "Typed-rating mismatches",
-     "Your hand-typed header rating disagrees with the Official Rating for "
-     "that Rated Event's month. Typed values power no stats — this is "
+     "Your hand-typed header rating disagrees with the Official Rating in "
+     "effect for that Rated Event. Typed values power no stats — this is "
      "bookkeeping only."),
 ]
 
@@ -109,39 +109,77 @@ def _persistence_note() -> html.Div:
     )
 
 
-def _render_entries(entries: list[ReconciliationEntry]) -> html.Div:
-    """The page body: entries grouped by kind, or the all-clear empty state."""
-    if not data.uscf_enabled():
+def _coach_ambiguity_card(chapters: list[dict]) -> html.Div:
+    """Coach reviews the matcher couldn't place (issue #92) — surfaced here so a
+    review the user paid for never silently vanishes.  Each links back to its
+    coach Study Chapter to check by eye which Game it belongs to."""
+    rows = []
+    for chapter in chapters:
+        head = [html.Span(chapter["name"] or "Untitled chapter",
+                          className="reconcile-opponent")]
+        actions: list = []
+        if chapter["url"]:
+            actions.append(html.A(
+                [html.I(className="bi bi-box-arrow-up-right"), " Open in coach Study"],
+                href=chapter["url"], target="_blank",
+                className="reconcile-action reconcile-fix",
+            ))
+        rows.append(html.Div(className="reconcile-entry", children=[
+            html.Div(head, className="reconcile-entry-head"),
+            html.Div(actions, className="reconcile-actions"),
+        ]))
+    return content_card(
+        f"Coach reviews ({len(chapters)})",
+        html.Div(
+            "The coach reviewed a Game the matcher couldn't place unambiguously — "
+            "its moves fit more than one of your Games, or a Game two of his "
+            "Chapters both claim. Nothing is dropped silently; open the Chapter "
+            "to see which Game it belongs to (typing the moves or ID in fixes it).",
+            className="reconcile-explain",
+        ),
+        html.Div(rows, className="reconcile-entries"),
+    )
+
+
+def _render_entries(
+    entries: list[ReconciliationEntry], coach_ambiguities: list[dict]
+) -> html.Div:
+    """The page body: USCF disagreements grouped by kind and any coach reviews
+    the matcher couldn't place, or the all-clear empty state."""
+    uscf_on = data.uscf_enabled()
+    if not uscf_on and not coach_ambiguities:
         return html.Div([empty_state(
             "♔", "USCF is not configured",
             "Reconciliation compares your Studies against your USCF record.",
             "Set a USCF member ID (--uscf-member or USCF_MEMBER_ID) to use it.",
         )])
 
-    if not entries:
-        return html.Div([
-            empty_state(
-                "✓", "Everything agrees",
-                "Your Studies and USCF tell the same story — no conflicts, "
-                "nothing missing on either side.",
-            ),
-            _persistence_note(),
-        ])
-
-    sections: list = [html.Div(
-        f"{len(entries)} open item{'s' if len(entries) != 1 else ''}",
-        className="reconcile-count",
-    )]
-    for kind, title, explanation in _KINDS:
-        kind_entries = [e for e in entries if e.kind == kind]
-        if not kind_entries:
-            continue
-        sections.append(content_card(
-            f"{title} ({len(kind_entries)})",
-            html.Div(explanation, className="reconcile-explain"),
-            html.Div([_entry_card(e) for e in kind_entries],
-                     className="reconcile-entries"),
+    sections: list = []
+    if uscf_on and entries:
+        sections.append(html.Div(
+            f"{len(entries)} open item{'s' if len(entries) != 1 else ''}",
+            className="reconcile-count",
         ))
+        for kind, title, explanation in _KINDS:
+            kind_entries = [e for e in entries if e.kind == kind]
+            if not kind_entries:
+                continue
+            sections.append(content_card(
+                f"{title} ({len(kind_entries)})",
+                html.Div(explanation, className="reconcile-explain"),
+                html.Div([_entry_card(e) for e in kind_entries],
+                         className="reconcile-entries"),
+            ))
+    elif uscf_on and not coach_ambiguities:
+        sections.append(empty_state(
+            "✓", "Everything agrees",
+            "Your Studies and USCF tell the same story — no conflicts, "
+            "nothing missing on either side.",
+        ))
+
+    if coach_ambiguities:
+        sections.append(_coach_ambiguity_card(coach_ambiguities))
+
     sections.append(_persistence_note())
     # The per-kind cards stack vertically; the shared card-stack rhythm gives
     # them the same gap a grid row would (spacing polish, issue #51).
@@ -155,7 +193,7 @@ def _render_entries(entries: list[ReconciliationEntry]) -> html.Div:
 @callback(Output("reconciliation-content", "children"), Input("sync-store", "data"))
 def update_reconciliation(_sync):
     """The page follows Syncs — every Sync recomputes the disagreements."""
-    return _render_entries(data.get_reconciliation())
+    return _render_entries(data.get_reconciliation(), data.get_coach_ambiguities())
 
 
 @callback(
@@ -178,4 +216,5 @@ def dismiss_entry(n_clicks, store):
         return no_update, no_update
 
     data.dismiss_reconciliation_entry(triggered["index"])
-    return _render_entries(data.get_reconciliation()), (store or 0) + 1
+    return (_render_entries(data.get_reconciliation(), data.get_coach_ambiguities()),
+            (store or 0) + 1)

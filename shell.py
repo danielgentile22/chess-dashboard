@@ -288,7 +288,7 @@ def update_reconciliation_badge(_sync, _dismissals):
     linking to the Reconciliation page.  No badge when everything agrees —
     silence is the reward.
     """
-    count = len(data.get_reconciliation())
+    count = len(data.get_reconciliation()) + len(data.get_coach_ambiguities())
     if count == 0:
         return None
     return dcc.Link(
@@ -297,7 +297,7 @@ def update_reconciliation_badge(_sync, _dismissals):
         href="/reconciliation",
         className="reconciliation-badge",
         title=f"{count} open Reconciliation item{'s' if count != 1 else ''} — "
-              "your Studies and USCF disagree",
+              "your Studies, USCF, or coach reviews need attention",
     )
 
 
