@@ -53,8 +53,10 @@ _DUMMY_HASH = generate_password_hash("*never-a-real-password*")
 # a throttle and consistent with the no-database design.
 _THROTTLE_MAX_FAILS = 5
 _THROTTLE_WINDOW_S = 300.0
-# ponytail: unbounded dict of (ip, user) -> failure timestamps; fine for a
-# small allow-list, swap for an LRU/redis if the login surface ever grows.
+# ponytail: per-(ip, user) counter, capped in size; fine for a small allow-list.
+# Upgrade path if the login surface grows: an IP-level bucket + redis/LRU so a
+# single IP rotating usernames can't sidestep the per-key lockout.
+_THROTTLE_MAX_KEYS = 4096
 _login_fails: dict[tuple[str, str], list[float]] = {}
 
 
@@ -67,7 +69,14 @@ def _throttled(key: tuple[str, str]) -> bool:
 
 
 def _record_failure(key: tuple[str, str]) -> None:
-    _login_fails.setdefault(key, []).append(time.monotonic())
+    now = time.monotonic()
+    if len(_login_fails) >= _THROTTLE_MAX_KEYS:
+        # Drop keys whose failures have all aged out — bounds memory against an
+        # attacker rotating usernames to spawn endless buckets (#89).
+        for stale in [k for k, ts in _login_fails.items()
+                      if all(now - t >= _THROTTLE_WINDOW_S for t in ts)]:
+            del _login_fails[stale]
+    _login_fails.setdefault(key, []).append(now)
 
 # Paths reachable without a session: the login/logout routes, static assets the
 # login page needs, Dash's vendored component bundles (static JS, never data),

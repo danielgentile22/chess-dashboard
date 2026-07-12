@@ -1,6 +1,6 @@
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.08.16"]
+[Date "2024.09.10"]
 [Round "1"]
 [White "Alex Archer"]
 [Black "Daniel Gentile"]
@@ -24,7 +24,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.08.23"]
+[Date "2024.09.17"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Blair Archer"]
@@ -48,7 +48,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.09.13"]
+[Date "2024.10.08"]
 [Round "3"]
 [White "Daniel Gentile"]
 [Black "Casey Archer"]
@@ -72,7 +72,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.09.20"]
+[Date "2024.10.15"]
 [Round "4"]
 [White "Devon Archer"]
 [Black "Daniel Gentile"]
@@ -96,7 +96,7 @@
 
 [Event "Summit Open"]
 [Site "Fairhaven"]
-[Date "2025.09.27"]
+[Date "2024.10.22"]
 [Round "1"]
 [White "Daniel Gentile"]
 [Black "Emerson Archer"]
@@ -121,7 +121,7 @@
 
 [Event "Summit Open"]
 [Site "Fairhaven"]
-[Date "2025.09.28"]
+[Date "2024.10.23"]
 [Round "2"]
 [White "Finley Archer"]
 [Black "Daniel Gentile"]
@@ -146,7 +146,7 @@
 
 [Event "Summit Open"]
 [Site "Fairhaven"]
-[Date "2025.09.28"]
+[Date "2024.10.23"]
 [Round "3"]
 [White "Daniel Gentile"]
 [Black "Harper Archer"]
@@ -171,7 +171,7 @@
 
 [Event "Summit Open"]
 [Site "Fairhaven"]
-[Date "2025.09.29"]
+[Date "2024.10.24"]
 [Round "4"]
 [White "Jordan Archer"]
 [Black "Daniel Gentile"]
@@ -196,7 +196,7 @@
 
 [Event "Summit Open"]
 [Site "Fairhaven"]
-[Date "2025.09.29"]
+[Date "2024.10.24"]
 [Round "5"]
 [White "Kai Archer"]
 [Black "Daniel Gentile"]
@@ -221,7 +221,7 @@
 
 [Event "Lakeside Open"]
 [Site "Fairhaven"]
-[Date "2025.10.13"]
+[Date "2024.11.07"]
 [Round "1"]
 [White "Logan Archer"]
 [Black "Daniel Gentile"]
@@ -246,7 +246,7 @@
 
 [Event "Lakeside Open"]
 [Site "Fairhaven"]
-[Date "2025.10.13"]
+[Date "2024.11.07"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Morgan Archer"]
@@ -271,7 +271,7 @@
 
 [Event "Lakeside Open"]
 [Site "Fairhaven"]
-[Date "2025.10.13"]
+[Date "2024.11.07"]
 [Round "3"]
 [White "Daniel Gentile"]
 [Black "Quinn Archer"]
@@ -296,7 +296,7 @@
 
 [Event "Lakeside Open"]
 [Site "Fairhaven"]
-[Date "2025.10.13"]
+[Date "2024.11.07"]
 [Round "4"]
 [White "Alex Bennett"]
 [Black "Daniel Gentile"]
@@ -321,7 +321,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.10.25"]
+[Date "2024.11.19"]
 [Round "5"]
 [White "Blair Bennett"]
 [Black "Daniel Gentile"]
@@ -345,7 +345,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.11.01"]
+[Date "2024.11.26"]
 [Round "6"]
 [White "Daniel Gentile"]
 [Black "Casey Bennett"]
@@ -369,7 +369,7 @@
 
 [Event "Highland Open"]
 [Site "Fairhaven"]
-[Date "2025.11.02"]
+[Date "2024.11.27"]
 [Round "1"]
 [White "Devon Bennett"]
 [Black "Daniel Gentile"]
@@ -394,7 +394,7 @@
 
 [Event "Highland Open"]
 [Site "Fairhaven"]
-[Date "2025.11.02"]
+[Date "2024.11.27"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Emerson Bennett"]
@@ -418,7 +418,7 @@
 
 [Event "Highland Open"]
 [Site "Fairhaven"]
-[Date "2025.11.03"]
+[Date "2024.11.28"]
 [Round "3"]
 [White "Finley Bennett"]
 [Black "Daniel Gentile"]
@@ -443,7 +443,7 @@
 
 [Event "Highland Open"]
 [Site "Fairhaven"]
-[Date "2025.11.03"]
+[Date "2024.11.28"]
 [Round "4"]
 [White "Daniel Gentile"]
 [Black "Harper Bennett"]
@@ -468,7 +468,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.11.15"]
+[Date "2024.12.10"]
 [Round "7"]
 [White "Jordan Bennett"]
 [Black "Daniel Gentile"]
@@ -492,7 +492,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.11.22"]
+[Date "2024.12.17"]
 [Round "8"]
 [White "Kai Bennett"]
 [Black "Daniel Gentile"]
@@ -516,7 +516,7 @@
 
 [Event "Fairview Open"]
 [Site "Fairhaven"]
-[Date "2025.11.30"]
+[Date "2024.12.25"]
 [Round "1"]
 [White "Logan Bennett"]
 [Black "Daniel Gentile"]
@@ -541,7 +541,7 @@
 
 [Event "Fairview Open"]
 [Site "Fairhaven"]
-[Date "2025.11.30"]
+[Date "2024.12.25"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Casey Archer"]
@@ -566,7 +566,7 @@
 
 [Event "Fairview Open"]
 [Site "Fairhaven"]
-[Date "2025.11.30"]
+[Date "2024.12.25"]
 [Round "3"]
 [White "Morgan Bennett"]
 [Black "Daniel Gentile"]
@@ -591,7 +591,7 @@
 
 [Event "Fairview Open"]
 [Site "Fairhaven"]
-[Date "2025.12.01"]
+[Date "2024.12.26"]
 [Round "4"]
 [White "Daniel Gentile"]
 [Black "Quinn Bennett"]
@@ -616,7 +616,7 @@
 
 [Event "Fairview Open"]
 [Site "Fairhaven"]
-[Date "2025.12.01"]
+[Date "2024.12.26"]
 [Round "5"]
 [White "Morgan Archer"]
 [Black "Daniel Gentile"]
@@ -641,7 +641,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2025.12.06"]
+[Date "2024.12.31"]
 [Round "9"]
 [White "Daniel Gentile"]
 [Black "Jordan Bennett"]
@@ -665,7 +665,7 @@
 
 [Event "Cedar Open"]
 [Site "Fairhaven"]
-[Date "2025.12.28"]
+[Date "2025.01.22"]
 [Round "1"]
 [White "Alex Carter"]
 [Black "Daniel Gentile"]
@@ -690,7 +690,7 @@
 
 [Event "Cedar Open"]
 [Site "Fairhaven"]
-[Date "2025.12.28"]
+[Date "2025.01.22"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Blair Carter"]
@@ -714,7 +714,7 @@
 
 [Event "Cedar Open"]
 [Site "Fairhaven"]
-[Date "2025.12.28"]
+[Date "2025.01.22"]
 [Round "3"]
 [White "Casey Carter"]
 [Black "Daniel Gentile"]
@@ -739,7 +739,7 @@
 
 [Event "Cedar Open"]
 [Site "Fairhaven"]
-[Date "2025.12.29"]
+[Date "2025.01.23"]
 [Round "4"]
 [White "Daniel Gentile"]
 [Black "Devon Carter"]
@@ -764,7 +764,7 @@
 
 [Event "Cedar Open"]
 [Site "Fairhaven"]
-[Date "2025.12.29"]
+[Date "2025.01.23"]
 [Round "5"]
 [White "Daniel Gentile"]
 [Black "Emerson Carter"]
@@ -789,7 +789,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.01.03"]
+[Date "2025.01.28"]
 [Round "10"]
 [White "Daniel Gentile"]
 [Black "Finley Carter"]
@@ -813,7 +813,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.01.10"]
+[Date "2025.02.04"]
 [Round "11"]
 [White "Harper Carter"]
 [Black "Daniel Gentile"]
@@ -837,7 +837,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.01.31"]
+[Date "2025.02.25"]
 [Round "12"]
 [White "Jordan Carter"]
 [Black "Daniel Gentile"]
@@ -861,7 +861,7 @@
 
 [Event "Granite Open"]
 [Site "Fairhaven"]
-[Date "2026.02.07"]
+[Date "2025.03.04"]
 [Round "1"]
 [White "Kai Carter"]
 [Black "Daniel Gentile"]
@@ -886,7 +886,7 @@
 
 [Event "Granite Open"]
 [Site "Fairhaven"]
-[Date "2026.02.08"]
+[Date "2025.03.05"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Logan Carter"]
@@ -911,7 +911,7 @@
 
 [Event "Granite Open"]
 [Site "Fairhaven"]
-[Date "2026.02.08"]
+[Date "2025.03.05"]
 [Round "3"]
 [White "Morgan Carter"]
 [Black "Daniel Gentile"]
@@ -936,7 +936,7 @@
 
 [Event "Granite Open"]
 [Site "Fairhaven"]
-[Date "2026.02.09"]
+[Date "2025.03.06"]
 [Round "4"]
 [White "Daniel Gentile"]
 [Black "Quinn Carter"]
@@ -961,7 +961,7 @@
 
 [Event "Granite Open"]
 [Site "Fairhaven"]
-[Date "2026.02.09"]
+[Date "2025.03.06"]
 [Round "5"]
 [White "Alex Carter"]
 [Black "Daniel Gentile"]
@@ -986,7 +986,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.02.14"]
+[Date "2025.03.11"]
 [Round "13"]
 [White "Alex Dalton"]
 [Black "Daniel Gentile"]
@@ -1010,7 +1010,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.02.21"]
+[Date "2025.03.18"]
 [Round "14"]
 [White "Daniel Gentile"]
 [Black "Jordan Carter"]
@@ -1034,7 +1034,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.02.28"]
+[Date "2025.03.25"]
 [Round "15"]
 [White "Daniel Gentile"]
 [Black "Blair Dalton"]
@@ -1058,7 +1058,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.03.07"]
+[Date "2025.04.01"]
 [Round "16"]
 [White "Casey Dalton"]
 [Black "Daniel Gentile"]
@@ -1082,7 +1082,7 @@
 
 [Event "Harbor Open"]
 [Site "Fairhaven"]
-[Date "2026.03.21"]
+[Date "2025.04.15"]
 [Round "1"]
 [White "Devon Dalton"]
 [Black "Daniel Gentile"]
@@ -1107,7 +1107,7 @@
 
 [Event "Harbor Open"]
 [Site "Fairhaven"]
-[Date "2026.03.22"]
+[Date "2025.04.16"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Emerson Dalton"]
@@ -1132,7 +1132,7 @@
 
 [Event "Harbor Open"]
 [Site "Fairhaven"]
-[Date "2026.03.22"]
+[Date "2025.04.16"]
 [Round "3"]
 [White "Daniel Gentile"]
 [Black "Finley Dalton"]
@@ -1157,7 +1157,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.03.28"]
+[Date "2025.04.22"]
 [Round "17"]
 [White "Harper Dalton"]
 [Black "Daniel Gentile"]
@@ -1181,7 +1181,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.04.18"]
+[Date "2025.05.13"]
 [Round "18"]
 [White "Jordan Dalton"]
 [Black "Daniel Gentile"]
@@ -1205,7 +1205,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.04.25"]
+[Date "2025.05.20"]
 [Round "19"]
 [White "Kai Dalton"]
 [Black "Daniel Gentile"]
@@ -1229,7 +1229,7 @@
 
 [Event "Meadow Open"]
 [Site "Oakdale"]
-[Date "2026.05.03"]
+[Date "2025.05.28"]
 [Round "1"]
 [White "Daniel Gentile"]
 [Black "Logan Dalton"]
@@ -1256,7 +1256,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.05.16"]
+[Date "2025.06.10"]
 [Round "20"]
 [White "Blair Dalton"]
 [Black "Daniel Gentile"]
@@ -1280,7 +1280,7 @@
 
 [Event "Prairie Open"]
 [Site "Fairhaven"]
-[Date "2026.05.24"]
+[Date "2025.06.18"]
 [Round "1"]
 [White "Morgan Dalton"]
 [Black "Daniel Gentile"]
@@ -1305,7 +1305,7 @@
 
 [Event "Prairie Open"]
 [Site "Fairhaven"]
-[Date "2026.05.24"]
+[Date "2025.06.18"]
 [Round "2"]
 [White "Daniel Gentile"]
 [Black "Quinn Dalton"]
@@ -1330,7 +1330,7 @@
 
 [Event "Prairie Open"]
 [Site "Fairhaven"]
-[Date "2026.05.25"]
+[Date "2025.06.19"]
 [Round "3"]
 [White "Alex Ellis"]
 [Black "Daniel Gentile"]
@@ -1355,7 +1355,7 @@
 
 [Event "Sunset Open"]
 [Site "Millbrook"]
-[Date "2026.05.25"]
+[Date "2025.06.19"]
 [Round "4"]
 [White "Blair Ellis"]
 [Black "Daniel Gentile"]
@@ -1380,7 +1380,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.05.30"]
+[Date "2025.06.24"]
 [Round "21"]
 [White "Daniel Gentile"]
 [Black "Casey Ellis"]
@@ -1404,7 +1404,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.06.13"]
+[Date "2025.07.08"]
 [Round "22"]
 [White "Daniel Gentile"]
 [Black "Kai Dalton"]
@@ -1426,7 +1426,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.06.20"]
+[Date "2025.07.15"]
 [Round "23"]
 [White "Devon Ellis"]
 [Black "Daniel Gentile"]
@@ -1448,7 +1448,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.06.27"]
+[Date "2025.07.22"]
 [Round "24"]
 [White "Daniel Gentile"]
 [Black "Blair Ellis"]
@@ -1470,7 +1470,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.07.11"]
+[Date "2025.08.05"]
 [Round "25"]
 [White "Emerson Ellis"]
 [Black "Daniel Gentile"]
@@ -1492,7 +1492,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.07.18"]
+[Date "2025.08.12"]
 [Round "26"]
 [White "Blair Archer"]
 [Black "Daniel Gentile"]
@@ -1514,7 +1514,7 @@
 
 [Event "Riverside Open"]
 [Site "Riverton"]
-[Date "2026.07.25"]
+[Date "2025.08.19"]
 [Round "27"]
 [White "Finley Ellis"]
 [Black "Daniel Gentile"]

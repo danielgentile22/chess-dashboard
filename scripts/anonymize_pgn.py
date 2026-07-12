@@ -25,6 +25,7 @@ it on an already-anonymized file would shift the dates a second time.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import sys
 from datetime import datetime, timedelta
@@ -61,9 +62,7 @@ _SITE_POOL = ["Riverton", "Fairhaven", "Oakdale", "Millbrook", "Westford",
               "Kingsport", "Brookfield", "Ashford", "Clearwater", "Bridgeport",
               "Northgate", "Elmwood"]
 
-# A fixed, uncommitted offset applied to every date; enough to break exact-date
-# matching without disturbing the relative spacing the trends charts show.
-_DATE_SHIFT = timedelta(days=57)
+_HEADER_LINE = re.compile(r'^\[(\w+)\s+"(.*)"\]\s*$', re.MULTILINE)
 _DATE_LINE = re.compile(r'^\[(\w*Date)\s+"(\d{4})\.(\d{2})\.(\d{2})"\]', re.MULTILINE)
 
 
@@ -79,12 +78,36 @@ def _synthetic_site(i: int) -> str:
     return _SITE_POOL[i]
 
 
-def _shift_dates(text: str) -> str:
-    """Shift every ``*Date`` header (Date/UTCDate/EventDate/EndDate) by a fixed
-    offset; malformed/unknown dates (``????.??.??``) are left untouched."""
+def _rewrite_headers(text: str, tag_maps: dict[str, dict[str, str]]) -> str:
+    """Replace header *values* per ``{tag: {real: synthetic}}`` — header lines
+    only, so ``Lesson:`` comments and movetext stay byte-for-byte intact even if
+    a real Event/Site name happens to be a common word (issue #89)."""
+    def repl(m: re.Match) -> str:
+        mapping = tag_maps.get(m[1])
+        if mapping and m[2] in mapping:
+            return f'[{m[1]} "{mapping[m[2]]}"]'
+        return m[0]
+    return _HEADER_LINE.sub(repl, text)
+
+
+def _date_offset(source: str) -> timedelta:
+    """A backward date offset derived from the *private source* PGN.
+
+    Reproducible from the real games, but — unlike a constant baked into this
+    committed script — not recoverable from the demo file alone, since computing
+    it needs the source content (issue #89).  (The pre-perturbation real dates
+    still live in git history; fully closing that needs a history rewrite.)
+    """
+    h = int.from_bytes(hashlib.sha256(source.encode("utf-8")).digest()[:4], "big")
+    return timedelta(days=-(30 + h % 700))  # 30–729 days into the past
+
+
+def _shift_dates(text: str, offset: timedelta) -> str:
+    """Shift every ``*Date`` header (Date/UTCDate/EventDate/EndDate) by *offset*;
+    malformed/unknown dates (``????.??.??``) are left untouched."""
     def repl(m: re.Match) -> str:
         try:
-            d = datetime(int(m[2]), int(m[3]), int(m[4])) + _DATE_SHIFT
+            d = datetime(int(m[2]), int(m[3]), int(m[4])) + offset
         except ValueError:
             return m[0]
         return f'[{m[1]} "{d.year:04d}.{d.month:02d}.{d.day:02d}"]'
@@ -137,10 +160,10 @@ def anonymize(text: str) -> str:
 
     # Second pass: global textual replacement. Longest keys first so no real
     # value is a prefix of another (member IDs and names alike).
+    # Names/IDs/chapters are replaced globally: an opponent's real name may be
+    # mentioned in a coach comment, and anonymising it there too is intended.
     replacements: dict[str, str] = {}
     replacements.update(names)
-    replacements.update(events)
-    replacements.update(sites)
     replacements.update(member_ids)
     replacements.update({s: DEMO_STUDY_ID for s in study_ids})
     replacements.update(chapters)
@@ -149,8 +172,10 @@ def anonymize(text: str) -> str:
     for real in sorted(replacements, key=len, reverse=True):
         out = re.sub(rf"(?<![\w]){re.escape(real)}(?![\w])", replacements[real], out)
 
-    # Dates last, so the shift lands on the (unchanged) date headers.
-    out = _shift_dates(out)
+    # Event/Site are header-only fields, so rewrite just those headers (a global
+    # sub could clobber comment prose).  Dates last, by a source-derived offset.
+    out = _rewrite_headers(out, {"Event": events, "Site": sites})
+    out = _shift_dates(out, _date_offset(text))
 
     # Non-self annotator handles (the coach) → a generic one. The self handle stays.
     out = re.sub(

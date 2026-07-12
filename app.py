@@ -85,13 +85,16 @@ def build_app(study_ids: list[str], player_name=None, token=None, cache_path=Non
 
     if users and not demo_mode:
         # Multi-user auth signs session cookies with SECRET_KEY; refuse the
-        # public shipped default so cookies can't be forged (issue #89 [F1]).
-        # Only fires in multi-user mode — single-user stays ungated.
-        if (secret_key or config.SECRET_KEY) == config.DEFAULT_SECRET_KEY:
+        # public shipped default (forgeable cookies) *and* a blank key (Flask
+        # can't sign, so login would 500) — issue #89 [F1].  Only fires in
+        # multi-user mode; single-user stays ungated.
+        effective_key = (secret_key or config.SECRET_KEY or "").strip()
+        if not effective_key or effective_key == config.DEFAULT_SECRET_KEY:
             raise RuntimeError(
-                "Refusing to start multi-user auth with the default SECRET_KEY — "
-                "session cookies would be forgeable. Set SECRET_KEY to a stable "
-                "secret, e.g. python -c 'import secrets; print(secrets.token_hex(32))'"
+                "Refusing to start multi-user auth without a real SECRET_KEY "
+                "(it is blank or the shipped default — cookies would be forgeable "
+                "or unsignable). Set SECRET_KEY to a stable secret, e.g. "
+                "python -c 'import secrets; print(secrets.token_hex(32))'"
             )
         # Multi-user (issue #72): a store per user.  Not Synced here — the
         # per-request hook below activates the right store and Syncs it lazily

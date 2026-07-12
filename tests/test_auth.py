@@ -156,6 +156,37 @@ class TestEnablement:
 # ---------------------------------------------------------------------------
 
 class TestBuildAppGate:
+    @pytest.mark.parametrize("bad_key", ["dev-insecure-change-me", "   ", ""])
+    def test_multi_user_refuses_forgeable_secret_key(self, bad_key):
+        """Multi-user auth won't boot on the public default or a blank key —
+        both make session cookies forgeable/unsignable (#89)."""
+        import data
+
+        data.reset()
+        with mock.patch("data.sync_user"):
+            from app import build_app
+            with pytest.raises(RuntimeError, match="(?i)secret_key"):
+                build_app([], users=_users(), secret_key=bad_key)
+        data.reset()
+
+    def test_single_user_boots_on_default_key(self):
+        """The refusal must NOT bite ungated single-user mode (#89)."""
+        import data
+        from tests.conftest import (
+            SAMPLE_PGN,
+            preserve_dash_callbacks,
+            stub_ui_sources,
+        )
+
+        data.reset()
+        with stub_ui_sources(SAMPLE_PGN):
+            from app import build_app
+            _dash_app, server = build_app(
+                ["teststudy"], player_name="P", secret_key="dev-insecure-change-me")
+        with preserve_dash_callbacks():
+            assert server.test_client().get("/").status_code == 200
+        data.reset()
+
     def test_built_app_gates_pages_when_users_configured(self):
         """A real app built with users refuses an unauthenticated page request
         but lets a valid login through to the Dash page content."""
