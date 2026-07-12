@@ -21,6 +21,10 @@
   // hang).  So mounted-ness and the PGNs live here, keyed by the card wrapper
   // (which the viewer never touches), and `.lpv` is re-queried at use time.
   var mounted = new WeakSet();
+  // The view each card is currently meant to show ("game"/"analysis"/"coach"/
+  // "engine").  Set synchronously on every switch so an async board render that
+  // resolves after the user has moved on can tell it's stale and bail (#93 [3]).
+  var views = new WeakMap();
 
   function mountFor(card) {
     return card.querySelector(".lpv");
@@ -46,6 +50,11 @@
       : view === "coach" ? data.coach
       : data.game;
     loadLpv().then(function (LichessPgnViewer) {
+      // The user may have switched away (e.g. to Engine) while the module import
+      // was in flight; don't paint a board they no longer asked for (#93 [3]).
+      if (views.get(card) !== view) {
+        return;
+      }
       var mount = mountFor(card);
       if (!mount) {
         return;
@@ -62,6 +71,19 @@
         lichess: false,
         menu: { getPgn: { enabled: false } },
       });
+    }).catch(function () {
+      // The import failed (asset missing after a bad deploy, network hiccup, CSP
+      // blocking module scripts).  Reset the memoized promise so the next
+      // interaction retries, and show a visible fallback instead of a dead blank
+      // board — the "Open on Lichess" button still works alongside (#93 [2]).
+      lpvPromise = null;
+      if (views.get(card) !== view) {
+        return;
+      }
+      var mount = mountFor(card);
+      if (mount) {
+        mount.textContent = "Board failed to load — open this game on Lichess instead.";
+      }
     });
   }
 
@@ -77,6 +99,7 @@
       coach: mount.getAttribute("data-pgn-coach") || "",
       orientation: mount.getAttribute("data-orientation") || undefined,
     };
+    views.set(card, "game");
     renderBoard(card, data, "game");
 
     // The Engine view (issue #63 [F7]) is server-rendered Dash content, not a
@@ -87,12 +110,18 @@
     var switches = card.querySelectorAll(".lpv-switch");
     Array.prototype.forEach.call(switches, function (btn) {
       btn.addEventListener("click", function () {
+        // Re-clicking the active view would re-mount and reset the replay
+        // position; a no-op click should be a no-op (#93 [10]).
+        if (btn.classList.contains("active")) {
+          return;
+        }
         Array.prototype.forEach.call(switches, function (s) {
           s.classList.remove("active");
         });
         btn.classList.add("active");
 
         var view = btn.getAttribute("data-view");
+        views.set(card, view);  // record the desired view before any async render (#93 [3])
         var liveMount = mountFor(card);
         if (view === "engine") {
           if (liveMount) {
@@ -129,8 +158,19 @@
   }
 
   // Dash mounts the Game-detail page after navigation — rescan on DOM changes.
+  // The observer sees every mutation on every page (Plotly redraws on the chart
+  // pages fire storms of them); coalesce a whole batch into one scan per frame so
+  // board-less pages don't pay a document-wide selector query per mutation (#93 [11]).
+  var scanScheduled = false;
   var observer = new MutationObserver(function () {
-    scan();
+    if (scanScheduled) {
+      return;
+    }
+    scanScheduled = true;
+    requestAnimationFrame(function () {
+      scanScheduled = false;
+      scan();
+    });
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 })();

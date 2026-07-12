@@ -110,27 +110,27 @@ def update_games_table(colors, outcomes, terminations, start, end, events, moves
     disagree.
     """
     df_f = get_filtered(colors, outcomes, terminations, start, end, events, moves, lens)
-    cols = [c for c in _DISPLAY_COLS if c in df_f.columns]
-    out = df_f[cols].copy()
-    if "Lessons" in df_f.columns:
-        out["LessonIndicator"] = df_f["Lessons"].map(lambda les: "💡" if les else "")
-    if "Tags" in df_f.columns:
-        out["TagsDisplay"] = df_f["Tags"].map(
-            lambda tags: " ".join(f"#{t}" for t in tags)
+    # A populated DataFrame always carries every base + enrichment column (the
+    # pages contract); only the pre-Sync empty store lacks them, so guard that
+    # once here instead of per-column (#93).
+    if df_f.empty:
+        return []
+    out = df_f[_DISPLAY_COLS].copy()
+    out["LessonIndicator"] = df_f["Lessons"].map(lambda les: "💡" if les else "")
+    out["TagsDisplay"] = df_f["Tags"].map(
+        lambda tags: " ".join(f"#{t}" for t in tags)
+    )
+    # The Game's USCF status (issues #28/#29/#30)
+    out["USCF"] = [
+        uscf_status_label(matched_by, forfeit, conflict)
+        for matched_by, forfeit, conflict in zip(
+            df_f["UscfMatchedBy"], df_f["Forfeit"], df_f["UscfColorConflict"]
         )
-    if "UscfMatched" in df_f.columns:
-        # The Game's USCF status (issues #28/#29/#30)
-        out["USCF"] = [
-            uscf_status_label(matched_by, forfeit, conflict)
-            for matched_by, forfeit, conflict in zip(
-                df_f["UscfMatchedBy"], df_f["Forfeit"], df_f["UscfColorConflict"]
-            )
-        ]
-    if "ChapterURL" in df_f.columns:
-        out["Lichess"] = df_f["ChapterURL"].map(lichess_link)
-        # Not a displayed column — carried in the row data so clicking the row
-        # knows which Game to open (issue #11)
-        out["ChapterURL"] = df_f["ChapterURL"]
+    ]
+    out["Lichess"] = df_f["ChapterURL"].map(lichess_link)
+    # Not a displayed column — carried in the row data so clicking the row
+    # knows which Game to open (issue #11)
+    out["ChapterURL"] = df_f["ChapterURL"]
     return out.to_dict("records")
 
 

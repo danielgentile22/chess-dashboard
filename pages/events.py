@@ -339,11 +339,10 @@ def update_series_groups(colors, outcomes, terminations, start, end, events, mov
 
     # Per-Rated-Event performance ratings (kept from the old detail panel)
     performance_by_event = {}
-    if "UscfEventId" in df_f.columns:
-        for event_id, games in df_f[df_f["UscfEventId"] != ""].groupby("UscfEventId"):
-            performance_by_event[event_id] = (
-                performance_rating_stats(games)["performance_rating"]
-            )
+    for event_id, games in df_f[df_f["UscfEventId"] != ""].groupby("UscfEventId"):
+        performance_by_event[event_id] = (
+            performance_rating_stats(games)["performance_rating"]
+        )
 
     # Crosstables + whose row to highlight in them (issue #34)
     standings = data.get_uscf_standings()
