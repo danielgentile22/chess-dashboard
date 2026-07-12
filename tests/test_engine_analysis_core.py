@@ -1020,3 +1020,21 @@ class TestCustomStartPosition:
         ga = analyze_game(_CUSTOM_MOVETEXT, player_color="White", setup_fen=_CUSTOM_FEN)
         assert ga.analyzed is True
         assert [m.san for m in ga.moves] == ["Kd2", "Kd7", "Kd3", "Kd6"]
+
+    def test_first_custom_move_is_no_false_swing_and_keeps_the_fen_move_number(self):
+        # A custom position with a lopsided eval must not read as a move-1 blunder
+        # against the standard-opening baseline, and move numbers must follow the
+        # FEN's fullmove counter (starting at 23 here), not a local ply count.
+        fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 23"
+        movetext = (
+            "23. Kd2 { [%eval -9.0] } Kd7 { [%eval -9.0] } "
+            "24. Kd3 { [%eval -9.0] } Kd6 { [%eval -9.0] } *"
+        )
+        ga = analyze_game(movetext, player_color="White", setup_fen=fen)
+        assert ga.analyzed is True
+        first = ga.moves[0]
+        assert first.san == "Kd2"
+        assert first.move_number == 23                     # honours the FEN counter
+        assert first.win_pct_drop == pytest.approx(0.0)    # no fabricated first swing
+        assert ga.moves[2].move_number == 24
+        assert ga.error_profile == []                      # no phantom move-1 blunder

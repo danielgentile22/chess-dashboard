@@ -423,7 +423,10 @@ def load_games_from_text(
             # truncated parse (ADR 0001: data problems surface, never hidden).
             # python-chess records illegal SAN / mangled tokens into game.errors
             # and skips the rest of that line, handing back a valid-looking but
-            # cut-short game — the ParseError flag lets Reconciliation surface it.
+            # cut-short game. The WARNING is the loud signal today; the ParseError
+            # flag rides the row so a surface can flag the partial as such.
+            # ponytail: flag is log-only until a UI reads it — wire into the Sync
+            # toast (shell.py renders outcome.failures) when a partial must show.
             parse_error = bool(game.errors)
             if parse_error:
                 logger.warning(

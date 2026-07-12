@@ -359,6 +359,10 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
     """
     board = game.board()
     prev_cp: int = _START_CP
+    # A Chapter that began from a custom position has no exported pre-move-1 eval,
+    # and the standard-opening baseline (_START_CP) doesn't describe it — so the
+    # first move must not be scored as a swing against it.
+    custom_start = board.fen() != chess.STARTING_FEN
     evaluated = 0
     moves: list[MoveEval] = []
     ply = 0
@@ -369,6 +373,7 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
             continue
         ply += 1
         side = "White" if board.turn == chess.WHITE else "Black"
+        move_number = board.fullmove_number  # honours a custom FEN's move counter
         san = board.san(move)
 
         cp = _node_cp(node)
@@ -376,6 +381,8 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
         if has_eval:
             evaluated += 1
         cp_after = cp if has_eval else prev_cp  # missing eval carries forward → no swing
+        if ply == 1 and custom_start:
+            prev_cp = cp_after  # no honest baseline for the first custom-position move
 
         white_before = win_pct_from_cp(prev_cp)
         white_after = win_pct_from_cp(cp_after)
@@ -392,7 +399,7 @@ def _parse_move_evals(game: chess.pgn.Game) -> list[MoveEval]:
 
         moves.append(MoveEval(
             ply=ply,
-            move_number=(ply + 1) // 2,
+            move_number=move_number,
             side=side,
             san=san,
             eval_before=prev_cp / 100.0,
