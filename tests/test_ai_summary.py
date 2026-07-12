@@ -156,3 +156,25 @@ class TestCachingByGameIdentity:
 
         assert first == second == "You won after a blunder."
         seam.assert_called_once()  # billed once, then served from cache
+
+
+class TestCacheFingerprintCoversModelAndSystem:
+    """Bumping the model (or rewording the system prompt) must invalidate the
+    cache so a stale summary isn't served forever (issue #91)."""
+
+    def test_fingerprint_changes_with_the_model(self):
+        a = ai_summary._fingerprint("model-old", "same prompt")
+        b = ai_summary._fingerprint("model-new", "same prompt")
+        assert a != b
+
+    def test_changing_the_model_reruns_instead_of_serving_a_stale_summary(self):
+        ga = _alice()
+        cache = _FakeCache()
+        with mock.patch.object(ai_summary, "_call_anthropic", return_value="Old."):
+            summarize(ga, api_key="sk-test", model="model-old", cache=cache)
+        with mock.patch.object(
+            ai_summary, "_call_anthropic", return_value="New."
+        ) as seam:
+            again = summarize(ga, api_key="sk-test", model="model-new", cache=cache)
+        assert again == "New."          # not the stale "Old." — the model change missed
+        seam.assert_called_once()

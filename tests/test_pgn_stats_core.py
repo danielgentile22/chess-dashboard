@@ -6,6 +6,7 @@ Run with:  pytest tests/ -v
 """
 from __future__ import annotations
 
+import logging
 import math
 
 import pandas as pd
@@ -2158,3 +2159,87 @@ class TestMainlineMovetext:
     def test_blank_movetext_stays_blank(self):
         assert mainline_movetext("") == ""
         assert mainline_movetext("   ") == ""
+
+
+# ---------------------------------------------------------------------------
+# Robustness fixes (issue #91): URL fragments, hand-drawn shapes, custom FEN,
+# and malformed chapters
+# ---------------------------------------------------------------------------
+
+class TestTagUrlFragments:
+    """A link's #fragment in a comment must not masquerade as a Tag (#91)."""
+
+    def test_url_fragment_is_not_harvested_as_a_tag(self):
+        pgn = (
+            '[Event "T"]\n[White "Test Player"]\n[Black "X"]\n[Result "1-0"]\n\n'
+            "1. e4 { compare https://en.wikipedia.org/wiki/Lucena_position#Endgame "
+            "and note #tactics } 1... e5 1-0\n"
+        )
+        one_df, _ = load_games_from_text(pgn, player_name="Test Player")
+        tags = one_df.iloc[0]["Tags"]
+        assert "tactics" in tags        # the genuine hashtag survives
+        assert "endgame" not in tags    # the URL anchor does not become a Tag
+
+
+class TestShapeAnnotationIsMyAnalysis:
+    """Hand-drawn arrows/circles ([%cal]/[%csl]) are Daniel's own analysis (#91)."""
+
+    def test_arrows_only_chapter_counts_as_my_analysis(self):
+        assert has_my_analysis("1. e4 { [%cal Ge2e4,Rd1d8] } 1... e5 *") is True
+
+    def test_circles_only_chapter_counts_as_my_analysis(self):
+        assert has_my_analysis("1. e4 { [%csl Ge4] } 1... e5 *") is True
+
+    def test_pure_machine_annotation_is_not_my_analysis(self):
+        assert has_my_analysis("1. e4 { [%eval 0.3] [%clk 0:05:00] } 1... e5 *") is False
+
+
+class TestCustomFenChapter:
+    """A Chapter starting from a custom FEN keeps its position across the
+    headerless-movetext boundary instead of truncating (#91)."""
+
+    _PGN = (
+        '[Event "Study"]\n[ChapterURL "https://lichess.org/study/x/pos1"]\n'
+        '[Result "*"]\n[FEN "4k3/8/8/8/8/8/8/4K3 w - - 0 1"]\n[SetUp "1"]\n\n'
+        "1. Kd2 Kd7 2. Kd3 Kd6 *\n"
+    )
+
+    def test_setup_fen_is_captured(self):
+        df, _ = load_games_from_text(self._PGN, player_name="X")
+        assert df.iloc[0]["SetupFEN"].startswith("4k3/8/8/8/8/8/8/4K3")
+        assert bool(df.iloc[0]["ParseError"]) is False  # primary parse is clean
+
+    def test_reparse_without_fen_truncates_but_with_fen_survives(self):
+        df, _ = load_games_from_text(self._PGN, player_name="X")
+        movetext = df.iloc[0]["Movetext"]
+        assert "Kd2" not in mainline_movetext(movetext)             # bug repro
+        restored = mainline_movetext(movetext, df.iloc[0]["SetupFEN"])
+        assert "Kd2" in restored and "Kd6" in restored
+
+
+class TestMalformedChapterSurfaces:
+    """A malformed movetext is flagged and logged, never silently truncated (#91)."""
+
+    _PGN = (
+        '[Event "Study"]\n[ChapterName "Bad Chapter"]\n'
+        '[ChapterURL "https://lichess.org/study/x/bad"]\n[Result "*"]\n\n'
+        "1. e4 e5 2. Kg3 *\n"   # 2. Kg3 is illegal from here → parse error
+    )
+
+    def test_parse_error_flag_is_set_and_warning_logged(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            df, _ = load_games_from_text(self._PGN, player_name="X")
+        row = df.iloc[0]
+        assert bool(row["ParseError"]) is True
+        assert row["Plies"] == 2            # the good moves before the bad token survive
+        assert "Bad Chapter" in caplog.text
+
+    def test_a_clean_chapter_carries_no_parse_error(self, caplog):
+        pgn = (
+            '[Event "T"]\n[White "X"]\n[Black "Y"]\n[Result "1-0"]\n\n'
+            "1. e4 e5 2. Nf3 Nc6 1-0\n"
+        )
+        with caplog.at_level(logging.WARNING):
+            df, _ = load_games_from_text(pgn, player_name="X")
+        assert bool(df.iloc[0]["ParseError"]) is False
+        assert caplog.text == ""

@@ -615,7 +615,9 @@ class TestEnrich:
 
     def test_empty_df_still_gets_the_columns(self):
         out = enrich_games_with_analysis(pd.DataFrame())
-        assert list(out.columns) == ["Analysis", "Analyzed"]
+        # TagSources must exist on the empty store too — the non-empty path always
+        # sets it, so the schema stays identical and accessors stay total (#5).
+        assert list(out.columns) == ["Analysis", "Analyzed", "TagSources"]
         assert out.empty
 
     def test_a_bad_movetext_row_degrades_instead_of_failing(self):
@@ -857,3 +859,164 @@ class TestSyncIntegration:
             outcome = data.refresh()
         assert outcome.status == "success"
         assert data.get_game_analysis(ALICE_URL).analyzed is True
+
+
+# ---------------------------------------------------------------------------
+# Mate-score parsing (issue #91): [%eval #N] must saturate the win% curve
+# ---------------------------------------------------------------------------
+
+# White is mating (2. Qh5 #4) then Black is mating (2... Nc6 #-3); both are
+# annotations the parser must fold into a saturating centipawn magnitude.
+MATE_PGN = (
+    "1. e4 { [%eval 0.3] } 1... e5 { [%eval 0.2] } "
+    "2. Qh5 { [%eval #4] } 2... Nc6 { [%eval #-3] } "
+    "3. Bc4 { [%eval #2] } 0-1"
+)
+
+
+class TestMateScoreParsing:
+    """A ``[%eval #N]`` mate score reads as a near-certain win for the mating
+    side, from either colour's perspective (issue #91)."""
+
+    def _move(self, ga, san):
+        return next(m for m in ga.moves if m.san == san)
+
+    def test_white_mate_saturates_to_a_full_white_advantage(self):
+        ga = analyze_game(MATE_PGN, player_color="White", player_outcome="Win")
+        qh5 = self._move(ga, "Qh5")            # 2. Qh5 { [%eval #4] }
+        assert qh5.eval_after == pytest.approx(99.96, abs=0.05)  # Mate(+4) → +9996cp
+        assert qh5.win_pct_after == pytest.approx(100.0, abs=0.5)  # White is mating
+
+    def test_black_mate_saturates_to_a_full_mover_advantage(self):
+        ga = analyze_game(MATE_PGN, player_color="Black", player_outcome="Win")
+        nc6 = self._move(ga, "Nc6")            # 2... Nc6 { [%eval #-3] }
+        assert nc6.eval_after == pytest.approx(-99.97, abs=0.05)  # Mate(-3) → -9997cp
+        # Win% is the mover's: Black is the one mating, so ~100 from Black's side.
+        assert nc6.win_pct_after == pytest.approx(100.0, abs=0.5)
+
+
+# ---------------------------------------------------------------------------
+# Missing-eval handling (issue #91): no carrying a stray/absent eval forward as
+# a real, zero-drop, ~100%-accuracy move
+# ---------------------------------------------------------------------------
+
+# Only move 1 carries an [%eval]; a lone manual eval must not read as a fully
+# analysed Game (coverage well below the threshold).
+STRAY_EVAL_PGN = (
+    "1. e4 { [%eval 0.2] } 1... e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O 1-0"
+)
+
+# 4 of 5 plies evaluated (0.8 coverage, just analysed); White's 2. Qh5 has no
+# eval (a gap), and White's real blunder is 3. Nf3 { [%eval -8.0] }.
+PARTIAL_COVERAGE_PGN = (
+    "1. e4 { [%eval 0.3] } 1... e5 { [%eval 0.2] } "
+    "2. Qh5 2... Nc6 { [%eval 0.2] } "
+    "3. Nf3 { [%eval -8.0] } 0-1"
+)
+
+
+class TestMissingEvalHandling:
+    def test_a_single_stray_eval_is_not_a_fully_analysed_game(self):
+        ga = analyze_game(STRAY_EVAL_PGN, player_color="White", player_outcome="Win")
+        assert ga.analyzed is False   # coverage below the threshold → awaiting analysis
+        assert ga.moves == []
+        assert ga.accuracy is None
+        assert ga.error_profile == []
+
+    def test_the_eval_less_move_is_marked_and_excluded_from_accuracy(self):
+        ga = analyze_game(
+            PARTIAL_COVERAGE_PGN, player_color="White", player_outcome="Loss"
+        )
+        assert ga.analyzed is True
+        qh5 = next(m for m in ga.moves if m.san == "Qh5")
+        assert qh5.has_eval is False              # no [%eval] on that move
+        assert qh5.win_pct_drop == pytest.approx(0.0)  # carried forward → no swing
+        # Accuracy averages only the two *evaluated* White moves (a ~100 and the
+        # ~10 blunder → ~55). Had the carried-forward Qh5 counted as a phantom
+        # 100, the mean would jump toward ~70 — so it must stay well under 62.
+        assert 45.0 < ga.accuracy < 62.0
+
+    def test_a_carried_forward_move_is_never_a_phantom_mistake(self):
+        ga = analyze_game(
+            PARTIAL_COVERAGE_PGN, player_color="White", player_outcome="Loss"
+        )
+        # The eval-less Qh5 must not appear; only the genuinely evaluated blunder.
+        assert [m.san for m in ga.error_profile] == ["Nf3"]
+        assert ga.error_profile[0].severity == "blunder"
+
+
+# ---------------------------------------------------------------------------
+# Refutation sibling selection (issue #91): the engine's line, not the player's
+# hand-written sideline serialised first
+# ---------------------------------------------------------------------------
+
+# 3. b3?! has two siblings: the player's hand line (3. Nc3, no eval, FIRST) and
+# the engine's line (3. c4, carrying [%eval]); the judgment names c4 as best.
+REFUTATION_NAMED_PGN = (
+    "1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.2] } "
+    "2. Nf3 { [%eval 0.2] } 2... Nf6 { [%eval 0.2] } "
+    "3. b3 { [%eval -1.0] Inaccuracy. c4 was best. } "
+    "( 3. Nc3 e6 ) "
+    "( 3. c4 { [%eval 0.3] } dxc4 { [%eval 0.2] } ) "
+    "3... e6 { [%eval -0.9] } 0-1"
+)
+
+# Same shape, but no "X was best" text — the eval on the second sibling is the
+# only signal distinguishing the engine's line from the hand sideline.
+REFUTATION_EVAL_PGN = (
+    "1. d4 { [%eval 0.2] } 1... d5 { [%eval 0.2] } "
+    "2. Nf3 { [%eval 0.2] } 2... Nf6 { [%eval 0.2] } "
+    "3. b3 { [%eval -1.0] } "
+    "( 3. Nc3 e6 ) "
+    "( 3. c4 { [%eval 0.3] } ) "
+    "3... e6 { [%eval -0.9] } 0-1"
+)
+
+
+class TestRefutationSiblingSelection:
+    def test_judgment_named_best_move_picks_that_sibling(self):
+        ga = analyze_game(REFUTATION_NAMED_PGN, player_color="White")
+        b3 = next(m for m in ga.moves if m.san == "b3")
+        assert b3.best_move == "c4"
+        assert b3.refutation_line[0] == "c4"   # engine's line, not the hand line Nc3
+
+    def test_eval_bearing_sibling_wins_when_no_best_move_is_named(self):
+        ga = analyze_game(REFUTATION_EVAL_PGN, player_color="White")
+        b3 = next(m for m in ga.moves if m.san == "b3")
+        assert b3.refutation_line[0] == "c4"   # the sibling carrying [%eval]
+        assert b3.best_move == "c4"            # falls back to the chosen line's head
+
+
+# ---------------------------------------------------------------------------
+# Castling-with-check best move (issue #91)
+# ---------------------------------------------------------------------------
+
+class TestCastlingBestMove:
+    def test_castling_with_check_or_mate_is_a_parsable_best_move(self):
+        from engine_analysis_core import _best_move_from_judgment
+        assert _best_move_from_judgment("Mistake. O-O+ was best.") == "O-O+"
+        assert _best_move_from_judgment("Blunder. O-O-O# was best.") == "O-O-O#"
+        assert _best_move_from_judgment("Inaccuracy. O-O was best.") == "O-O"
+
+
+# ---------------------------------------------------------------------------
+# Custom start position (issue #91): a Chapter beginning from a FEN reparses
+# from that position instead of truncating against the standard start
+# ---------------------------------------------------------------------------
+
+_CUSTOM_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1"   # bare kings; Kd2 is illegal from start
+_CUSTOM_MOVETEXT = (
+    "1. Kd2 { [%eval 0.0] } Kd7 { [%eval 0.0] } "
+    "2. Kd3 { [%eval 0.0] } Kd6 { [%eval 0.0] } *"
+)
+
+
+class TestCustomStartPosition:
+    def test_without_the_fen_the_line_truncates_to_unanalysed(self):
+        ga = analyze_game(_CUSTOM_MOVETEXT, player_color="White")
+        assert ga.analyzed is False   # Kd2 illegal from the standard start → no moves
+
+    def test_with_the_fen_the_full_line_is_restored(self):
+        ga = analyze_game(_CUSTOM_MOVETEXT, player_color="White", setup_fen=_CUSTOM_FEN)
+        assert ga.analyzed is True
+        assert [m.san for m in ga.moves] == ["Kd2", "Kd7", "Kd3", "Kd6"]

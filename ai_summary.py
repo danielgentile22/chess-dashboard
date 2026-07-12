@@ -124,7 +124,7 @@ def summarize(
         return ""
 
     prompt = build_prompt(analysis)
-    fingerprint = _fingerprint(prompt)
+    fingerprint = _fingerprint(model, prompt)
     if cache is not None:
         cached = cache.get_summary(analysis.chapter_url, fingerprint)
         if cached is not None:
@@ -142,13 +142,15 @@ def summarize(
     return text
 
 
-def _fingerprint(prompt: str) -> str:
-    """A stable identity for a Game's facts: a hash of its assembled prompt.
+def _fingerprint(model: str, prompt: str) -> str:
+    """A stable identity for a Game's summary inputs: a hash of the *model*, the
+    system instruction, and the assembled *prompt*.
 
-    Keying the cache on this means an *unchanged* Game (same facts → same
+    Keying the cache on all three means an *unchanged* Game (same facts → same
     prompt) is served from the cache, while a re-analysed Game whose facts moved
-    misses and is summarised afresh."""
-    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    — or a bumped model, or a reworded ``_SYSTEM`` — misses and is summarised
+    afresh, so a model/prompt change doesn't serve stale summaries forever."""
+    return hashlib.sha256(f"{model}\n{_SYSTEM}\n{prompt}".encode()).hexdigest()
 
 
 def _call_anthropic(prompt: str, *, api_key: str, model: str) -> str:

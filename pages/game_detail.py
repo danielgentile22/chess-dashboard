@@ -252,6 +252,11 @@ def _game_pgn(game: pd.Series, movetext: str) -> str:
         ("Black", black),
         ("Result", game.get("Result")),
     ]
+    # A custom start position (Studies allow one) must ride in the headers or the
+    # viewer replays the moves from the standard start.
+    setup_fen = str(game.get("SetupFEN") or "").strip()
+    if setup_fen:
+        headers += [("FEN", setup_fen), ("SetUp", "1")]
     head = "".join(f'[{k} "{v}"]\n' for k, v in headers if str(v or "").strip())
     return f"{head}\n{movetext}".strip()
 
@@ -398,8 +403,9 @@ def _board_section(game: pd.Series) -> html.Div:
             ),
         ])
 
+    setup_fen = str(game.get("SetupFEN") or "")
     data_attrs = {
-        "data-pgn-game": _game_pgn(game, mainline_movetext(movetext)),
+        "data-pgn-game": _game_pgn(game, mainline_movetext(movetext, setup_fen)),
         # Orient the board the way Daniel played it — his colour at the bottom.
         "data-orientation": str(game.get("Color") or "white").lower(),
     }
@@ -412,7 +418,7 @@ def _board_section(game: pd.Series) -> html.Div:
         html.Button("Game", className="lpv-switch active",
                     **{"data-view": "game"}),
     ]
-    if has_my_analysis(movetext):
+    if has_my_analysis(movetext, setup_fen):
         data_attrs["data-pgn-analysis"] = _game_pgn(game, movetext)
         switches.append(
             html.Button("My Analysis", className="lpv-switch",
