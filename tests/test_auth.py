@@ -277,3 +277,36 @@ class TestGatedIsolation:
                         assert list(data.get_df()["ChapterURL"]) == expected
         finally:
             data.reset()
+
+
+# ---------------------------------------------------------------------------
+# The post-login `next` redirect — the open-redirect guard (_safe_next).
+# A local path is honored; `//host`, an absolute URL, or the backslash form
+# `/\host` (browsers normalise `\`→`/`) all fall back to `/` (issue #89 [F4]).
+# ---------------------------------------------------------------------------
+
+class TestNextRedirect:
+    def _login_next(self, client, nxt):
+        return client.post("/login", data={
+            "username": "daniel", "password": "hunter2", "next": nxt})
+
+    def test_a_local_next_is_honored_after_login(self, client):
+        resp = self._login_next(client, "/trends")
+        assert resp.status_code == 302
+        assert resp.headers["Location"] == "/trends"
+
+    def test_a_protocol_relative_next_falls_back_to_root(self, client):
+        assert self._login_next(client, "//evil.example").headers["Location"] == "/"
+
+    def test_an_absolute_url_next_falls_back_to_root(self, client):
+        resp = self._login_next(client, "https://evil.example/x")
+        assert resp.headers["Location"] == "/"
+
+    def test_a_backslash_host_next_falls_back_to_root(self, client):
+        assert self._login_next(client, "/\\evil.com").headers["Location"] == "/"
+
+    def test_the_login_form_carries_the_escaped_local_next(self, client):
+        assert b'name="next" value="/trends"' in client.get("/login?next=/trends").data
+
+    def test_the_login_form_sanitizes_an_off_site_next(self, client):
+        assert b'name="next" value="/"' in client.get("/login?next=//evil.example").data

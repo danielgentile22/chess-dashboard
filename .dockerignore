@@ -6,11 +6,18 @@ __pycache__
 .user-data
 .pytest_cache
 .mypy_cache
+.ruff_cache
 htmlcov
-tests
-# but keep the anonymized demo seed — DEMO_MODE=1 boots from it in the image
-!tests/data/demo-games.pgn
+.coverage
 docs
 scratchpad
 uscf_cache.json
 analysis_cache.json
+tests
+# Local Sync caches (root games.pgn + any nested .pgn) — ADR 0001 says the PGN
+# is a disposable cache, never shipped. Baking root games.pgn in would boot
+# compose from Daniel's stale personal sync (CACHE_PATH is cwd-relative there).
+**/*.pgn
+# ...but keep the anonymized demo seed — DEMO_MODE=1 boots from it in the image.
+# Must stay last: last-matching pattern wins, so this re-includes it after **/*.pgn.
+!tests/data/demo-games.pgn

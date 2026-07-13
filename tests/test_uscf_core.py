@@ -2112,6 +2112,38 @@ class TestAttachRoundNumbers:
         # Both rounds assigned, each exactly once
         assert sorted(attached["UscfRound"]) == [2, 5]
 
+    def test_two_forfeit_rounds_against_one_opponent_refuse_to_guess(self):
+        """ADR 0007 'match, never guess': with two forfeit-outcome rounds vs the
+        same opponent (across two Sections), an unmatched Forfeit gets no real
+        round — the designed refusal branch (`if len(forfeit_rounds) == 1`),
+        not the single-forfeit case at line 2041."""
+        import pandas as pd
+
+        # The Forfeit: an unmatched one-move game vs Uma Baker (20000071).
+        df = games_df(chapter(opponent="Uma Baker", opponent_id="20000071",
+                              color="White", result="1-0", moves="1. e4"))
+        enriched = uscf_core.enrich_games(df, uscf_core.match_games(df, []))
+        assert bool(enriched.iloc[0]["Forfeit"]) is True
+
+        # One forfeit outcome in each of two Sections against 20000071.
+        def forfeit_crosstable(round_no, outcome):
+            return uscf_core.build_standings([{
+                "ordinal": 1, "memberId": "99999999",
+                "firstName": "Test", "lastName": "Player", "score": 1,
+                "roundOutcomes": [{
+                    "roundNumber": round_no, "outcome": outcome, "color": "White",
+                    "opponentMemberId": "20000071", "opponentLastName": "BAKER"}],
+                "ratings": [{"ratingSystem": "R", "preRatingDecimal": 1500.0,
+                             "postRatingDecimal": 1500.0}],
+            }])
+        standings = {
+            ("202605290393", "LADDER"): forfeit_crosstable(4, "WinForfeit"),
+            ("202603290543", "OPEN"): forfeit_crosstable(2, "Forfeit"),
+        }
+
+        attached = uscf_core.attach_round_numbers(enriched, standings, "99999999")
+        assert pd.isna(attached["UscfRound"]).all()
+
 
 # ---------------------------------------------------------------------------
 # Norms and awards → achievements (issue #36)

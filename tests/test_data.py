@@ -903,6 +903,23 @@ class TestRefresh:
         outcome = data.refresh()
         assert outcome.status == "error"
 
+    def test_refresh_to_empty_studies_keeps_current_data(self, sample_pgn_text):
+        """Sync reaches Lichess but the Study now exports zero games: an error
+        outcome, and the atomic swap leaves current data and freshness untouched
+        (the emptiness check must return before _commit, not wipe the store)."""
+        with stub_studies(study1=sample_pgn_text):
+            data.initialize(["study1"], player_name="Test Player")
+        df_before = data.get_df()
+        synced_before = data.synced_at()
+
+        with stub_studies(study1=""):
+            outcome = data.refresh()
+
+        assert outcome.status == "error"
+        assert "No games found" in outcome.error
+        assert data.get_df() is df_before          # same object — never swapped
+        assert data.synced_at() == synced_before
+
 
 # ---------------------------------------------------------------------------
 # Cache fallback / offline resilience (issue #7)
