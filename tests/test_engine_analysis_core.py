@@ -894,6 +894,21 @@ class TestMateScoreParsing:
         # Win% is the mover's: Black is the one mating, so ~100 from Black's side.
         assert nc6.win_pct_after == pytest.approx(100.0, abs=0.5)
 
+    def test_walking_into_a_forced_mate_is_a_blunder(self):
+        # White's 3. Ke2 allows #-2: the folded mate saturates eval to ~-100
+        # pawns and win% to ~0, so the ply is a blunder and the critical moment.
+        pgn = (
+            "1. e4 { [%eval 0.2] } 1... e5 { [%eval 0.1] } "
+            "2. Bc4 { [%eval 0.2] } 2... Qh4 { [%eval 0.3] } "
+            "3. Ke2 { [%eval #-2] Blunder. Nf3 was best. } 3... Qxf2# 0-1"
+        )
+        ga = analyze_game(pgn, player_color="White", player_outcome="Loss")
+        ke2 = self._move(ga, "Ke2")
+        assert ke2.eval_after == pytest.approx(-99.98, abs=0.05)  # Mate(-2) folded
+        assert ke2.win_pct_after == pytest.approx(0.0, abs=0.5)
+        assert ga.error_profile and ga.error_profile[0].severity == "blunder"
+        assert ga.critical_moment.san == "Ke2"
+
 
 # ---------------------------------------------------------------------------
 # Missing-eval handling (issue #91): no carrying a stray/absent eval forward as
@@ -943,6 +958,21 @@ class TestMissingEvalHandling:
         # The eval-less Qh5 must not appear; only the genuinely evaluated blunder.
         assert [m.san for m in ga.error_profile] == ["Nf3"]
         assert ga.error_profile[0].severity == "blunder"
+
+    def test_a_malformed_eval_directive_degrades_instead_of_raising(self):
+        # A garbage [%eval xyz] must not crash analysis (the _node_cp
+        # ValueError/KeyError branch): that ply reads eval-less, no phantom
+        # mistake, the rest of the game still analyses (issue #91).
+        pgn = (
+            "1. e4 { [%eval 0.3] } 1... e5 { [%eval 0.2] } "
+            "2. Nf3 { [%eval xyz] } 2... Nc6 { [%eval 0.1] } "
+            "3. Bb5 { [%eval 0.2] } 1-0"
+        )
+        ga = analyze_game(pgn, player_color="White", player_outcome="Win")
+        assert ga.analyzed is True
+        nf3 = next(m for m in ga.moves if m.san == "Nf3")
+        assert nf3.has_eval is False              # malformed directive → no eval
+        assert ga.error_profile == []             # never a phantom mistake
 
 
 # ---------------------------------------------------------------------------

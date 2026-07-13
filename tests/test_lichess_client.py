@@ -13,6 +13,7 @@ import pytest
 import requests
 
 from lichess_client import (
+    LichessError,
     LichessRateLimitedError,
     LichessUnreachableError,
     StudyNotFoundError,
@@ -104,6 +105,17 @@ class TestFetchStudyPgn:
         ):
             with pytest.raises(LichessRateLimitedError):
                 fetch_study_pgn("abcdWXYZ")
+
+    def test_a_server_error_is_a_lichess_error_not_a_crash(self):
+        """A 5xx (any other non-200) stays a LichessError so sync_studies'
+        per-Study `except LichessError` degrade catches it instead of taking
+        down startup/refresh (issue #87 [5])."""
+        with mock.patch(
+            "lichess_client.requests.get", return_value=_response(503, "")
+        ):
+            with pytest.raises(LichessError) as exc_info:
+                fetch_study_pgn("abcdWXYZ")
+        assert "503" in str(exc_info.value)
 
     def test_token_sent_as_bearer_auth_header(self):
         with mock.patch("lichess_client.requests.get", return_value=_response()) as get:
