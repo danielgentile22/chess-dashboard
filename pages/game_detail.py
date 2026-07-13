@@ -257,7 +257,12 @@ def _game_pgn(game: pd.Series, movetext: str) -> str:
     setup_fen = str(game.get("SetupFEN") or "").strip()
     if setup_fen:
         headers += [("FEN", setup_fen), ("SetUp", "1")]
-    head = "".join(f'[{k} "{v}"]\n' for k, v in headers if str(v or "").strip())
+    # PGN tag values must escape backslash and double-quote, else an opponent or
+    # event name with a quote (e.g. '2025 "Summer" Open') produces a malformed
+    # tag pair that breaks the viewer for all three board views (#93).
+    def esc(v: object) -> str:
+        return str(v).replace("\\", "\\\\").replace('"', '\\"')
+    head = "".join(f'[{k} "{esc(v)}"]\n' for k, v in headers if str(v or "").strip())
     return f"{head}\n{movetext}".strip()
 
 

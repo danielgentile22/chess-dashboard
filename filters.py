@@ -200,7 +200,10 @@ def make_filter_drawer(df: pd.DataFrame) -> dbc.Offcanvas:
                 dcc.DatePickerRange(
                     id="date-filter",
                     min_date_allowed=b["min_date"], max_date_allowed=b["max_date"],
-                    start_date=b["min_date"], end_date=b["max_date"],
+                    # No date bound by default so undated Games stay in view (#93);
+                    # apply_filters only drops NaT rows once a bound is set. clearable
+                    # lets the user empty the range back to "all dates".
+                    start_date=None, end_date=None, clearable=True,
                     display_format="YYYY-MM-DD",
                 ),
             ]),
@@ -234,10 +237,13 @@ def toggle_filter_drawer(n_clicks, is_open):
 
 
 @callback(
-    Output("color-filter",   "value"),
-    Output("outcome-filter", "value"),
-    Output("date-filter",    "start_date"),
-    Output("date-filter",    "end_date"),
+    Output("color-filter",       "value"),
+    Output("outcome-filter",     "value"),
+    Output("termination-filter", "value"),
+    Output("event-filter",       "value"),
+    Output("moves-filter",       "value", allow_duplicate=True),
+    Output("date-filter",        "start_date"),
+    Output("date-filter",        "end_date"),
     [Input("preset-all",    "n_clicks"),
      Input("preset-last20", "n_clicks"),
      Input("preset-year",   "n_clicks"),
@@ -249,22 +255,26 @@ def toggle_filter_drawer(n_clicks, is_open):
 def apply_preset(n_all, n20, n_year, n_white, n_black, n_wins):
     ctx = callback_context
     if not ctx.triggered:
-        return no_update, no_update, no_update, no_update
+        return (no_update,) * 7
     btn = ctx.triggered[0]["prop_id"].split(".")[0]
 
     df = data.get_df()
+    b = _data_bounds(df)
     dated = df[df["Date_dt"].notna()]
-    global_min = dated["Date_dt"].min().date().isoformat() if not dated.empty else None
-    global_max = dated["Date_dt"].max().date().isoformat() if not dated.empty else None
 
+    # Every preset is a complete starting point (#93): reset all filters to
+    # "everything", then apply the preset's one specialization.  Dates default to
+    # None (no bound) so undated Games stay visible unless a preset narrows dates.
     colors = ["White", "Black"]
     outcomes = ["Win", "Draw", "Loss"]
-    start, end = global_min, global_max
+    terminations: list[str] = []
+    events: list[str] = []
+    moves = [b["min_mv"], b["max_mv"]]
+    start = end = None
 
     if btn == "preset-last20":
-        if not dated.empty:
-            last20 = df.sort_values("Date_dt").tail(20)
-            start = last20["Date_dt"].min().date().isoformat()
+        if not dated.empty:  # window over dated Games only (NaT sorts last)
+            start = dated.sort_values("Date_dt").tail(20)["Date_dt"].min().date().isoformat()
     elif btn == "preset-year":
         start = f"{date.today().year}-01-01"
     elif btn == "preset-white":
@@ -274,7 +284,7 @@ def apply_preset(n_all, n20, n_year, n_white, n_black, n_wins):
     elif btn == "preset-wins":
         outcomes = ["Win"]
 
-    return colors, outcomes, start, end
+    return colors, outcomes, terminations, events, moves, start, end
 
 
 def _date_range_label(df: pd.DataFrame) -> str:
@@ -321,13 +331,31 @@ def update_filter_summary(colors, outcomes, terminations, start, end,
         active += 1
     if events:
         active += 1
-    if (start and b["min_date"] and str(start)[:10] > b["min_date"]) or \
-       (end and b["max_date"] and str(end)[:10] < b["max_date"]):
+    # Any date bound is now an active filter: with the None default (#93) a set
+    # start/end both narrows the range *and* excludes undated Games, so it always
+    # changes the result set — even when it equals the dated extent.
+    if start or end:
         active += 1
     if moves and len(moves) == 2 and (moves[0] > b["min_mv"] or moves[1] < b["max_mv"]):
         active += 1
 
     return summary, (str(active) if active else "")
+
+
+def _clamp_date(value, lo: str | None, hi: str | None):
+    """Pull an ISO date selection into [lo, hi]; no_update if empty or in range."""
+    if not value or not lo or not hi:
+        return no_update
+    v = str(value)[:10]
+    return lo if v < lo else hi if v > hi else no_update
+
+
+def _clamp_moves(value, lo: int, hi: int):
+    """Pull a [start, end] move range into [lo, hi]; no_update if in range."""
+    if not value or len(value) != 2:
+        return no_update
+    clamped = [max(lo, min(hi, value[0])), max(lo, min(hi, value[1]))]
+    return clamped if clamped != list(value) else no_update
 
 
 @callback(
@@ -341,9 +369,12 @@ def update_filter_summary(colors, outcomes, terminations, start, end,
     Output("moves-filter", "max"),
     Output("moves-filter", "value"),
     Input("sync-store", "data"),
+    State("moves-filter", "value"),
+    State("date-filter", "start_date"),
+    State("date-filter", "end_date"),
     prevent_initial_call=True,  # the layout holds correct startup values
 )
-def update_filter_options(sync_store):
+def update_filter_options(sync_store, moves_value, start, end):
     """Filter options follow the current data, not startup data.
 
     The game count and date range relocated to the drawer summary (issue #45),
@@ -356,18 +387,25 @@ def update_filter_options(sync_store):
 
     b = _data_bounds(df)
 
-    # Only push the *selected* ranges back to "everything" when new Games
-    # arrived (so they're immediately visible); otherwise leave the user's
-    # selection alone.
     has_new_games = (sync_store or {}).get("new_games", 0) > 0
-    start_value = b["min_date"] if has_new_games else no_update
-    end_value = b["max_date"] if has_new_games else no_update
-    moves_value = [b["min_mv"], b["max_mv"]] if has_new_games else no_update
+    if has_new_games:
+        # New Games arrived: reset selections to "everything" so they're
+        # immediately visible.  Dates go to None (no bound) so undated Games
+        # stay in view (#93).
+        start_out, end_out = None, None
+        moves_out = [b["min_mv"], b["max_mv"]]
+    else:
+        # No new Games, but a shrinking Sync (a deleted chapter, a date/movetext
+        # correction) can leave the current selection outside the new bounds;
+        # clamp it back in, otherwise leave it alone (#93).
+        start_out = _clamp_date(start, b["min_date"], b["max_date"])
+        end_out = _clamp_date(end, b["min_date"], b["max_date"])
+        moves_out = _clamp_moves(moves_value, b["min_mv"], b["max_mv"])
 
     return (
         [{"label": t, "value": t} for t in b["terminations"]],
         [{"label": e, "value": e} for e in b["events"]],
         b["min_date"], b["max_date"],
-        start_value, end_value,
-        b["min_mv"], b["max_mv"], moves_value,
+        start_out, end_out,
+        b["min_mv"], b["max_mv"], moves_out,
     )

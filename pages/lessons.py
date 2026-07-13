@@ -51,7 +51,7 @@ def _opponent_options() -> list[dict]:
     df = data.get_df()
     if df.empty:
         return []
-    has_lessons = df[df["Lessons"].map(bool)] if "Lessons" in df.columns else df
+    has_lessons = df[df["Lessons"].map(bool)]
     return [{"label": o, "value": o}
             for o in sorted(has_lessons["Opponent"].dropna().unique()) if o]
 
@@ -102,7 +102,7 @@ def layout(review: str | None = None, opponent: str | None = None, **kwargs) -> 
     # Review mode rides on top of the page (issue #19).  The page's entry
     # animation must be off in this case: its transform creates a CSS
     # containing block that would trap the fixed-position overlay.
-    if review:
+    if review == "1":  # the documented ?review=1 contract — not any truthy string (#93)
         children.append(_review_overlay(opponent or None))
         return html.Div(className="page page-no-anim", children=children)
 

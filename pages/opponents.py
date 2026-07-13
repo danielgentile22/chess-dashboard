@@ -132,8 +132,7 @@ def _uscf_identity(report: dict, games) -> html.Div | None:
     Opponents with no USCF identity (never matched) get nothing — the
     dossier renders exactly as before (ADR 0003).
     """
-    matched = games[games["UscfOpponentId"] != ""] if "UscfOpponentId" in games.columns \
-        else games.iloc[0:0]
+    matched = games[games["UscfOpponentId"] != ""]
     if matched.empty:
         return None
     opponent_id = str(matched.iloc[0]["UscfOpponentId"])

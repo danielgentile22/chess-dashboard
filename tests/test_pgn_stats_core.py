@@ -356,6 +356,25 @@ class TestApplyFilters:
         out = apply_filters(df, [], [], [], None, None, min_moves=5, max_moves=100)
         assert (out["FullMoves"] >= 5).all()
 
+    def test_undated_games_survive_when_no_date_bound(self, df):
+        """No date bound → undated (NaT) Games stay reachable (#93).
+
+        This is what the drawer's None-default dates rely on: the whole point of
+        issue #93's fix is that the default filter state never hides undated Games.
+        """
+        undated = df.copy()
+        undated.loc[undated.index[0], "Date_dt"] = pd.NaT
+        out = apply_filters(undated, [], [], [], None, None)
+        assert out["Date_dt"].isna().any()
+        assert len(out) == len(undated)
+
+    def test_undated_games_excluded_once_a_date_bound_is_set(self, df):
+        """A set bound deliberately narrows to dated Games (#93)."""
+        undated = df.copy()
+        undated.loc[undated.index[0], "Date_dt"] = pd.NaT
+        out = apply_filters(undated, [], [], [], date_start="2024-01-01", date_end=None)
+        assert out["Date_dt"].notna().all()
+
 
 # ---------------------------------------------------------------------------
 # Overview statistics

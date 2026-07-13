@@ -484,18 +484,33 @@ class TestFilterDrawer:
         )
         assert count == "2"  # color + outcome restricted
 
+    def test_any_date_bound_counts_as_active(self):
+        """Under the None-default, a set start/end always filters (it excludes
+        undated Games), so the badge must count it even at the dated extent (#93)."""
+        from filters import update_filter_summary
+        _s, count, *_ = update_filter_summary(
+            ["White", "Black"], ["Win", "Draw", "Loss"], [], "2024-01-06", None,
+            [], None, None,
+        )
+        assert count == "1"  # the date bound alone
+
     def test_presets_set_filter_values(self):
         from filters import apply_preset
 
         with mock.patch("filters.callback_context") as ctx:
             ctx.triggered = [{"prop_id": "preset-wins.n_clicks"}]
-            colors, outcomes, start, end = apply_preset(None, None, None, None, None, 1)
+            colors, outcomes, terminations, events, moves, start, end = \
+                apply_preset(None, None, None, None, None, 1)
         assert outcomes == ["Win"]
         assert colors == ["White", "Black"]
+        # A preset is a complete starting point (#93): every other filter resets,
+        # and dates go unbounded so undated Games stay in view.
+        assert terminations == [] and events == []
+        assert start is None and end is None
 
         with mock.patch("filters.callback_context") as ctx:
             ctx.triggered = [{"prop_id": "preset-black.n_clicks"}]
-            colors, outcomes, start, end = apply_preset(None, None, None, None, 1, None)
+            colors, *_ = apply_preset(None, None, None, None, 1, None)
         assert colors == ["Black"]
 
 
@@ -506,27 +521,45 @@ class TestFilterDrawer:
 class TestFilterOptions:
     def test_options_reflect_current_data(self):
         from filters import update_filter_options
-        out = update_filter_options({"seq": 1, "new_games": 0})
+        out = update_filter_options({"seq": 1, "new_games": 0}, None, None, None)
         termination_options = out[0]
         event_options = out[1]
         assert any("resignation" in str(o).lower() for o in termination_options)
         assert any("Test Open" in str(o) for o in event_options)
 
-    def test_new_games_widen_date_selection(self, sample_pgn_text, sample_pgn_study2_text):
-        """After a Sync that found new Games, the selected ranges reset so they're visible."""
+    def test_new_games_reset_date_selection_to_unbounded(
+            self, sample_pgn_text, sample_pgn_study2_text):
+        """After a Sync that found new Games, the selections reset to 'everything'
+        so the new Games are visible — and dates go unbounded (None) so undated
+        Games stay in view rather than being clipped to the dated extent (#93)."""
         from filters import update_filter_options
         grown = sample_pgn_text + "\n\n" + sample_pgn_study2_text
         with stub_studies(teststudy=grown):
             data.refresh()
 
-        out = update_filter_options({"seq": 2, "new_games": 2})
-        start_value, end_value = out[4], out[5]
-        assert start_value == "2024-01-06"
-        assert end_value == "2024-09-01"
+        out = update_filter_options(
+            {"seq": 2, "new_games": 2}, [1, 40], "2024-01-06", "2024-06-16")
+        start_value, end_value, moves_value = out[4], out[5], out[8]
+        assert start_value is None
+        assert end_value is None
+        assert moves_value == [out[6], out[7]]  # slider reset to full new range
 
-    def test_no_new_games_leaves_selection_alone(self):
+    def test_no_new_games_leaves_in_range_selection_alone(self):
         from filters import update_filter_options
-        out = update_filter_options({"seq": 2, "new_games": 0})
-        start_value, end_value = out[4], out[5]
+        out = update_filter_options({"seq": 2, "new_games": 0}, None, None, None)
+        start_value, end_value, moves_value = out[4], out[5], out[8]
         assert start_value is no_update
         assert end_value is no_update
+        assert moves_value is no_update
+
+    def test_no_new_games_clamps_out_of_range_selection(self):
+        """A shrinking Sync (no new Games) must pull a now-out-of-range selection
+        back inside the new bounds instead of leaving it stranded (#93)."""
+        from filters import update_filter_options
+        # Absurdly wide stale selection; the fixture data is far narrower.
+        out = update_filter_options(
+            {"seq": 2, "new_games": 0}, [1, 9999], "1990-01-01", "2999-12-31")
+        min_mv, max_mv, moves_value = out[6], out[7], out[8]
+        assert moves_value == [min_mv, max_mv]
+        assert out[4] == out[2]   # start clamped to min_date_allowed
+        assert out[5] == out[3]   # end clamped to max_date_allowed
