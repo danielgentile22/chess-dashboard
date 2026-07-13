@@ -110,7 +110,7 @@ tests pass:
 make install-dev   # venv + runtime + dev deps (pytest, ruff, mypy)
 make test          # pytest with coverage  (1000+ tests; keep them green)
 make lint          # ruff (auto-fix)
-make typecheck     # mypy on pgn_stats_core.py
+make typecheck     # mypy on the shared scope (pyproject.toml [tool.mypy]: cores, clients, sync, data, auth …)
 make run-debug     # hot-reload dev server
 python app.py --study <ID>   # run directly; needs a study ID or LICHESS_STUDY_IDS
 ```
