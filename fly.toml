@@ -7,7 +7,6 @@ primary_region = "iad"
   LICHESS_STUDY_IDS = "abcdWXYZ"
   PLAYER_NAME       = ""
   USCF_MEMBER_ID    = "12345678"
-  WEB_CONCURRENCY   = "1"
   LOG_LEVEL         = "info"
   # Explicit — Fly doesn't set PORT; keeps internal_port aligned by contract.
   PORT              = "8050"

@@ -7,12 +7,12 @@ Local development
 -----------------
     python app.py --study abcdWXYZ [--study abcd1234] [--player "Gentile, Daniel"]
 
-Gunicorn / Render deployment
+Fly.io / gunicorn deployment
 -----------------------------
 Set environment variable LICHESS_STUDY_IDS (comma-separated study IDs, and
 optionally PLAYER_NAME), then:
 
-    gunicorn app:server --bind 0.0.0.0:$PORT
+    gunicorn app:server --config gunicorn.conf.py
 
 ``server`` is the Flask WSGI object exposed at module level.
 """

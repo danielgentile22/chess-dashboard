@@ -120,6 +120,7 @@ python app.py --study abcdWXYZ
 | `--host` | `127.0.0.1` | Host to bind to |
 | `--port` | `8050` | Port to listen on |
 | `--debug` | off | Enable Dash hot-reload mode |
+| `--demo` | off | Boot entirely from the committed anonymized seed (`tests/data/demo-games.pgn`) — no network calls, no auth |
 
 When your archive grows past Lichess's 64-chapter Study limit, designate the next Study too:
 
@@ -147,9 +148,11 @@ python app.py --study abcdWXYZ --player "Last, First"
 | `USCF_CACHE_PATH` | USCF response cache, used as fallback when USCF is unreachable (default: `uscf_cache.json`) |
 | `ANTHROPIC_API_KEY` | Optional Anthropic key for the plain-English AI game summaries; unset → the summary step is a no-op and the dashboard runs unchanged |
 | `ANALYSIS_CACHE_PATH` | AI-summary cache so unchanged Games aren't re-billed (default: `analysis_cache.json`) |
-| `USCF_DASHBOARD_USERS` | JSON array of user records to enable multi-user login + coach review (PRD #55); empty → single-user, ungated. See *Multi-user access & coach review* above |
+| `USCF_DASHBOARD_USERS` | JSON array of user records to enable multi-user login + coach review (PRD #55); empty → single-user, ungated. See [Multi-user access & coach review](docs/features.md#multi-user-access--coach-review) |
 | `SECRET_KEY` | Signs the login session cookie; **must** be a stable secret in any multi-user deployment |
 | `DATA_DIR` | Where each user's disposable caches live, one subdir per user (default: `.user-data`) |
+| `DEMO_MODE` | Truthy (`1`/`true`) boots demo mode: committed seed only, no network calls, no auth gate (default: off) |
+| `DEMO_CACHE_PATH` | PGN the demo boots from (default: `tests/data/demo-games.pgn`) |
 | `HOST` / `PORT` / `DEBUG` | Server binding and debug mode |
 
 ### Offline resilience
@@ -281,7 +284,7 @@ chess-dashboard/
 │   ├── lpv-init.js          # Mounts the pgn-viewer + wires the view switcher
 │   └── VENDOR.md            # Provenance + license for the vendored pgn-viewer
 ├── docs/
-│   ├── adr/                 # Architecture decision records (the seven load-bearing decisions)
+│   ├── decisions/           # Architecture decision records (the seven load-bearing decisions)
 │   ├── features.md          # The full feature tour
 │   └── screenshots/         # README screenshots + the demo tour GIF
 ├── tests/
