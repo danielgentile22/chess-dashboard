@@ -92,12 +92,17 @@ def _score_label(group: dict) -> str:
     return label
 
 
+def _date_range(start: str, end: str | None) -> str:
+    """A start–end window, collapsing a single-day event to one date (issue #96)."""
+    return start if start == end or not end else f"{start} – {end}"
+
+
 def _event_dates(event: dict) -> str:
     """'2026-05-01 – 2026-05-29', collapsing single-day events to one date."""
     start, end = event.get("start"), event.get("end")
     if not start:
         return ""
-    return start if start == end or not end else f"{start} – {end}"
+    return _date_range(start, end)
 
 
 def _game_row(row: dict):
@@ -288,9 +293,8 @@ def _unplayed_card(event: UscfEvent) -> html.Div:
     """One entered-but-never-played Rated Event (the Rockville case)."""
     dates = ""
     if event.start_date:
-        dates = (event.start_date.isoformat()
-                 if event.start_date == event.end_date or not event.end_date
-                 else f"{event.start_date} – {event.end_date}")
+        end = event.end_date.isoformat() if event.end_date else ""
+        dates = _date_range(event.start_date.isoformat(), end)
     field = f"{event.player_count} players" if event.player_count else ""
     return html.Div(className="unplayed-event-row", children=[
         html.Span(event.name, className="unplayed-event-name"),

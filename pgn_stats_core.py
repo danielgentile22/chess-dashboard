@@ -155,10 +155,14 @@ def infer_player_name_from_rows(rows: list[dict]) -> str:
     return Counter(names).most_common(1)[0][0]
 
 
-def compute_move_counts(game) -> tuple[int, int]:
-    """Return (plies, full_moves) for a parsed PGN game node."""
-    plies = sum(1 for _ in game.mainline_moves())
-    return plies, (plies + 1) // 2
+def chapter_id(chapter_url: str) -> str:
+    """The Game's id — the last path segment of its ChapterURL (ADR 0001).
+
+    One home for the deep-link identity rule (issue #96): strip a trailing
+    slash, take the final segment.  Both the URL builder and the coach-notes
+    matcher derive the id this way.
+    """
+    return chapter_url.rstrip("/").rsplit("/", 1)[-1]
 
 
 def extract_mainline_san(game) -> list[str]:

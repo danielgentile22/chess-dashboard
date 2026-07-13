@@ -29,7 +29,9 @@ from components import (
     coach_note_card,
     content_card,
     lesson_card,
+    opponent_options,
     page_header,
+    register_options_refresh,
     tag_chips,
     weakness_callout,
 )
@@ -45,15 +47,6 @@ from pgn_stats_core import (
 dash.register_page(
     __name__, path="/lessons", name="Lessons", title="Lessons — Chess Dashboard", order=6,
 )
-
-
-def _opponent_options() -> list[dict]:
-    df = data.get_df()
-    if df.empty:
-        return []
-    has_lessons = df[df["Lessons"].map(bool)]
-    return [{"label": o, "value": o}
-            for o in sorted(has_lessons["Opponent"].dropna().unique()) if o]
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +78,7 @@ def layout(review: str | None = None, opponent: str | None = None, **kwargs) -> 
         html.Div(className="lesson-controls", children=[
             dcc.Dropdown(
                 id="lesson-opponent-filter",
-                options=_opponent_options(),
+                options=opponent_options(data.get_df(), with_lessons_only=True),
                 placeholder="All opponents",
                 clearable=True,
             ),
@@ -197,14 +190,10 @@ def update_weakness_callouts(colors, outcomes, terminations, start, end,
     ])
 
 
-@callback(
-    Output("lesson-opponent-filter", "options"),
-    Input("sync-store", "data"),
-    prevent_initial_call=True,  # the layout holds correct values at page load
+# Keep the opponent picker in step with the data after a Sync (tests drive it).
+update_lesson_opponent_options = register_options_refresh(
+    "lesson-opponent-filter", lambda: opponent_options(data.get_df(), with_lessons_only=True)
 )
-def update_lesson_opponent_options(_sync):
-    """Keep the opponent picker in step with the data after a Sync."""
-    return _opponent_options()
 
 
 @callback(

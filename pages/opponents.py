@@ -30,8 +30,10 @@ from components import (
     content_card,
     lesson_card,
     lichess_link,
+    opponent_options,
     page_header,
     register_game_navigation,
+    register_options_refresh,
     uscf_member_url,
 )
 from filters import FILTER_INPUTS, get_filtered
@@ -54,13 +56,6 @@ dash.register_page(
 )
 
 
-def _opponent_options() -> list[dict]:
-    df = data.get_df()
-    if df.empty:
-        return []
-    return [{"label": o, "value": o} for o in sorted(df["Opponent"].dropna().unique())]
-
-
 # ---------------------------------------------------------------------------
 # Layout
 # ---------------------------------------------------------------------------
@@ -74,7 +69,7 @@ def layout(**kwargs) -> html.Div:
             "Scouting Report",
             dcc.Dropdown(
                 id="scout-opponent",
-                options=_opponent_options(),
+                options=opponent_options(data.get_df()),
                 placeholder="Search an opponent…",
                 clearable=True,
                 className="scout-picker",
@@ -267,14 +262,10 @@ def _render_dossier(report: dict, games) -> html.Div:
 # Callbacks
 # ---------------------------------------------------------------------------
 
-@callback(
-    Output("scout-opponent", "options"),
-    Input("sync-store", "data"),
-    prevent_initial_call=True,  # the layout holds correct values at page load
+# Keep the opponent picker in step with the data after a Sync (tests drive it).
+update_scout_options = register_options_refresh(
+    "scout-opponent", lambda: opponent_options(data.get_df())
 )
-def update_scout_options(_sync):
-    """Keep the opponent picker in step with the data after a Sync."""
-    return _opponent_options()
 
 
 @callback(

@@ -85,6 +85,11 @@ WDL_COLOR_MAP: dict[str, str] = {
     "Loss": COLORS["loss"],
 }
 
+# The loss→muted→win diverging scale for score-percentage charts (issue #96).
+# A theme decision, not a page one: both score charts also pair it with bar
+# position, so the encoding survives red-green colorblindness.
+SCORE_COLORSCALE = [[0, COLORS["loss"]], [0.5, COLORS["muted"]], [1, COLORS["win"]]]
+
 # ---------------------------------------------------------------------------
 # Typography — Apple system stack; mono only for inline code
 # ---------------------------------------------------------------------------
@@ -360,4 +365,37 @@ def empty_fig(message: str = "No data") -> go.Figure:
         font=dict(color=COLORS["dim"], size=13),
     )
     apply_dark_theme(fig)
+    return fig
+
+
+def donut_fig(labels, values, colors, center_word, *, hover_words=None) -> go.Figure:
+    """A centre-labelled donut in the shared chart voice (issue #96).
+
+    One home for the donut treatment the W/D/L and mistake-type pies both use:
+    the hole size, the card-coloured wedge outline, the percent+label wedges,
+    and the bold-total centre annotation reading ``<total> <center_word>``.
+    Pass *hover_words* (one quiet lowercase noun per wedge) for the
+    ``<b>N</b> wins`` hover; without it the wedge label is used.
+    """
+    fig = go.Figure(go.Pie(
+        labels=labels,
+        values=values,
+        hole=0.54,
+        marker=dict(colors=colors, line=dict(color=COLORS["card"], width=2)),
+        textinfo="percent+label",
+        textfont=dict(size=12, color=COLORS["text"]),
+        customdata=hover_words,
+        hovertemplate=(
+            "<b>%{value}</b> %{customdata} · %{percent}<extra></extra>"
+            if hover_words is not None
+            else "<b>%{value}</b> %{label} · %{percent}<extra></extra>"
+        ),
+    ))
+    total = int(sum(values))
+    fig.add_annotation(
+        text=f"<b>{total}</b><br><span style='font-size:11px'>{center_word}</span>",
+        x=0.5, y=0.5, showarrow=False,
+        font=dict(size=16, color=COLORS["text"]),
+    )
+    apply_dark_theme(fig, show_legend=False)
     return fig

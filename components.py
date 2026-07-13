@@ -13,6 +13,7 @@ from __future__ import annotations
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, callback, dcc, html, no_update
 
+from pgn_stats_core import chapter_id
 from styles import COLORS, FONT_SYSTEM, LOSS_WASH, WIN_WASH
 from uscf_core import UscfProfile, UscfRating
 
@@ -350,7 +351,7 @@ def game_detail_path(chapter_url: str) -> str:
     """The in-app detail route for a Game ('' if it has no ChapterURL)."""
     if not chapter_url:
         return ""
-    return f"/game/{chapter_url.rstrip('/').rsplit('/', 1)[-1]}"
+    return f"/game/{chapter_id(chapter_url)}"
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +450,43 @@ def register_game_navigation(table_id: str):
         return row_click_to_game(active_cell, viewport_rows), None
 
     return navigate
+
+
+def opponent_options(df, *, with_lessons_only: bool = False) -> list[dict]:
+    """{'label','value'} options for an opponent dropdown, sorted (issue #96).
+
+    Shared by the Opponents scout picker and the Lessons picker so the
+    build-the-options rule lives once.  *with_lessons_only* keeps only opponents
+    Daniel has Lessons against and, as the Lessons picker always has, drops the
+    unnamed-opponent blank.
+    """
+    if df.empty:
+        return []
+    if with_lessons_only:
+        df = df[df["Lessons"].map(bool)]
+    names = sorted(df["Opponent"].dropna().unique())
+    if with_lessons_only:
+        names = [o for o in names if o]
+    return [{"label": o, "value": o} for o in names]
+
+
+def register_options_refresh(dropdown_id: str, options_fn):
+    """Refresh a dropdown's options after a Sync (issue #96) and return the
+    callback (tests drive it directly).
+
+    Mirrors :func:`register_game_navigation`: the layout already holds correct
+    values at page load, so this fires only on later Syncs — the
+    stale-after-Sync wiring lives in exactly one place.
+    """
+    @callback(
+        Output(dropdown_id, "options"),
+        Input("sync-store", "data"),
+        prevent_initial_call=True,
+    )
+    def refresh(_sync):
+        return options_fn()
+
+    return refresh
 
 
 def empty_state(glyph: str, title: str, *lines) -> html.Div:
