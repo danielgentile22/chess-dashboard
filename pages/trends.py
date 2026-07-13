@@ -48,6 +48,7 @@ from styles import (
     COLORS,
     DRAW_FILL,
     LOSS_FILL,
+    SCORE_COLORSCALE,
     WDL_COLOR_MAP,
     WDL_HOVER_WORD,
     WIN_AREA,
@@ -448,7 +449,7 @@ def update_dow(colors, outcomes, terminations, start, end, events, moves, _sync=
         dw, x="DayOfWeek", y="WinRate",
         custom_data=["Games"],
         color="WinRate",
-        color_continuous_scale=[[0, COLORS["loss"]], [0.5, COLORS["muted"]], [1, COLORS["win"]]],
+        color_continuous_scale=SCORE_COLORSCALE,
         range_color=[30, 70],
     )
     # The x-axis already names the weekday; hover shows the win rate + sample.
@@ -515,7 +516,6 @@ def update_time_control(colors, outcomes, terminations, start, end, events, move
     tc["TimeControl"] = tc["TimeControl"].replace("", _NO_TC_LABEL)
 
     fig = go.Figure()
-    _word = {"Win": "wins", "Draw": "draws", "Loss": "losses"}
     for outcome in ("Win", "Draw", "Loss"):
         fig.add_trace(go.Bar(
             y=tc["TimeControl"], x=tc[outcome],
@@ -524,7 +524,7 @@ def update_time_control(colors, outcomes, terminations, start, end, events, move
             customdata=tc[["Speed"]].values,
             # The y-axis names the control; the speed class is quiet context.
             hovertemplate=(
-                "<b>%{x}</b> " + _word[outcome]
+                "<b>%{x}</b> " + WDL_HOVER_WORD[outcome]
                 + " · %{customdata[0]}<extra></extra>"
             ),
         ))
@@ -548,7 +548,7 @@ def _round_fig(rounds: pd.DataFrame) -> go.Figure:
         x=reliable["Round"], y=reliable["ScorePct"],
         marker=dict(
             color=reliable["ScorePct"],
-            colorscale=[[0, COLORS["loss"]], [0.5, COLORS["muted"]], [1, COLORS["win"]]],
+            colorscale=SCORE_COLORSCALE,
             cmin=0, cmax=100,
         ),
         customdata=reliable[["Games", "Win", "Draw", "Loss"]].values,

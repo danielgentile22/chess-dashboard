@@ -14,7 +14,6 @@ from datetime import date
 
 import dash
 import plotly.express as px
-import plotly.graph_objects as go
 from dash import Input, Output, callback, dcc, html
 
 import data
@@ -36,7 +35,14 @@ from pgn_stats_core import (
     termination_counts,
     win_draw_loss_counts,
 )
-from styles import COLORS, WDL_COLOR_MAP, apply_dark_theme, empty_fig
+from styles import (
+    COLORS,
+    WDL_COLOR_MAP,
+    WDL_HOVER_WORD,
+    apply_dark_theme,
+    donut_fig,
+    empty_fig,
+)
 from uscf_core import achievement_milestones, membership_alert
 
 dash.register_page(
@@ -226,28 +232,14 @@ def update_wdl(colors, outcomes, terminations, start, end, events, moves, _sync=
 
     # Quiet lowercase outcome words for the hover (the wedge color already says
     # which outcome it is; "wins" / "draws" / "losses" stays short and calm).
-    _WORD = {"Win": "wins", "Draw": "draws", "Loss": "losses"}
-    fig = go.Figure(go.Pie(
-        labels=pie_df["Outcome"],
+    outcomes = pie_df["Outcome"]
+    return donut_fig(
+        labels=outcomes,
         values=pie_df["Games"],
-        hole=0.54,
-        marker=dict(
-            colors=[WDL_COLOR_MAP.get(o, COLORS["dim"]) for o in pie_df["Outcome"]],
-            line=dict(color=COLORS["card"], width=2),
-        ),
-        textinfo="percent+label",
-        textfont=dict(size=12, color=COLORS["text"]),
-        customdata=[_WORD.get(o, str(o).lower()) for o in pie_df["Outcome"]],
-        hovertemplate="<b>%{value}</b> %{customdata} · %{percent}<extra></extra>",
-    ))
-    total = int(pie_df["Games"].sum())
-    fig.add_annotation(
-        text=f"<b>{total}</b><br><span style='font-size:11px'>games</span>",
-        x=0.5, y=0.5, showarrow=False,
-        font=dict(size=16, color=COLORS["text"]),
+        colors=[WDL_COLOR_MAP.get(o, COLORS["dim"]) for o in outcomes],
+        center_word="games",
+        hover_words=[WDL_HOVER_WORD.get(o, str(o).lower()) for o in outcomes],
     )
-    apply_dark_theme(fig, show_legend=False)
-    return fig
 
 
 @callback(Output("termination-bar", "figure"), FILTER_INPUTS)

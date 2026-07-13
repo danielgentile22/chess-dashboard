@@ -156,6 +156,18 @@ def _forfeit_tag(game: pd.Series) -> html.Div | None:
     ])
 
 
+def _awaiting_hint(tail: str) -> html.Div:
+    """The quiet 'Awaiting analysis' degrade for an un-analysed Game (ADR 0004,
+    issue #96); *tail* completes the teach-the-one-click sentence."""
+    return html.Div(className="awaiting-analysis-hint", children=[
+        html.Span("Awaiting analysis", className="awaiting-analysis-label"),
+        html.Span(
+            " — request computer analysis on this Chapter on Lichess and " + tail,
+            className="awaiting-analysis-text",
+        ),
+    ])
+
+
 def _critical_moment_section(game: pd.Series) -> html.Div | None:
     """
     The Game's critical-moment headline (issue #57 [F1]) — the single biggest
@@ -185,14 +197,9 @@ def _critical_moment_section(game: pd.Series) -> html.Div | None:
     # Not analysed — never blank; teach the one click (PRD #54).
     if not chapter_url.strip():
         return None
-    return html.Div(className="awaiting-analysis-hint", children=[
-        html.Span("Awaiting analysis", className="awaiting-analysis-label"),
-        html.Span(
-            " — request computer analysis on this Chapter on Lichess and the "
-            "critical-moment verdict appears here after the next Sync.",
-            className="awaiting-analysis-text",
-        ),
-    ])
+    return _awaiting_hint(
+        "the critical-moment verdict appears here after the next Sync."
+    )
 
 
 def _lessons_card(game: pd.Series) -> html.Div:
@@ -350,15 +357,10 @@ def _engine_section(game: pd.Series) -> html.Div:
     if not analysis.analyzed:
         return html.Div(
             className="lpv-engine", style={"display": "none"},
-            children=[html.Div(className="awaiting-analysis-hint", children=[
-                html.Span("Awaiting analysis", className="awaiting-analysis-label"),
-                html.Span(
-                    " — request computer analysis on this Chapter on Lichess and "
-                    "the engine's evals, judgments, and corrections appear here "
-                    "after the next Sync.",
-                    className="awaiting-analysis-text",
-                ),
-            ])],
+            children=[_awaiting_hint(
+                "the engine's evals, judgments, and corrections appear here "
+                "after the next Sync."
+            )],
         )
 
     body: list = []

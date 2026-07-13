@@ -50,6 +50,7 @@ from engine_analysis_core import (
     enrich_games_with_analysis,
     mistake_type_distribution,
 )
+from pgn_stats_core import chapter_id
 from sync import (
     CoachSyncResult,
     SyncError,
@@ -805,7 +806,8 @@ def uscf_failure() -> str:
 
 
 def uscf_from_cache() -> bool:
-    """True when the USCF data shown is the previous successful Sync's cache."""
+    """True when the USCF data shown is the previous successful Sync's cache
+    (tests only — product reads staleness via uscf_unavailable_since)."""
     return _current().uscf.from_cache
 
 
@@ -830,7 +832,8 @@ def get_player() -> str:
 
 
 def get_sync_failures() -> list[tuple[str, str]]:
-    """(study_id, reason) for each designated Study the last Sync could not fetch."""
+    """(study_id, reason) for each designated Study the last Sync could not fetch
+    (tests only — product reads outcome.failures from refresh())."""
     return _current().sync_failures
 
 
@@ -855,7 +858,8 @@ def cached_at() -> datetime | None:
 
 
 def is_loaded() -> bool:
-    """True if the active store has been successfully initialised."""
+    """True if the active store has been successfully initialised
+    (tests only — product paths check get_df().empty)."""
     return not _current().df.empty
 
 
@@ -913,13 +917,13 @@ def get_coach_notes() -> list[dict]:
         game = games_by_url.get(match.chapter_url)
         if game is None:
             continue  # the main Study is the source of truth (ADR 0001)
-        chapter_id = match.chapter_url.rstrip("/").rsplit("/", 1)[-1]
+        cid = chapter_id(match.chapter_url)
         for comment in match.chapter.comments:
             notes.append({
                 "text": comment.text,
                 "move_number": comment.move_number,
                 "chapter_url": match.chapter_url,
-                "chapter_id": chapter_id,
+                "chapter_id": cid,
                 "opponent": str(game.get("Opponent") or ""),
                 "outcome": str(game.get("Outcome") or ""),
                 "date": str(game.get("Date") or ""),

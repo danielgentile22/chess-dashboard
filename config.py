@@ -100,7 +100,7 @@ class Config:
     PORT: int = int(os.environ.get("PORT", "8050"))
 
     # Enable Dash debug mode / hot reload
-    DEBUG: bool = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
+    DEBUG: bool = parse_bool(os.environ.get("DEBUG", ""))
 
 
 config = Config()

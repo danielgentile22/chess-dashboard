@@ -31,7 +31,7 @@ from dash import Input, Output, callback, dcc, html
 
 import data
 from components import content_card, empty_state, page_header
-from styles import COLORS, apply_dark_theme, empty_fig
+from styles import COLORS, apply_dark_theme, donut_fig, empty_fig
 
 dash.register_page(
     __name__, path="/analysis", name="Analysis",
@@ -66,27 +66,12 @@ def _distribution_fig(distribution: dict[str, int]) -> go.Figure:
     if not kinds:
         return empty_fig("No mistakes in your analysed games yet — clean play.")
 
-    values = [distribution[k] for k in kinds]
-    fig = go.Figure(go.Pie(
+    return donut_fig(
         labels=[_TYPE_LABEL[k] for k in kinds],
-        values=values,
-        hole=0.54,
-        marker=dict(
-            colors=[_TYPE_COLOR[k] for k in kinds],
-            line=dict(color=COLORS["card"], width=2),
-        ),
-        textinfo="percent+label",
-        textfont=dict(size=12, color=COLORS["text"]),
-        hovertemplate="<b>%{value}</b> %{label} · %{percent}<extra></extra>",
-    ))
-    total = sum(values)
-    fig.add_annotation(
-        text=f"<b>{total}</b><br><span style='font-size:11px'>mistakes</span>",
-        x=0.5, y=0.5, showarrow=False,
-        font=dict(size=16, color=COLORS["text"]),
+        values=[distribution[k] for k in kinds],
+        colors=[_TYPE_COLOR[k] for k in kinds],
+        center_word="mistakes",
     )
-    apply_dark_theme(fig, show_legend=False)
-    return fig
 
 
 def _distribution_card(distribution: dict[str, int]) -> html.Div:
