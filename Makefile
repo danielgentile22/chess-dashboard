@@ -10,7 +10,7 @@ PYTEST    := $(VENV)/bin/pytest
 RUFF      := $(VENV)/bin/ruff
 STUDY     ?= abcdWXYZ
 
-.PHONY: help venv install install-dev run demo test lint typecheck clean docker docker-up
+.PHONY: help venv install install-dev run demo test lint fix typecheck clean docker docker-up
 
 help:          ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*##' Makefile | awk 'BEGIN{FS=":.*##"}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -37,7 +37,10 @@ run-debug: install  ## Start with hot-reload debug mode
 test: install-dev  ## Run the test suite
 	$(PYTEST) tests/ --cov --cov-report=term-missing --cov-fail-under=92
 
-lint: install-dev  ## Lint with ruff
+lint: install-dev  ## Lint with ruff (check-only, mirrors CI)
+	$(RUFF) check .
+
+fix: install-dev  ## Auto-fix lint violations with ruff
 	$(RUFF) check . --fix
 
 typecheck: install-dev  ## Type check with mypy

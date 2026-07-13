@@ -3,7 +3,7 @@ name = "chess-dashboard"
 version = "2.0.0"
 description = "Interactive OTB chess analytics dashboard powered by Plotly Dash"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "dash>=4.0.0",
@@ -40,6 +40,9 @@ target-version = "py310"
 select = ["E", "F", "W", "I", "UP"]
 ignore = ["E501"]  # line length handled by formatter
 
+# requires-python declares the deployed/tested runtime (3.11); ruff & mypy keep a
+# conservative 3.10 syntax floor so the code stays 3.10-clean. They don't need to
+# match requires-python — a lower tool floor is a strict superset of checks.
 [tool.mypy]
 python_version = "3.10"
 ignore_missing_imports = true

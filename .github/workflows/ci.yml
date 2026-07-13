@@ -39,7 +39,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install -r requirements-dev.txt
 
       - name: Run pytest with coverage (gate in pyproject.toml)
         run: pytest tests/ --cov --cov-report=term-missing --cov-fail-under=92
@@ -58,7 +58,26 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install -r requirements-dev.txt
 
       - name: Run mypy (file list in pyproject.toml)
         run: mypy
+
+  docker:
+    name: Docker image (build + smoke)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t chess-dashboard .
+
+      - name: Boot in demo mode and check /health
+        run: |
+          docker run -d --name cd -e DEMO_MODE=1 -p 8050:8050 chess-dashboard
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8050/health; then echo "healthy"; exit 0; fi
+            sleep 2
+          done
+          echo "health check never passed"; docker logs cd; exit 1
